@@ -30,7 +30,7 @@ body {
 /*
   6. Improve media defaults
 */
-img, picture, video, canvas, svg {
+img, picture, video, canvas {
     display: block;
     max-width: 100%;
 }
@@ -76,10 +76,6 @@ header > * {
     margin: 0 6px;
 }
 
-header svg, header h1 {
-    display: inline-block;
-}
-
 header #apptitle {
     flex-grow: 1;
 }
@@ -98,11 +94,16 @@ header #apptitle {
     grid-row-end: 2;
 }
 
+#toggle-folderlist[aria-pressed=true] {
+    filter: invert(1);
+}
+
 #folderlist {
     grid-column-start: 1;
     grid-column-end: 2;
     grid-row-start: 2;
     grid-row-end: 3;
+    resize: horizontal;
 }
 
 #messagelist {
@@ -110,6 +111,7 @@ header #apptitle {
     grid-column-end: 3;
     grid-row-start: 2;
     grid-row-end: 3;
+    resize: horizontal;
 }
 
 #messagepreview {
