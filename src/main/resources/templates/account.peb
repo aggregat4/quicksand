@@ -1,0 +1,21 @@
+{% extends "templates/base.peb" %}
+
+{% block pageTitle %} Account {{ account }} {% endblock %}
+
+{% block content %}
+    <main>
+        <div id="accountnav">
+            accountnav
+        </div>
+        <div id="folderlist">
+            folderlist
+        </div>
+        <div id="messagelist">
+            messagelist
+        </div>
+        <div id="messagepreview">
+            messagepreview
+        </div>
+    </main>
+
+{% endblock %}

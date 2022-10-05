@@ -1,0 +1,10 @@
+{% extends "templates/base.peb" %}
+
+{% block pageTitle %} Home {% endblock %}
+
+{% block content %}
+    <main>
+        Hello World!
+    </main>
+
+{% endblock %}
