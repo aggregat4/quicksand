@@ -1,18 +1,64 @@
 {% extends "templates/base.peb" %}
 
-{% block pageTitle %} Account {{ account }} {% endblock %}
+{% block pageTitle %} Account {{ currentAccount.name }} {% endblock %}
 
 {% block content %}
     <main>
         <div id="accountnav">
-            <button id="toggle-folderlist" type="button" aria-pressed="true">
-                <svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-journals" viewBox="0 0 16 16">
-                    <path d="M5 0h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2 2 2 0 0 1-2 2H3a2 2 0 0 1-2-2h1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1H1a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v9a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1H3a2 2 0 0 1 2-2z"/>
-                    <path d="M1 6v-.5a.5.5 0 0 1 1 0V6h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0V9h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 2.5v.5H.5a.5.5 0 0 0 0 1h2a.5.5 0 0 0 0-1H2v-.5a.5.5 0 0 0-1 0z"/>
-                </svg>
-                Toggle Folder List
-            </button>
-            accountnav
+            <div id="foldercontrols">
+                <button id="toggle-folderlist-button" type="button" aria-pressed="true" title="Toggle folder list">
+                    {{ svgIcon('folders') | raw }}
+                    <span hidden>Toggle Folder List</span>
+                </button>
+            </div>
+            <div id="folderinfos">
+                <h2 class="foldername">{{ currentFolder.name }}</h2>
+            </div>
+            <div id="emailcontrols">
+                <button id="select-mail-button" type="button" aria-pressed="true">
+                    {{ svgIcon('selectall') | raw }} Select all e-mails
+                </button>
+                <div id="email-paging-controls">
+                    e-mail {{ pagination.from }}–{{ pagination.to }} of {{ pagination.total }}
+                    <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
+                        <ul>
+                            <li>
+                                <span class="disablednav">
+                                    {{ svgIcon('beginning') | raw }} Beginning
+                                </span>
+                            </li>
+                            <li>
+                                <span class="disablednav">
+                                    {{ svgIcon('previous') | raw }} Previous e-mails
+                                </span>
+                            </li>
+                                {% if pagination.from + pagination.pageSize > pagination.total %}
+                                    <li>
+                                        <span class="disablednav">
+                                            {{ svgIcon('next') | raw }} Next e-mails
+                                        </span>
+                                    </li>
+                                    <li>
+                                        <span class="disablednav">
+                                            {{ svgIcon('end') | raw }} End
+                                        </span>
+                                    </li>
+                                {% else %}
+                                    <li>
+                                        <a href="/account/{{ currentAccount.id }}?from={{ pagination.from + pagination.pageSize }}" aria-label="Go to next batch of e-mails">
+                                            {{ svgIcon('next') | raw }} Next e-mails
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="/account/{{ currentAccount.id }}?from={{ ((pagination.total % pagination.pageSize) - 1) * pagination.pageSize }}" aria-label="Go to end">
+                                            {{ svgIcon('end') | raw }} End
+                                        </a>
+                                    </li>
+                                {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
         </div>
         <div id="folderlist">
             folderlist

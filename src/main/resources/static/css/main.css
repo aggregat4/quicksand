@@ -53,6 +53,12 @@ p, h1, h2, h3, h4, h5, h6 {
     isolation: isolate;
 }
 
+/* Custom Properties --------  */
+
+:root {
+    --disabled-text-color: gray;
+}
+
 /* Main Layout --------  */
 
 /* The header takes the space at the top and the main content expands to fill the rest vertically */
@@ -65,11 +71,20 @@ main {
     flex-grow: 1;
 }
 
+h1 {
+    font-size: 26px;
+}
+
+h2 {
+    font-size: 24px;
+}
+
 /* header -------- */
 header {
     display: flex;
     flex-direction: row;
-    padding: 12px 6px
+    align-items: center;
+    padding: 6px;
 }
 
 header > * {
@@ -92,10 +107,17 @@ header #apptitle {
     grid-column-end: 4;
     grid-row-start: 1;
     grid-row-end: 2;
+
+    padding: 6px;
+
+    display: grid;
+    grid-template-columns: min-content 1fr;
+    grid-template-rows: min-content min-content;
+    align-items: end;
 }
 
-#toggle-folderlist[aria-pressed=true] {
-    filter: invert(1);
+#accountnav > * {
+    padding: 0 6px;
 }
 
 #folderlist {
@@ -103,6 +125,7 @@ header #apptitle {
     grid-column-end: 2;
     grid-row-start: 2;
     grid-row-end: 3;
+    overflow: auto;
     resize: horizontal;
 }
 
@@ -111,6 +134,7 @@ header #apptitle {
     grid-column-end: 3;
     grid-row-start: 2;
     grid-row-end: 3;
+    overflow: auto;
     resize: horizontal;
 }
 
@@ -119,4 +143,54 @@ header #apptitle {
     grid-column-end: 4;
     grid-row-start: 2;
     grid-row-end: 3;
+}
+
+/* accountnav ------------- */
+
+#foldercontrols {
+    grid-column-start: 1;
+    grid-column-end: 2;
+    grid-row-start: 1;
+    grid-row-end: 3;
+}
+
+#toggle-folderlist-button[aria-pressed=true] {
+    filter: invert(1);
+}
+
+#folderinfos {
+    grid-column-start: 2;
+    grid-column-end: 3;
+    grid-row-start: 1;
+    grid-row-end: 2;
+}
+
+#emailcontrols {
+    grid-column-start: 2;
+    grid-column-end: 3;
+    grid-row-start: 2;
+    grid-row-end: 3;
+}
+
+#email-paging-controls {
+    display: inline-block;
+}
+
+#emailpagination {
+    display: inline-block;
+}
+
+#emailpagination ul {
+    list-style-type: none;
+    display: inline-block;
+    padding: 0;
+}
+
+#emailpagination ul li {
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.disablednav {
+    color: var(--disabled-text-color);
 }

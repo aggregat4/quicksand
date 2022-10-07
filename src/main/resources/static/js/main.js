@@ -6,7 +6,7 @@ if (document.readyState !== 'loading') {
 }
 
 function init() {
-    const toggleFolderListButton = document.getElementById('toggle-folderlist')
+    const toggleFolderListButton = document.getElementById('toggle-folderlist-button')
     if (toggleFolderListButton) {
         toggleFolderListButton.addEventListener('click', () => {
             const folderList = document.getElementById('folderlist')

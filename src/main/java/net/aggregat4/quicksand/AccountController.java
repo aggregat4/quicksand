@@ -21,7 +21,9 @@ public class AccountController {
     public String accountPage(@PathVariable int id) throws IOException {
         Map<String, Object> context = new HashMap<>();
         context.put("bodyclass", "accountpage");
-        context.put("currentAccount", "foo@example.com");
+        context.put("currentAccount", new Account(1, "foo@example.com"));
+        context.put("currentFolder", new Folder(1, "INBOX"));
+        context.put("pagination", new Pagination(1, 100, 2526, 100));
         context.put("accounts", List.of(new Account(1, "foo@example.com"), new Account(2, "bar@example.org")));
         return PebbleRenderer.renderTemplate(context, accountTemplate);
     }
