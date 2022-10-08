@@ -142,10 +142,6 @@ header {
     border-bottom: 1px dashed gray;
 }
 
-/*header > * {*/
-/*    margin: 0 6px;*/
-/*}*/
-
 #searchemailform {
     margin: 0 12px;
 }
@@ -159,8 +155,12 @@ header #apptitle {
 }
 
 /* account page ---------- */
-.accountPage header h1 {
+.accountpage h1 {
     font-size: 18px;
+}
+
+.accountpage h2 {
+    font-size: 20px;
 }
 
 .accountpage main {
@@ -169,24 +169,23 @@ header #apptitle {
     grid-template-rows: min-content 1fr;
 }
 
-#accountnav {
+#foldercontrols {
     grid-column-start: 1;
+    grid-column-end: 2;
+    grid-row-start: 1;
+    grid-row-end: 2;
+
+    padding: 6px;
+    border-right: 1px dashed gray;
+}
+
+#accountnav {
+    grid-column-start: 2;
     grid-column-end: 4;
     grid-row-start: 1;
     grid-row-end: 2;
 
     padding: 6px;
-
-    display: grid;
-    grid-template-columns: min-content 1fr;
-    grid-template-rows: min-content min-content;
-    align-items: end;
-
-    border-bottom: 1px dashed gray;
-}
-
-#accountnav > * {
-    padding: 0 6px;
 }
 
 #folderlist {
@@ -216,32 +215,26 @@ header #apptitle {
 
 /* accountnav ------------- */
 
-#foldercontrols {
-    grid-column-start: 1;
-    grid-column-end: 2;
-    grid-row-start: 1;
-    grid-row-end: 3;
-}
+/*#toggle-folderlist-button {*/
+/*    width: 100%;*/
+/*}*/
 
 #toggle-folderlist-button[aria-pressed=true] {
     filter: invert(1);
 }
 
-#folderinfos {
-    grid-column-start: 2;
-    grid-column-end: 3;
-    grid-row-start: 1;
-    grid-row-end: 2;
+#accountnav {
+    border-bottom: 1px dashed gray;
 }
 
 #emailcontrols {
-    grid-column-start: 2;
-    grid-column-end: 3;
-    grid-row-start: 2;
-    grid-row-end: 3;
-
     display: flex;
     justify-content: space-between;
+    align-items: center;
+}
+
+#pagination-status {
+    display: inline-block;
 }
 
 #email-paging-controls {

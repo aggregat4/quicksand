@@ -4,22 +4,19 @@
 
 {% block content %}
     <main>
+        <div id="foldercontrols">
+            <button id="toggle-folderlist-button" type="button" aria-pressed="true" title="Toggle folder list">
+                {{ svgIcon('folders') | raw }}
+                <span hidden>Toggle Folder List</span>
+            </button>
+        </div>
         <div id="accountnav">
-            <div id="foldercontrols">
-                <button id="toggle-folderlist-button" type="button" aria-pressed="true" title="Toggle folder list">
-                    {{ svgIcon('folders') | raw }}
-                    <span hidden>Toggle Folder List</span>
-                </button>
-            </div>
-            <div id="folderinfos">
-                <h2 class="foldername">{{ currentFolder.name }}</h2>
-            </div>
             <div id="emailcontrols">
                 <button id="select-mail-button" type="button" aria-pressed="true">
                     {{ svgIcon('selectall') | raw }} Select all e-mails
                 </button>
                 <div id="email-paging-controls">
-                    {{ pagination.from }}–{{ pagination.to }} of {{ pagination.total }}
+                    <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total }}</div>
                     <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
                         <ul>
                             <li>
@@ -44,7 +41,7 @@
                 {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + folder.id, folder.name, 'folder', selected = (currentFolder.id == folder.id)) }}
             {% endfor %}
         </div>
-        <div id="messagelist">`
+        <div id="messagelist">
             messagelist
         </div>
         <div id="messagepreview">
