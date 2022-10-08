@@ -9,6 +9,7 @@
     {% block additionalHeader %}{% endblock %}
 </head>
 <body class="{{ bodyclass }}">
+{% import "templates/macros.peb" %}
 <header>
     {% if currentAccount == null %}
         <h1 id="apptitle">Quicksand E-Mail Home</h1>
@@ -17,9 +18,7 @@
     {% endif %}
 
     {% if currentAccount != null %}
-        <a href="#newmail" title="New Mail">
-            {{ svgIcon('newmail') | raw }} New Mail
-        </a>
+        {{ iconlink('#newmail', 'New Mail', 'newmail') }}
 
         <form id="searchemailform">
             <input id="searchemailinput" name="q" type="search" aria-label="Search all e-mail" required>
@@ -27,26 +26,25 @@
         </form>
     {% endif %}
 
-    {% if accounts != null %}
-    {# TODO: Make this a quasi-menu that is accessible with menu items as per https://www.smashingmagazine.com/2017/11/building-accessible-menu-systems/  #}
-        <nav id="accountnavigation">
-            <button aria-expanded="false">Accounts</button>
-            <ul hidden>
-                    {% for account in accounts %}
-                    <li><a href="/accounts/{{ account.id }}">{{ account.name }}</a></li>
-                    {% endfor %}
-            </ul>
-        </nav>
-    {% endif %}
-
     <nav id="sitenavigation" aria-labelledby="apptitle">
-        <a href="settings" title="Settings">
-            {{ svgIcon('settings') | raw }} Settings
-        </a>
-
-        <a href="about" title="About">
-            {{ svgIcon('about') | raw }} About
-        </a>
+        <ul>
+            {% if accounts != null %}
+                <li class="has-submenu">
+                    <a href="#flyoutnavkbfixed" aria-expanded="false">Accounts</a>
+                    <ul hidden>
+                            {% for account in accounts %}
+                            <li><a href="/accounts/{{ account.id }}">{{ account.name }}</a></li>
+                            {% endfor %}
+                    </ul>
+                </li>
+            {% endif %}
+            <li>
+                {{ iconlink('/settings', 'Settings', 'settings') }}
+            </li>
+            <li>
+                {{ iconlink('/about', 'About', 'about') }}
+            </li>
+        </ul>
     </nav>
 </header>
     {% block content %}{% endblock %}

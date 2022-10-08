@@ -19,51 +19,32 @@
                     {{ svgIcon('selectall') | raw }} Select all e-mails
                 </button>
                 <div id="email-paging-controls">
-                    e-mail {{ pagination.from }}–{{ pagination.to }} of {{ pagination.total }}
+                    {{ pagination.from }}–{{ pagination.to }} of {{ pagination.total }}
                     <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
                         <ul>
                             <li>
-                                <span class="disablednav">
-                                    {{ svgIcon('beginning') | raw }} Beginning
-                                </span>
+                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=1', 'Beginning', 'beginning', pagination.from <= 1) }}
                             </li>
                             <li>
-                                <span class="disablednav">
-                                    {{ svgIcon('previous') | raw }} Previous e-mails
-                                </span>
+                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1) }}
                             </li>
-                                {% if pagination.from + pagination.pageSize > pagination.total %}
-                                    <li>
-                                        <span class="disablednav">
-                                            {{ svgIcon('next') | raw }} Next e-mails
-                                        </span>
-                                    </li>
-                                    <li>
-                                        <span class="disablednav">
-                                            {{ svgIcon('end') | raw }} End
-                                        </span>
-                                    </li>
-                                {% else %}
-                                    <li>
-                                        <a href="/account/{{ currentAccount.id }}?from={{ pagination.from + pagination.pageSize }}" aria-label="Go to next batch of e-mails">
-                                            {{ svgIcon('next') | raw }} Next e-mails
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a href="/account/{{ currentAccount.id }}?from={{ ((pagination.total % pagination.pageSize) - 1) * pagination.pageSize }}" aria-label="Go to end">
-                                            {{ svgIcon('end') | raw }} End
-                                        </a>
-                                    </li>
-                                {% endif %}
+                            <li>
+                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.from + pagination.pageSize > pagination.total) }}
+                            </li>
+                            <li>
+                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (((pagination.total % pagination.pageSize) - 1) * pagination.pageSize + 1), 'End', 'end', pagination.from + pagination.pageSize > pagination.total) }}
+                            </li>
                         </ul>
                     </nav>
                 </div>
             </div>
         </div>
         <div id="folderlist">
-            folderlist
+            {% for folder in folders %}
+                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + folder.id, folder.name, 'folder', selected = (currentFolder.id == folder.id)) }}
+            {% endfor %}
         </div>
-        <div id="messagelist">
+        <div id="messagelist">`
             messagelist
         </div>
         <div id="messagepreview">

@@ -57,6 +57,8 @@ p, h1, h2, h3, h4, h5, h6 {
 
 :root {
     --disabled-text-color: gray;
+    --selected-color: white;
+    --selected-bgcolor: black;
 }
 
 /* Main Layout --------  */
@@ -71,6 +73,7 @@ main {
     flex-grow: 1;
 }
 
+/* General Style overrides ----- */
 h1 {
     font-size: 26px;
 }
@@ -79,16 +82,76 @@ h2 {
     font-size: 24px;
 }
 
+nav > ul li       ul { display: none; }
+nav > ul li:hover ul { display: block;}
+
+nav ul {
+    list-style-type: none;
+    display: flex;
+    padding: 0;
+    margin: 0;
+    align-items: center;
+}
+nav ul li {
+    display: inline-block;
+    position: relative;
+    margin: 0;
+    padding: 0;
+}
+
+/* submenus are position specifically */
+nav ul li ul {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+}
+.has-submenu ul {
+    display: none;
+}
+.has-submenu.open ul  {
+    display: block;
+}
+
+/* icon-link component ------ */
+a[aria-disabled="true"] {
+    color: var(--disabled-text-color);
+}
+
+a.iconlink {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+}
+
+a.iconlink svg {
+    margin-right: 6px;
+}
+
+a.iconlink.selected {
+    color: var(--selected-color);
+    background-color: var(--selected-bgcolor);
+}
+
 /* header -------- */
 header {
     display: flex;
     flex-direction: row;
     align-items: center;
     padding: 6px;
+    border-bottom: 1px dashed gray;
 }
 
-header > * {
-    margin: 0 6px;
+/*header > * {*/
+/*    margin: 0 6px;*/
+/*}*/
+
+#searchemailform {
+    margin: 0 12px;
+}
+
+li.has-submenu a {
+    padding: 6px 12px;
 }
 
 header #apptitle {
@@ -96,9 +159,13 @@ header #apptitle {
 }
 
 /* account page ---------- */
+.accountPage header h1 {
+    font-size: 18px;
+}
+
 .accountpage main {
     display: grid;
-    grid-template-columns: min-content min-content 1fr;
+    grid-template-columns: min-content 1fr 1fr;
     grid-template-rows: min-content 1fr;
 }
 
@@ -114,6 +181,8 @@ header #apptitle {
     grid-template-columns: min-content 1fr;
     grid-template-rows: min-content min-content;
     align-items: end;
+
+    border-bottom: 1px dashed gray;
 }
 
 #accountnav > * {
@@ -170,6 +239,9 @@ header #apptitle {
     grid-column-end: 3;
     grid-row-start: 2;
     grid-row-end: 3;
+
+    display: flex;
+    justify-content: space-between;
 }
 
 #email-paging-controls {
@@ -180,17 +252,14 @@ header #apptitle {
     display: inline-block;
 }
 
-#emailpagination ul {
-    list-style-type: none;
-    display: inline-block;
-    padding: 0;
-}
-
 #emailpagination ul li {
-    display: inline-block;
     margin-right: 6px;
 }
 
-.disablednav {
-    color: var(--disabled-text-color);
+/* account folders ------- */
+#folderlist {
+    border-right: 1px dashed gray;
+}
+#folderlist a {
+    /*margin: 6px 12px;*/
 }
