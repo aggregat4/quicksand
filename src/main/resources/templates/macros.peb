@@ -1,0 +1,11 @@
+{% macro iconlink(link, label, icon, disabled, selected) %}
+{% if disabled %}
+    <a class="iconlink{{ selected ? ' selected' : '' }}" role="link" aria-disabled="true" aria-label="{{ label }}" title="{{ label }}">
+        {{ svgIcon(icon) | raw }} {{ label }}
+    </a>
+{% else %}
+    <a class="iconlink{{ selected ? ' selected' : '' }}" href="{{ link }}" aria-label="{{ label }}" title="{{ label }}">
+        {{ svgIcon(icon) | raw }} {{ label }}
+    </a>
+{% endif %}
+{% endmacro %}
