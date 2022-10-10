@@ -4,16 +4,10 @@
 
 {% block content %}
     <main>
-        <div id="foldercontrols">
-            <button id="toggle-folderlist-button" type="button" aria-pressed="true" title="Toggle folder list">
-                {{ svgIcon('folders') | raw }}
-                <span hidden>Toggle Folder List</span>
-            </button>
-        </div>
         <div id="accountnav">
             <div id="emailcontrols">
                 <button id="select-mail-button" type="button" aria-pressed="true">
-                    {{ svgIcon('selectall') | raw }} Select all e-mails
+                    {{ svgIcon('selectall') | raw }} Select all
                 </button>
                 <div id="email-paging-controls">
                     <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total }}</div>

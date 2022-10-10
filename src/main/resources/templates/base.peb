@@ -11,6 +11,11 @@
 <body class="{{ bodyclass }}">
 {% import "templates/macros.peb" %}
 <header>
+    <button id="toggle-folderlist-button" type="button" aria-pressed="true" title="Toggle folder list">
+        {{ svgIcon('folders') | raw }}
+        Folders
+    </button>
+
     {% if currentAccount == null %}
         <h1 id="apptitle">Quicksand E-Mail Home</h1>
     {% else %}

@@ -142,6 +142,22 @@ header {
     border-bottom: 1px dashed gray;
 }
 
+
+#toggle-folderlist-button {
+    display: none;
+
+    margin-right: 6px;
+}
+
+#toggle-folderlist-button svg {
+    margin-right: 6px;
+}
+
+.accountpage #toggle-folderlist-button {
+    display: flex;
+    align-items: center;
+}
+
 #searchemailform {
     margin: 0 12px;
 }
@@ -169,16 +185,6 @@ header #apptitle {
     grid-template-rows: min-content 1fr;
 }
 
-#foldercontrols {
-    grid-column-start: 1;
-    grid-column-end: 2;
-    grid-row-start: 1;
-    grid-row-end: 2;
-
-    padding: 6px;
-    border-right: 1px dashed gray;
-}
-
 #accountnav {
     grid-column-start: 2;
     grid-column-end: 4;
@@ -191,7 +197,7 @@ header #apptitle {
 #folderlist {
     grid-column-start: 1;
     grid-column-end: 2;
-    grid-row-start: 2;
+    grid-row-start: 1;
     grid-row-end: 3;
     overflow: auto;
     resize: horizontal;
@@ -243,10 +249,6 @@ header #apptitle {
 
 #emailpagination {
     display: inline-block;
-}
-
-#emailpagination ul li {
-    margin-right: 6px;
 }
 
 /* account folders ------- */
