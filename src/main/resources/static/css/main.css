@@ -69,8 +69,21 @@ body {
     flex-direction: column;
 }
 
+body > form {
+    /*Make it fill the entire space*/
+    flex: 2;
+
+    display: flex;
+    /*Needed to make sure we can put scrollable elements in our layout later*/
+    overflow: hidden;
+}
+
 main {
-    flex-grow: 1;
+    /*Make it fill the entire space*/
+    flex: 2;
+
+    /*Needed to make sure we can put scrollable elements in our layout later*/
+    overflow: hidden;
 }
 
 /* General Style overrides ----- */
@@ -139,7 +152,7 @@ header {
     flex-direction: row;
     align-items: center;
     padding: 6px;
-    border-bottom: 1px dashed gray;
+    /*border-bottom: 1px dashed gray;*/
 }
 
 
@@ -181,7 +194,7 @@ header #apptitle {
 
 .accountpage main {
     display: grid;
-    grid-template-columns: min-content 1fr 1fr;
+    grid-template-columns: min-content min-content 1fr;
     grid-template-rows: min-content 1fr;
 }
 
@@ -209,7 +222,10 @@ header #apptitle {
     grid-row-start: 2;
     grid-row-end: 3;
     overflow: auto;
+    overflow-y: scroll;
     resize: horizontal;
+    min-width: 22rem;
+    border: 1px solid lightgray;
 }
 
 #messagepreview {
@@ -230,7 +246,7 @@ header #apptitle {
 }
 
 #accountnav {
-    border-bottom: 1px dashed gray;
+    /*border-bottom: 1px dashed gray;*/
 }
 
 #emailcontrols {
@@ -253,8 +269,82 @@ header #apptitle {
 
 /* account folders ------- */
 #folderlist {
-    border-right: 1px dashed gray;
+    /*border-right: 1px dashed gray;*/
 }
 #folderlist a {
     /*margin: 6px 12px;*/
+}
+
+
+/* email headers --------- */
+.emailheader {
+    display: grid;
+    grid-template-columns: min-content 1fr min-content;
+    grid-template-rows: min-content min-content min-content;
+    padding: 6px 12px;
+    column-gap: 6px;
+    border-bottom: 1px solid lightgray;
+}
+
+.emailselection {
+    grid-column-start: 1;
+    grid-column-end: 2;
+    grid-row-start: 1;
+    grid-row-end: 4;
+}
+
+.fromline {
+    grid-column-start: 2;
+    grid-column-end: 4;
+    grid-row-start: 1;
+    grid-row-end: 2;
+
+    display: flex;
+
+    flex-direction: row;
+    align-items: center;
+}
+
+.fromline .name {
+    flex-grow: 1;
+}
+
+.fromline .date {
+    min-width: 8rem;
+}
+
+
+.fromline .name,
+.subjectline,
+.bodyline {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+.subjectline {
+    grid-column-start: 2;
+    grid-column-end: 3;
+    grid-row-start: 2;
+    grid-row-end: 3;
+}
+
+.bodyline {
+    grid-column-start: 2;
+    grid-column-end: 3;
+    grid-row-start: 3;
+    grid-row-end: 4;
+}
+
+.emailstar {
+    grid-column-start: 3;
+    grid-column-end: 4;
+    grid-row-start: 3;
+    grid-row-end: 4;
+}
+
+.emailheader.read .fromline,
+.emailheader.read .subjectline {
+    font-weight: bold;
 }
