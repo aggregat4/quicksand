@@ -47,12 +47,12 @@ public class AccountController {
         context.put("accounts", List.of(new Account(1, "foo@example.com"), new Account(2, "bar@example.org")));
 
         List<EmailHeader> emailHeaders = List.of(
-                new EmailHeader(new Actor("someone@somewhere.com", Optional.of("Someone")), "Hey there how are you?", ZonedDateTime.now(), "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, false),
-                new EmailHeader(new Actor("foo@bar.net", Optional.empty()), "Foo du fafa", ZonedDateTime.now().minus(3, ChronoUnit.MINUTES), "Asd askl; sdkljhs ldkjfhaslkdjfhalksdjfh aslkd  falskjd alskdfhqw qwe ", false, false, false),
-                new EmailHeader(new Actor("izzi342@gmail.com", Optional.of("Eddie Izzard")), "This is the greatet thing ever!", ZonedDateTime.now().minus(44, ChronoUnit.MINUTES), "Dear Mr. Michalson, This is the winter of my discontent. And I hope you are fine.", false, false, true),
-                new EmailHeader(new Actor("ceo@ibm.com", Optional.of("John Hockenberry von Hockenstein")), "Hocky my hockface", ZonedDateTime.now().minus(2, ChronoUnit.HOURS), "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, true),
-                new EmailHeader(new Actor("john@waterman.org", Optional.of("John Doe")), "Hi", ZonedDateTime.now().minus(3, ChronoUnit.DAYS), "JKHGajkls glasjkdfgh djshfsdklj fhskdjlfh asdkljfh asdkljf qweuihawioeusdv bj", true, false, true),
-                new EmailHeader(new Actor("whatevs@mail.org", Optional.of("Evan Watts")), "Dude, wassup!", ZonedDateTime.now().minus(7, ChronoUnit.DAYS), "And now my dear there is a chance that we may meet again in fields", false, false, true)
+                new EmailHeader(1, new Actor("someone@somewhere.com", Optional.of("Someone")), "Hey there how are you?", ZonedDateTime.now(), "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, false),
+                new EmailHeader(2, new Actor("foo@bar.net", Optional.empty()), "Foo du fafa", ZonedDateTime.now().minus(3, ChronoUnit.MINUTES), "Asd askl; sdkljhs ldkjfhaslkdjfhalksdjfh aslkd  falskjd alskdfhqw qwe ", false, false, false),
+                new EmailHeader(3, new Actor("izzi342@gmail.com", Optional.of("Eddie Izzard")), "This is the greatet thing ever!", ZonedDateTime.now().minus(44, ChronoUnit.MINUTES), "Dear Mr. Michalson, This is the winter of my discontent. And I hope you are fine.", false, false, true),
+                new EmailHeader(4, new Actor("ceo@ibm.com", Optional.of("John Hockenberry von Hockenstein")), "Hocky my hockface", ZonedDateTime.now().minus(2, ChronoUnit.HOURS), "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, true),
+                new EmailHeader(5, new Actor("john@waterman.org", Optional.of("John Doe")), "Hi", ZonedDateTime.now().minus(3, ChronoUnit.DAYS), "JKHGajkls glasjkdfgh djshfsdklj fhskdjlfh asdkljfh asdkljf qweuihawioeusdv bj", true, false, true),
+                new EmailHeader(6, new Actor("whatevs@mail.org", Optional.of("Evan Watts")), "Dude, wassup!", ZonedDateTime.now().minus(7, ChronoUnit.DAYS), "And now my dear there is a chance that we may meet again in fields", false, false, true)
         );
         context.put("emailHeaders", emailHeaders);
         return PebbleRenderer.renderTemplate(context, accountTemplate);

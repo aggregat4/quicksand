@@ -4,6 +4,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 
 public record EmailHeader(
+        int id,
         Actor sender,
         String subject,
         ZonedDateTime receivedDate,

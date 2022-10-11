@@ -38,16 +38,21 @@
             </div>
             <div id="messagelist">
                 {% for emailHeader in emailHeaders %}
-                    <div class="emailheader{{ emailHeader.read ? ' read' : '' }}">
+                    <a href="/account/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/{{ emailHeader.id }}" class="emailheader{{ emailHeader.read ? ' read' : '' }}">
                         <div class="emailselection">
-                            <input type="checkbox">
+                            <label>
+                                <input type="checkbox">
+                                <span hidden>Select E-Mail</span>
+                            </label>
                         </div>
                         <div class="fromline">
                             <span class="name">{{ emailHeader.sender().name().orElse(emailHeader.sender().emailAddress()) }}</span>
-                            {% if emailHeader.attachment %}
-                                <span class="attachment">{{ svgIcon('attachment') | raw }}</span>
-                            {% endif %}
-                            <span class="date">{{ emailHeader.formattedReceivedDate }}</span>
+                            <span class="date">
+                                {% if emailHeader.attachment %}
+                                    <span class="attachment">{{ svgIcon('attachment') | raw }}</span>
+                                {% endif %}
+                                {{ emailHeader.formattedReceivedDate }}
+                            </span>
                         </div>
                         <div class="subjectline">
                             {{ emailHeader.subject }}
@@ -62,7 +67,7 @@
                                 {{ svgIcon('starunfilled') | raw }}
                             {% endif %}
                         </div>
-                    </div>
+                    </a>
                 {% endfor %}
             </div>
             <div id="messagepreview">

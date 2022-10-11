@@ -59,6 +59,7 @@ p, h1, h2, h3, h4, h5, h6 {
     --disabled-text-color: gray;
     --selected-color: white;
     --selected-bgcolor: black;
+    --text-color: #333;
 }
 
 /* Main Layout --------  */
@@ -67,6 +68,7 @@ p, h1, h2, h3, h4, h5, h6 {
 body {
     display: flex;
     flex-direction: column;
+    color: var(--text-color);
 }
 
 body > form {
@@ -224,7 +226,7 @@ header #apptitle {
     overflow: auto;
     overflow-y: scroll;
     resize: horizontal;
-    min-width: 22rem;
+    min-width: 21rem;
     border: 1px solid lightgray;
 }
 
@@ -284,6 +286,19 @@ header #apptitle {
     padding: 6px 12px;
     column-gap: 6px;
     border-bottom: 1px solid lightgray;
+
+    text-decoration: none;
+}
+
+.emailheader,
+.emailheader:active,
+.emailheader:hover {
+    color: var(--text-color);
+}
+
+.emailheader:hover {
+    background-color: var(--selected-bgcolor);
+    color: var(--selected-color);
 }
 
 .emailselection {
@@ -303,6 +318,7 @@ header #apptitle {
 
     flex-direction: row;
     align-items: center;
+    width: 100%;
 }
 
 .fromline .name {
@@ -310,9 +326,9 @@ header #apptitle {
 }
 
 .fromline .date {
-    min-width: 8rem;
+    min-width: 4.5rem;
+    text-align: right;
 }
-
 
 .fromline .name,
 .subjectline,
