@@ -9,17 +9,15 @@
                 <button id="select-mail-button" type="button" aria-pressed="false" title="Select All E-Mails">
                     {{ svgIcon('selectall') | raw }} Select all
                 </button>
-                <div id="selected-email-controls">
-                    <form id="emailactionform">
-                        <!-- TODO -->
-                        <button class="iconbutton" type="submit" name="action_archive_{{ emailHeader.id }}" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
-                        archive
-                        spam
-                        delete
-                        mark read/unread
-                        move
-                    </form>
-                </div>
+                <form id="selected-email-controls" method="POST" action="/account/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/selection">
+                    <!-- TODO disable button when no selection-->
+                    {{ submitButton(true, 'archive',    false, 'email_selection_archive', 'Archive') }}
+                    {{ submitButton(true, null,         false, 'email_selection_mark_spam', 'Mark Spam') }}
+                    {{ submitButton(true, 'delete',     false, 'email_selection_delete', 'Delete') }}
+                    {{ submitButton(true, 'markread',   false, 'email_selection_mark_read', 'Mark Read') }}
+                    {{ submitButton(true, 'markunread', false, 'email_selection_mark_unread', 'Mark Unread') }}
+                    {{ submitButton(true, 'move',       false, 'email_selection_move', 'Move') }}
+                </form>
                 <div id="email-paging-controls">
                     <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total }}</div>
                     <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">

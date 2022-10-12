@@ -245,26 +245,23 @@ header #apptitle {
 
 /* accountnav ------------- */
 
-/*#toggle-folderlist-button {*/
-/*    width: 100%;*/
-/*}*/
-
-
-#accountnav {
-    /*border-bottom: 1px dashed gray;*/
-}
-
 #emailcontrols {
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-#pagination-status {
-    display: inline-block;
+#selected-email-controls {
+    display: flex;
+    gap: 6px;
+    align-items: center;
 }
 
 #email-paging-controls {
+    display: inline-block;
+}
+
+#pagination-status {
     display: inline-block;
 }
 
