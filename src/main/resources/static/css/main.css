@@ -126,7 +126,8 @@ button[aria-pressed=true] {
     border-color: var(--button-pressed-color);
 }
 
-button.iconbutton:hover {
+button:hover {
+    /* TODO figure out a nice hover on button effect */
 }
 
 
@@ -234,6 +235,7 @@ header #apptitle {
     resize: horizontal;
     min-width: 21rem;
     border: 1px solid lightgray;
+    background-color: #f5f5f5;
 }
 
 #messagepreview {
@@ -286,6 +288,7 @@ header #apptitle {
     padding: 6px 12px;
     column-gap: 6px;
     border-bottom: 1px solid lightgray;
+    background-color: white;
 
     text-decoration: none;
 }
