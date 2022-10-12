@@ -3,77 +3,95 @@
 {% block pageTitle %} Account {{ currentAccount.name }} {% endblock %}
 
 {% block content %}
-    <form id="emailactionform">
-        <main>
-            <div id="accountnav">
-                <div id="emailcontrols">
-                    <button id="select-mail-button" type="button" aria-pressed="true">
-                        {{ svgIcon('selectall') | raw }} Select all
-                    </button>
-                    <div id="email-paging-controls">
-                        <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total }}</div>
-                        <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
-                            <ul>
-                                <li>
-                                    {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=1', 'Beginning', 'beginning', pagination.from <= 1) }}
-                                </li>
-                                <li>
-                                    {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1) }}
-                                </li>
-                                <li>
-                                    {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.from + pagination.pageSize > pagination.total) }}
-                                </li>
-                                <li>
-                                    {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (((pagination.total % pagination.pageSize) - 1) * pagination.pageSize + 1), 'End', 'end', pagination.from + pagination.pageSize > pagination.total) }}
-                                </li>
-                            </ul>
-                        </nav>
-                    </div>
+    <main>
+        <div id="accountnav">
+            <div id="emailcontrols">
+                <button id="select-mail-button" type="button" aria-pressed="false" title="Select All E-Mails">
+                    {{ svgIcon('selectall') | raw }} Select all
+                </button>
+                <div id="selected-email-controls">
+                    <form id="emailactionform">
+                        <!-- TODO -->
+                        <button class="iconbutton" type="submit" name="action_archive_{{ emailHeader.id }}" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
+                        archive
+                        spam
+                        delete
+                        mark read/unread
+                        move
+                    </form>
+                </div>
+                <div id="email-paging-controls">
+                    <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total }}</div>
+                    <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
+                        <ul>
+                            <li>
+                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=1', 'Beginning', 'beginning', pagination.from <= 1) }}
+                            </li>
+                            <li>
+                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1) }}
+                            </li>
+                            <li>
+                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.from + pagination.pageSize > pagination.total) }}
+                            </li>
+                            <li>
+                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (((pagination.total % pagination.pageSize) - 1) * pagination.pageSize + 1), 'End', 'end', pagination.from + pagination.pageSize > pagination.total) }}
+                            </li>
+                        </ul>
+                    </nav>
                 </div>
             </div>
-            <div id="folderlist">
-                {% for folder in folders %}
-                    {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + folder.id, folder.name, 'folder', selected = (currentFolder.id == folder.id)) }}
-                {% endfor %}
-            </div>
-            <div id="messagelist">
-                {% for emailHeader in emailHeaders %}
-                    <a href="/account/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/{{ emailHeader.id }}" class="emailheader{{ emailHeader.read ? ' read' : '' }}">
-                        <div class="emailselection">
-                            <label>
-                                <input type="checkbox">
-                                <span hidden>Select E-Mail</span>
-                            </label>
-                        </div>
-                        <div class="fromline">
-                            <span class="name">{{ emailHeader.sender().name().orElse(emailHeader.sender().emailAddress()) }}</span>
-                            <span class="date">
-                                {% if emailHeader.attachment %}
-                                    <span class="attachment">{{ svgIcon('attachment') | raw }}</span>
-                                {% endif %}
-                                {{ emailHeader.formattedReceivedDate }}
-                            </span>
-                        </div>
-                        <div class="subjectline">
-                            {{ emailHeader.subject }}
-                        </div>
-                        <div class="bodyline">
-                            {{ emailHeader.bodyExcerpt }}
-                        </div>
-                        <div class="emailstar">
-                            {% if emailHeader.starred %}
-                                {{ svgIcon('starfilled') | raw }}
-                            {% else %}
-                                {{ svgIcon('starunfilled') | raw }}
+        </div>
+        <div id="folderlist">
+            {% for folder in folders %}
+                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + folder.id, folder.name, 'folder', selected = (currentFolder.id == folder.id)) }}
+            {% endfor %}
+        </div>
+        <div id="messagelist">
+            {% for emailHeader in emailHeaders %}
+                <a href="/account/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/{{ emailHeader.id }}" class="emailheader{{ emailHeader.read ? ' read' : '' }}">
+                    <div class="emailselection">
+                        <label>
+                            <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="emailactionform">
+                            <span hidden>Select E-Mail</span>
+                        </label>
+                    </div>
+                    <div class="fromline">
+                        <span class="name">{{ emailHeader.sender().name().orElse(emailHeader.sender().emailAddress()) }}</span>
+                        <span class="date">
+                            {% if emailHeader.attachment %}
+                                <span class="attachment">{{ svgIcon('attachment') | raw }}</span>
                             {% endif %}
-                        </div>
-                    </a>
-                {% endfor %}
-            </div>
-            <div id="messagepreview">
-                messagepreview
-            </div>
-        </main>
-    </form>
+                            {{ emailHeader.formattedReceivedDate }}
+                        </span>
+                        <form class="emailactions" method="POST" action="/account/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/{{ emailHeader.id }}/actions">
+                            <button class="iconbutton" type="submit" name="action_archive_{{ emailHeader.id }}" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
+                            <button class="iconbutton" type="submit" name="action_delete_{{ emailHeader.id }}" title="Delete E-Mail" aria-label="Delete E-Mail">{{ svgIcon('delete') | raw }}</button>
+                            {% if emailHeader.read %}
+                                <button class="iconbutton" type="submit" name="action_markunread_{{ emailHeader.id }}" title="Mark E-Mail Unread" aria-label="Mark E-Mail Unread">{{ svgIcon('markunread') | raw }}</button>
+                            {% else %}
+                                <button class="iconbutton" type="submit" name="action_markread_{{ emailHeader.id }}" title="Mark E-Mail Read" aria-label="Mark E-Mail Read">{{ svgIcon('markread') | raw }}</button>
+                            {% endif %}
+                        </form>
+                    </div>
+                    <div class="subjectline">
+                        {{ emailHeader.subject }}
+                    </div>
+                    <div class="bodyline">
+                        {{ emailHeader.bodyExcerpt }}
+                    </div>
+                    <div class="emailstar">
+                        {% if emailHeader.starred %}
+                            {{ svgIcon('starfilled') | raw }}
+                        {% else %}
+                            {{ svgIcon('starunfilled') | raw }}
+                        {% endif %}
+                    </div>
+                </a>
+            {% endfor %}
+        </div>
+        <div id="messagepreview">
+            messagepreview
+        </div>
+    </main>
 
 {% endblock %}
