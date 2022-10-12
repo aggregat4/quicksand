@@ -59,7 +59,12 @@ p, h1, h2, h3, h4, h5, h6 {
     --disabled-text-color: gray;
     --selected-color: white;
     --selected-bgcolor: black;
+    --hover-bgcolor: darkgray;
+    --hover-color: white;
     --text-color: #333;
+    --button-bgcolor: white;
+    --button-pressed-color: white;
+    --button-pressed-bgcolor: black;
 }
 
 /* Main Layout --------  */
@@ -69,15 +74,6 @@ body {
     display: flex;
     flex-direction: column;
     color: var(--text-color);
-}
-
-body > form {
-    /*Make it fill the entire space*/
-    flex: 2;
-
-    display: flex;
-    /*Needed to make sure we can put scrollable elements in our layout later*/
-    overflow: hidden;
 }
 
 main {
@@ -113,6 +109,26 @@ nav ul li {
     margin: 0;
     padding: 0;
 }
+
+button {
+    border: 1px solid var(--text-color);
+    border-radius: 3px;
+    background-color: var(--button-bgcolor);
+    padding: 3px 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+button[aria-pressed=true] {
+    color: var(--button-pressed-color);
+    background-color: var(--button-pressed-bgcolor);
+    border-color: var(--button-pressed-color);
+}
+
+button.iconbutton:hover {
+}
+
 
 /* submenus are position specifically */
 nav ul li ul {
@@ -157,23 +173,13 @@ header {
     /*border-bottom: 1px dashed gray;*/
 }
 
-
 #toggle-folderlist-button {
-    display: none;
-
     margin-right: 6px;
-}
-
-#toggle-folderlist-button svg {
-    margin-right: 6px;
-}
-
-.accountpage #toggle-folderlist-button {
-    display: flex;
-    align-items: center;
 }
 
 #searchemailform {
+    display: flex;
+    align-items: center;
     margin: 0 12px;
 }
 
@@ -243,9 +249,6 @@ header #apptitle {
 /*    width: 100%;*/
 /*}*/
 
-#toggle-folderlist-button[aria-pressed=true] {
-    filter: invert(1);
-}
 
 #accountnav {
     /*border-bottom: 1px dashed gray;*/
@@ -297,8 +300,12 @@ header #apptitle {
 }
 
 .emailheader:hover {
-    background-color: var(--selected-bgcolor);
-    color: var(--selected-color);
+    background-color: var(--hover-bgcolor);
+    color: var(--hover-color);
+}
+
+.emailheader:hover button.iconbutton {
+    border-color: var(--hover-color);
 }
 
 .emailselection {
@@ -328,6 +335,27 @@ header #apptitle {
 .fromline .date {
     min-width: 4.5rem;
     text-align: right;
+}
+
+.emailheader:hover .date {
+    display: none;
+}
+
+.fromline .emailactions {
+    display: none;
+    min-width: 4rem;
+}
+
+.emailheader:hover .emailactions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.emailheader:hover button.iconbutton {
+    background: var(--hover-bgcolor);
+    color: var(--hover-color);
 }
 
 .fromline .name,
