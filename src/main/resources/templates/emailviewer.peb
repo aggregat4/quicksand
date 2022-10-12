@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>E-Mail Viewer - Quicksand</title>
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body class="emailviewer">
+    <main>
+        <div id="emailsubject">
+            <h1>{{ email.header.subject }}</h1>
+        </div>
+        <div id="emailmetadata">
+            metadata: from, to, date
+        </div>
+        <div id="emailactions">
+            actions
+        </div>
+        <div id="emailimages">
+            images
+        </div>
+        <div id="emailbody">
+            {# TODO: should this be inline raw HMTL or another iframe? #}
+            {% if email.plainText %}
+            {# TODO: figure out plain text display (wrapping, etc) #}
+                <pre>{{  email.body | raw }}</pre>
+            {% else %}
+                <iframe id="htmlbody" src="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}/body">
+                </iframe>
+            {% endif %}
+        </div>
+        <div id="emailattachments">
+            {% for attachment in email.attachments %}
+                <a class="attachment">{{ attachment.name }}, {{ attachment.sizeInBytes }}</a>
+            {% endfor %}
+        </div>
+        <div id="emailbottomactions">
+            some actions
+        </div>
+    </main>
+</body>
+</html>

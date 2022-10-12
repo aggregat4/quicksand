@@ -9,7 +9,7 @@
                 <button id="select-mail-button" type="button" aria-pressed="false" title="Select All E-Mails">
                     {{ svgIcon('selectall') | raw }} Select all
                 </button>
-                <form id="selected-email-controls" method="POST" action="/account/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/selection">
+                <form id="selected-email-controls" method="POST" action="/accounts/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/selection">
                     <!-- TODO disable button when no selection-->
                     {{ submitButton(true, 'archive',    false, 'email_selection_archive', 'Archive') }}
                     {{ submitButton(true, null,         false, 'email_selection_mark_spam', 'Mark Spam') }}
@@ -46,7 +46,7 @@
         </div>
         <div id="messagelist">
             {% for emailHeader in emailHeaders %}
-                <a href="/account/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/{{ emailHeader.id }}" class="emailheader{{ emailHeader.read ? ' read' : '' }}">
+                <a href="/accounts/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/{{ emailHeader.id }}" class="emailheader{{ emailHeader.read ? ' read' : '' }}" target="emailviewer">
                     <div class="emailselection">
                         <label>
                             <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="emailactionform">
@@ -87,9 +87,8 @@
                 </a>
             {% endfor %}
         </div>
-        <div id="messagepreview">
-            messagepreview
-        </div>
+        <iframe id="messagepreview" name="emailviewer">
+        </iframe>
     </main>
 
 {% endblock %}
