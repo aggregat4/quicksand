@@ -3,13 +3,19 @@ package net.aggregat4.quicksand;
 import com.mitchellbosecke.pebble.template.PebbleTemplate;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
+import org.owasp.html.HtmlPolicyBuilder;
+import org.owasp.html.HtmlSanitizer;
+import org.owasp.html.HtmlStreamRenderer;
+import org.owasp.html.PolicyFactory;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -124,8 +130,29 @@ public class AccountController {
 
     @GetMapping(value = "/accounts/{accountId}/folders/{folderId}/emails/{emailId}/body", produces = {"text/html"})
     public String emailBodyPage(@PathVariable int accountId, @PathVariable int folderId, @PathVariable int emailId) throws IOException {
-        return EMAIL2_BODY;
+        StringWriter sw = new StringWriter();
+        BufferedWriter bw = new BufferedWriter(sw);
+        HtmlStreamRenderer renderer = HtmlStreamRenderer.create(
+                bw,
+                // Receives notifications on a failure to write to the output.
+                ex -> {
+                    // System.out suppresses IOExceptions
+                    throw new AssertionError(null, ex);
+                },
+                // Our HTML parser is very lenient, but this receives notifications on
+                // truly bizarre inputs.
+                x -> {
+                    throw new AssertionError(x);
+                });
+        HtmlSanitizer.sanitize(EMAIL2_BODY, POLICY.apply(renderer));
+        return sw.toString();
     }
+
+    private static final PolicyFactory POLICY = new HtmlPolicyBuilder()
+            .allowCommonBlockElements()
+            .allowStyling()
+            .allowCommonInlineFormattingElements()
+            .toFactory();
 
     private static final String EMAIL2_BODY = """
 <!doctype html>
