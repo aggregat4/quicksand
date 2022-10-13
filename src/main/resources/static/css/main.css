@@ -457,8 +457,6 @@ header #apptitle {
 
     border-top: 1px solid lightgray;
     border-bottom: 1px solid lightgray;
-    /*margin: 12px 0;*/
-    /*height: 100%;*/
 }
 
 pre#emailbody  {
@@ -468,12 +466,12 @@ pre#emailbody  {
 }
 
 iframe#emailbody {
+    /*height: 100vh;*/
     border: none;
-    /*height: 100%;*/
-    /*width: 100%;*/
     width: 66ch;
     background-color: white;
     margin: auto;
+    overflow: hidden;
 }
 
 #emailattachments {

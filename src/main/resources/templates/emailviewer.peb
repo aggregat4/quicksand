@@ -26,7 +26,11 @@
         {# TODO: figure out plain text display (wrapping, etc) #}
             <pre id="emailbody">{{  email.body | raw }}</pre>
         {% else %}
-            <iframe id="emailbody" src="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}/body" onload="this.height = Math.max( this.contentWindow.document.body.scrollHeight, this.contentWindow.document.body.offsetHeight, this.contentWindow.document.documentElement.clientHeight, this.contentWindow.document.documentElement.scrollHeight, this.contentWindow.document.documentElement.offsetHeight ) + 'px';"></iframe>
+            <iframe
+                    id="emailbody"
+                    src="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}/body"
+                    sandbox="allow-same-origin"
+            ></iframe>
         {% endif %}
         <div id="emailattachments">
             {% for attachment in email.attachments %}
@@ -37,5 +41,7 @@
             some actions
         </div>
     </main>
+
+    <script src="/js/messagepreview.js"></script>
 </body>
 </html>

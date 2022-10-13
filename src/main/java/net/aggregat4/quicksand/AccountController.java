@@ -136,6 +136,7 @@ public class AccountController {
     <title>Simple Responsive HTML Email With Button</title>
   </head>
   <body class="">
+    <script>alert("Script in an email!")</script>
     <table role="presentation" border="0" cellpadding="0" cellspacing="0" class="body">
       <tr>
         <td>&nbsp;</td>
