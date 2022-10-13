@@ -21,16 +21,13 @@
         <div id="emailimages">
             images
         </div>
-        <div id="emailbody">
-            {# TODO: should this be inline raw HMTL or another iframe? #}
-            {% if email.plainText %}
-            {# TODO: figure out plain text display (wrapping, etc) #}
-                <pre>{{  email.body | raw }}</pre>
-            {% else %}
-                <iframe id="htmlbody" src="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}/body">
-                </iframe>
-            {% endif %}
-        </div>
+        {# TODO: should this be inline raw HMTL or another iframe? #}
+        {% if email.plainText %}
+        {# TODO: figure out plain text display (wrapping, etc) #}
+            <pre id="emailbody">{{  email.body | raw }}</pre>
+        {% else %}
+            <iframe id="emailbody" src="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}/body" onload="this.height = Math.max( this.contentWindow.document.body.scrollHeight, this.contentWindow.document.body.offsetHeight, this.contentWindow.document.documentElement.clientHeight, this.contentWindow.document.documentElement.scrollHeight, this.contentWindow.document.documentElement.offsetHeight ) + 'px';"></iframe>
+        {% endif %}
         <div id="emailattachments">
             {% for attachment in email.attachments %}
                 <a class="attachment">{{ attachment.name }}, {{ attachment.sizeInBytes }}</a>
