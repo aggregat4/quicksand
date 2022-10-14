@@ -2,6 +2,7 @@ package net.aggregat4.quicksand;
 
 import com.mitchellbosecke.pebble.template.PebbleTemplate;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
+import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;

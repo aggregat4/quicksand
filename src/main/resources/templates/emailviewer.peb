@@ -8,19 +8,48 @@
     <link rel="stylesheet" href="/css/main.css">
 </head>
 <body class="emailviewer">
+    {% import "templates/macros.peb" %}
     <main>
         <div id="emailsubject">
             <h1>{{ email.header.subject }}</h1>
         </div>
         <div id="emailmetadata">
-            metadata: from, to, date
+            <div id="from">
+                {{  (email.header.sender.name.isPresent() ? email.header.sender.name.get() : '') }} &lt;{{ email.header.sender.emailAddress }}&gt;
+            </div>
+            {% if (email.attachments != null) and (not email.attachments.isEmpty()) %}
+                <div id="attachment">
+                    {{ svgIcon('attachment') | raw }}
+                </div>
+            {% endif %}
+            <div id="receiveddate">
+                {{ email.header.longFormattedReceivedDate() }}
+            </div>
+            <div id="to">
+                {{  (email.header.recipient.name.isPresent() ? email.header.recipient.name.get() : '') }} &lt;{{ email.header.recipient.emailAddress }}&gt;
+            </div>
         </div>
-        <div id="emailactions">
-            actions
-        </div>
-        <div id="emailimages">
-            images
-        </div>
+        <form id="emailactions" method="POST" action="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}">
+            <div>
+                {# Some actions are just navigation to more UI where the user can do something #}
+                {{ iconlink('#', 'Reply', 'reply') }}
+                {{ iconlink('#', 'Forward', 'forward') }}
+                {{ iconlink('#', 'Move', 'move') }}
+            </div>
+            <div>
+                {# other actions are immediate and perform some operation on the resource #}
+                {{ submitButton(true, 'archive',    false, 'email_action_archive', 'Archive') }}
+                {{ submitButton(true, null,         false, 'email_action_mark_spam', 'Mark Spam') }}
+                {{ submitButton(true, 'delete',     false, 'email_action_delete', 'Delete') }}
+            </div>
+        </form>
+        <a id="emailimages" href="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}?showImages={{ showImages ? 'false' : 'true' }}">
+            {% if showImages %}
+                Disable Images
+                {% else %}
+                Enable Images
+            {% endif %}
+        </a>
         {# TODO: should this be inline raw HMTL or another iframe? #}
         {% if email.plainText %}
         {# TODO: figure out plain text display (wrapping, etc) #}
@@ -28,7 +57,7 @@
         {% else %}
             <iframe
                     id="emailbody"
-                    src="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}/body"
+                    src="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}/body?showImages={{ showImages ? 'true' : 'false' }}"
                     sandbox="allow-same-origin"
             ></iframe>
         {% endif %}

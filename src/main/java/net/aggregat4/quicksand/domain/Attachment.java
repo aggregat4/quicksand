@@ -1,4 +1,4 @@
-package net.aggregat4.quicksand;
+package net.aggregat4.quicksand.domain;
 
 import org.springframework.util.MimeType;
 
