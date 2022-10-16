@@ -15,18 +15,18 @@
         </div>
         <div id="emailmetadata">
             <div id="from">
-                {{  (email.header.sender.name.isPresent() ? email.header.sender.name.get() : '') }} &lt;{{ email.header.sender.emailAddress }}&gt;
+                From: {{  (email.header.sender.name.isPresent() ? email.header.sender.name.get() : '') }} &lt;{{ email.header.sender.emailAddress }}&gt;
             </div>
-            {% if (email.attachments != null) and (not email.attachments.isEmpty()) %}
-                <div id="attachment">
-                    {{ svgIcon('attachment') | raw }}
-                </div>
-            {% endif %}
             <div id="receiveddate">
+                {% if (email.attachments != null) and (not email.attachments.isEmpty()) %}
+                    <div id="attachment">
+                            {{ svgIcon('attachment') | raw }}
+                    </div>
+                {% endif %}
                 {{ email.header.longFormattedReceivedDate() }}
             </div>
             <div id="to">
-                {{  (email.header.recipient.name.isPresent() ? email.header.recipient.name.get() : '') }} &lt;{{ email.header.recipient.emailAddress }}&gt;
+                To: {{  (email.header.recipient.name.isPresent() ? email.header.recipient.name.get() : '') }} &lt;{{ email.header.recipient.emailAddress }}&gt;
             </div>
         </div>
         <form id="emailactions" method="POST" action="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}">
@@ -50,9 +50,8 @@
                 Enable Images
             {% endif %}
         </a>
-        {# TODO: should this be inline raw HMTL or another iframe? #}
         {% if email.plainText %}
-        {# TODO: figure out plain text display (wrapping, etc) #}
+        {# TODO:  #}
             <pre id="emailbody">{{  email.body | raw }}</pre>
         {% else %}
             <iframe
@@ -62,12 +61,17 @@
             ></iframe>
         {% endif %}
         <div id="emailattachments">
+            {% if not email.attachments.isEmpty() %}
+            Attachments:
+            <ul>
             {% for attachment in email.attachments %}
-                <a class="attachment">{{ attachment.name }}, {{ attachment.sizeInBytes }}</a>
+                <li><a class="attachment" href="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}/attachments/{{ attachment.id }}">{{ (attachment.name != null and attachment.name != "") ? attachment.name : 'attachment without name' }}</a>, {{ attachment.sizeInBytes / 1024 }}KB, {{ attachment.mediaType }}</li>
             {% endfor %}
+            </ul>
+            {% endif %}
         </div>
         <div id="emailbottomactions">
-            some actions
+            some actions, maybe just reply?
         </div>
     </main>
 

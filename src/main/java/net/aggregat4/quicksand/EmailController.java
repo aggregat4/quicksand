@@ -1,18 +1,23 @@
 package net.aggregat4.quicksand;
 
 import com.mitchellbosecke.pebble.template.PebbleTemplate;
+import jakarta.servlet.http.HttpServletResponse;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.Actor;
 import net.aggregat4.quicksand.domain.Attachment;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
-import org.owasp.html.AttributePolicy;
-import org.owasp.html.ElementPolicy;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.HtmlSanitizer;
 import org.owasp.html.HtmlStreamRenderer;
 import org.owasp.html.PolicyFactory;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.InputStreamSource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,8 +37,26 @@ import java.util.Optional;
 
 @RestController
 public class EmailController {
+
     private static final PebbleTemplate emailViewerTemplate =
             PebbleConfig.getEngine().getTemplate("templates/emailviewer.peb");
+
+    private static final PolicyFactory NO_IMAGES_POLICY = new HtmlPolicyBuilder()
+            .allowCommonBlockElements()
+            .allowElements("table", "tr", "td", "a", "img")
+            .allowStyling()
+            .allowCommonInlineFormattingElements()
+            .toFactory();
+
+    private static final PolicyFactory IMAGES_POLICY = new HtmlPolicyBuilder()
+            .allowCommonBlockElements()
+            .allowCommonInlineFormattingElements()
+            .allowElements("table", "tr", "td", "a", "img")
+            .allowStyling()
+            // TODO: verify whether this is enough to just enable images or whether it allows too much
+            .allowStandardUrlProtocols()
+            .allowAttributes("src", "href").globally()
+            .toFactory();
 
     public static final Actor EMAIL1_SENDER = new Actor("someone@somewhere.com", Optional.of("Someone"));
     public static final Actor EMAIL1_RECIPIENT = new Actor("me@example.com", Optional.of("Me Doe"));
@@ -44,6 +67,7 @@ public class EmailController {
 
     public static final String EMAIL2_SUBJECT = "Foo du fafa";
     public static final ZonedDateTime EMAIL2_RECEIVEDDATE = ZonedDateTime.now().minus(3, ChronoUnit.MINUTES);
+    private static final Attachment ATTACHMENT1 = new Attachment(1, "sounds and music.mp3", 43534555, new org.springframework.http.MediaType("audio", "mpeg"));
 
 
     @GetMapping(value = "/accounts/{accountId}/folders/{folderId}/emails/{emailId}", produces = {"text/html"})
@@ -74,7 +98,7 @@ public class EmailController {
                                     -- 
                                     Sent from my iPhone
                                     """,
-                            List.of(new Attachment("sounds and music.mp3", 43534555, MimeTypeUtils.APPLICATION_OCTET_STREAM))
+                            List.of(ATTACHMENT1)
                     )
             );
         } else {
@@ -123,22 +147,20 @@ public class EmailController {
         return sw.toString();
     }
 
-    private static final PolicyFactory NO_IMAGES_POLICY = new HtmlPolicyBuilder()
-            .allowCommonBlockElements()
-            .allowElements("table", "tr", "td", "a", "img")
-            .allowStyling()
-            .allowCommonInlineFormattingElements()
-            .toFactory();
-
-    private static final PolicyFactory IMAGES_POLICY = new HtmlPolicyBuilder()
-            .allowCommonBlockElements()
-            .allowCommonInlineFormattingElements()
-            .allowElements("table", "tr", "td", "a", "img")
-            .allowStyling()
-            // TODO: verify whether this is enough to just enable images or whether it allows too much
-            .allowStandardUrlProtocols()
-            .allowAttributes("src", "href").globally()
-            .toFactory();
+    @GetMapping(value = "/accounts/{accountId}/folders/{folderId}/emails/{emailId}/attachments/{attachmentId}")
+    public ResponseEntity<InputStreamSource> emailAttachment(@PathVariable int accountId, @PathVariable int folderId, @PathVariable int emailId, @PathVariable int attachmentId, HttpServletResponse response) throws IOException {
+        if (attachmentId == 1) {
+            var attachment = ATTACHMENT1;
+            HttpHeaders httpHeaders = new HttpHeaders();
+            httpHeaders.setContentType(attachment.mediaType());
+            if (attachment.name() != null) {
+                httpHeaders.setContentDisposition(ContentDisposition.attachment().filename(attachment.name()).build());
+            }
+            return new ResponseEntity<>(new ClassPathResource("/sample-3s.mp3"), httpHeaders, 200);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+    }
 
     private static final String EMAIL2_BODY = """
 <!doctype html>

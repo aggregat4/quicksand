@@ -1,6 +1,6 @@
 package net.aggregat4.quicksand.domain;
 
-import org.springframework.util.MimeType;
+import org.springframework.http.MediaType;
 
-public record Attachment(String name, long sizeInBytes, MimeType mimeType) {
+public record Attachment(int id, String name, long sizeInBytes, MediaType mediaType) {
 }
