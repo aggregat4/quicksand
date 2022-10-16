@@ -43,22 +43,25 @@
                 {{ submitButton(true, 'delete',     false, 'email_action_delete', 'Delete') }}
             </div>
         </form>
-        <a id="emailimages" href="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}?showImages={{ showImages ? 'false' : 'true' }}">
-            {% if showImages %}
-                Disable Images
-                {% else %}
-                Enable Images
-            {% endif %}
-        </a>
-        {% if email.plainText %}
-            <pre id="emailbody">{{  email.body | raw }}</pre>
-        {% else %}
-            <iframe
-                    id="emailbody"
-                    src="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}/body?showImages={{ showImages ? 'true' : 'false' }}"
-                    sandbox="allow-same-origin"
-            ></iframe>
+        {% if not email.plainText %}
+            <a id="emailimages" href="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}?showImages={{ showImages ? 'false' : 'true' }}">
+                {% if showImages %}
+                    Disable Images
+                    {% else %}
+                    Enable Images
+                {% endif %}
+            </a>
         {% endif %}
+        <div id="emailbody">
+            {% if email.plainText %}
+                <pre>{{  email.body | raw }}</pre>
+            {% else %}
+                <iframe id="emailbodyframe"
+                        src="/accounts/{{ accountId }}/folders/{{ folderId }}/emails/{{ email.header.id }}/body?showImages={{ showImages ? 'true' : 'false' }}"
+                        sandbox="allow-same-origin"
+                ></iframe>
+            {% endif %}
+        </div>
         <div id="emailattachments">
             {% if not email.attachments.isEmpty() %}
             Attachments:

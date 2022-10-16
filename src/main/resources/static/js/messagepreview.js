@@ -6,7 +6,7 @@ if (document.readyState !== 'loading') {
 }
 
 function init() {
-    const messagepreview = document.getElementById("emailbody")
+    const messagepreview = document.getElementById("emailbodyframe")
     if (messagepreview) {
         const iframeDoc = messagepreview.contentDocument || messagepreview.contentWindow.document
         if (iframeDoc.readyState === 'complete') {
