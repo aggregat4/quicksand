@@ -47,7 +47,12 @@
         </div>
         <div id="messagelist">
             {% for emailHeader in emailHeaders %}
-                <a href="/accounts/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/{{ emailHeader.id }}?showImages=false" class="emailheader{{ emailHeader.read ? ' read' : '' }}" target="emailviewer">
+                <a href="/accounts/{{ currentAccount.id }}/folders/{{ currentFolder.id }}/emails/{{ emailHeader.id }}?showImages=false"
+                   class="emailheader{{ emailHeader.read ? ' read' : '' }}"
+                   {# Clicking the link will open it in the iframe inside of the message viewer dialog #}
+                   target="emailviewer"
+                   {# Sadly dialogs can not be opened without javascript (or horrible CSS hacks), but we can close it using javascript... #}
+                   onclick="document.getElementById('messagepreview').show()">
                     <div class="emailselection">
                         <label>
                             <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="selected-email-controls">
@@ -88,8 +93,13 @@
                 </a>
             {% endfor %}
         </div>
-        <iframe id="messagepreview" name="emailviewer">
-        </iframe>
+        <dialog id="messagepreview">
+            <form id="emailviewercloser" method="dialog">
+                    {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer') }}
+            </form>
+            <iframe name="emailviewer">
+            </iframe>
+        </dialog>
     </main>
 
 {% endblock %}
