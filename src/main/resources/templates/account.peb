@@ -56,7 +56,7 @@
                    {# Clicking the link will open it in the iframe inside of the message viewer dialog #}
                    target="emailviewer"
                    {# Sadly dialogs can not be opened without javascript (or horrible CSS hacks), but we can close it using javascript... #}
-                   onclick="document.getElementById('messagepreview').show()">
+                   onclick="document.getElementById('messagepreview').show(); document.getElementById('messagelist').classList.add('showspreview');">
                     <div class="emailselection">
                         <label>
                             <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="selected-email-controls">

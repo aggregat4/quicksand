@@ -82,6 +82,9 @@
 
 
 /* email headers --------- */
+#messagelist {
+}
+
 .emailheader {
     display: grid;
     grid-template-columns: min-content 1fr min-content;
@@ -125,14 +128,14 @@
 .date-and-actions {
     grid-column: 3 / 4;
     grid-row: 1 / 2;
+    min-width: 4.5rem;
 }
 
 .date-and-actions .date {
-    min-width: 4.5rem;
-    text-align: right;
     display: flex;
     flex-direction: row;
     align-items: center;
+    justify-content: right;
 }
 
 .emailheader:hover .date {
@@ -141,7 +144,6 @@
 
 .date-and-actions .emailactions {
     display: none;
-    min-width: 4rem;
 }
 
 .emailheader:hover .emailactions {
@@ -172,6 +174,8 @@
 .bodyline {
     grid-column: 2 / 3;
     grid-row: 3 / 4;
+
+    color: var(--body-text-color);
 }
 
 .emailstar {
@@ -180,58 +184,104 @@
 
     display: flex;
     justify-content: right;
+    align-items: center;
 }
 
-.emailheader.read .fromline,
+.emailheader.read .fromname,
 .emailheader.read .subjectline {
     font-weight: bold;
 }
 
-/*@media only screen and (min-width: 1000px) {*/
-/*    .emailheader {*/
-/*        grid-template-columns: min-content min-content min-content 1fr min-content min-content;*/
-/*        grid-template-rows: min-content;*/
-/*    }*/
+/* Double media query coming up: since we don't have container queries in Firefox
+   yet I need to set a special class on the messagelist when the message preview
+   is shown so we can do two separate media queries: one to determine when to show
+   one line message headers when the preview is showing and one where it isn't showing. */
+@media screen and (min-width: 1200px) {
+    #messagelist.showspreview .emailheader {
+        grid-template-columns: min-content min-content min-content min-content 1fr min-content;
+        grid-template-rows: min-content;
+    }
 
-/*    .emailselection {*/
-/*        grid-column: 1 / 2;*/
-/*        grid-row: 1 / 4;*/
-/*    }*/
+    #messagelist.showspreview .emailheader  .emailselection {
+        grid-column: 1 / 2;
+        grid-row: 1 / 2;
+    }
 
-/*    .fromline {*/
-/*        grid-column: 2 / 4;*/
-/*        grid-row: 1 / 2;*/
+    #messagelist.showspreview .emailheader .emailstar {
+        grid-column: 2 / 3;
+        grid-row: 1 / 2;
+    }
 
-/*        display: flex;*/
-/*        flex-direction: row;*/
-/*        align-items: center;*/
+    #messagelist.showspreview .emailheader .fromname {
+        grid-column: 3 / 4;
+        grid-row: 1 / 2;
 
-/*        width: 100%;*/
-/*    }*/
+        width: 11rem;
+    }
 
-/*    .subjectline {*/
-/*        grid-column: 2 / 3;*/
-/*        grid-row: 2 / 3;*/
-/*    }*/
+    #messagelist.showspreview .emailheader .subjectline {
+        grid-column: 4 / 5;
+        grid-row: 1 / 2;
+    }
 
-/*    .bodyline {*/
-/*        grid-column: 2 / 3;*/
-/*        grid-row: 3 / 4;*/
-/*    }*/
+    #messagelist.showspreview .emailheader .bodyline {
+        grid-column: 5 / 6;
+        grid-row: 1 / 2;
+    }
 
-/*    .emailstar {*/
-/*        grid-column: 3 / 4;*/
-/*        grid-row: 3 / 4;*/
-/*    }*/
+    #messagelist.showspreview .emailheader .date-and-actions {
+        grid-column: 6 / 7;
+        grid-row: 1 / 2;
+    }
 
-/*}*/
+}
 
+@media screen and (min-width: 600px) {
+    #messagelist:not(.showspreview) .emailheader {
+        grid-template-columns: min-content min-content min-content min-content 1fr min-content;
+        grid-template-rows: min-content;
+    }
+
+    #messagelist:not(.showspreview) .emailheader  .emailselection {
+        grid-column: 1 / 2;
+        grid-row: 1 / 2;
+    }
+
+    #messagelist:not(.showspreview) .emailheader .emailstar {
+        grid-column: 2 / 3;
+        grid-row: 1 / 2;
+    }
+
+    #messagelist:not(.showspreview) .emailheader .fromname {
+        grid-column: 3 / 4;
+        grid-row: 1 / 2;
+
+        width: 11rem;
+    }
+
+    #messagelist:not(.showspreview) .emailheader .subjectline {
+        grid-column: 4 / 5;
+        grid-row: 1 / 2;
+    }
+
+    #messagelist:not(.showspreview) .emailheader .bodyline {
+        grid-column: 5 / 6;
+        grid-row: 1 / 2;
+    }
+
+    #messagelist:not(.showspreview) .emailheader .date-and-actions {
+        grid-column: 6 / 7;
+        grid-row: 1 / 2;
+    }
+
+}
 
 
 #messagepreview {
     position: relative;
     /* 1 viewport width is 1% of the viewport width */
     width: 50vw;
+    min-width: 16rem;
     height: 100%;
     padding: 0;
     border: none;
