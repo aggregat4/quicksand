@@ -2,6 +2,10 @@
 
 {% block pageTitle %} Account {{ currentAccount.name }} {% endblock %}
 
+{% block additionalHeader %}
+<link rel="stylesheet" href="/css/account.css">
+{% endblock %}
+
 {% block content %}
     <main>
         <div id="accountnav">
@@ -59,8 +63,8 @@
                             <span hidden>Select E-Mail</span>
                         </label>
                     </div>
-                    <div class="fromline">
-                        <span class="name">{{ emailHeader.sender().name().orElse(emailHeader.sender().emailAddress()) }}</span>
+                    <div class="fromname">{{ emailHeader.sender().name().orElse(emailHeader.sender().emailAddress()) }}</div>
+                    <div class="date-and-actions">
                         <span class="date">
                             {% if emailHeader.attachment %}
                                 <span class="attachment">{{ svgIcon('attachment') | raw }}</span>
