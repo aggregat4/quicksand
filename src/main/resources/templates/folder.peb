@@ -26,27 +26,31 @@
                 <div id="email-paging-controls">
                     <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total.get() }}</div>
                     <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
-                        <ul>
-                            <li>
-                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=1', 'Beginning', 'beginning', pagination.from <= 1) }}
-                            </li>
-                            <li>
-                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1) }}
-                            </li>
-                            <li>
-                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.from + pagination.pageSize > pagination.total.get()) }}
-                            </li>
-                            <li>
-                                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + currentFolder.id + '?from=' + (((pagination.total.get() % pagination.pageSize) - 1) * pagination.pageSize + 1), 'End', 'end', pagination.from + pagination.pageSize > pagination.total.get()) }}
-                            </li>
-                        </ul>
+                        {% if currentFolder != null %}
+                            {% set baseLink = '/accounts/' + currentAccount.id + '/folders/' + currentFolder.id %}
+                            <ul>
+                                <li>{{ iconlink(baseLink + '?from=1', 'Beginning', 'beginning', pagination.from <= 1) }}</li>
+                                <li>{{ iconlink(baseLink + '?from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1) }}</li>
+                                <li>{{ iconlink(baseLink + '?from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.from + pagination.pageSize > pagination.total.get()) }}</li>
+                                {# Only display the "go to end" link if we actually know how many there are, in case of a search we don't #}
+                                <li>{{ iconlink(baseLink + '?from=' + (((pagination.total.get() % pagination.pageSize) - 1) * pagination.pageSize + 1), 'End', 'end', pagination.from + pagination.pageSize > pagination.total.get()) }}</li>
+                            </ul>
+                        {% else %}
+                            {# This is the case where we have a search and we have to write a modified navigation #}
+                            {% set baseLink = '/accounts/' + currentAccount.id + '/search?query=' + (currentSearchFolder.query().query() | urlencode) %}
+                            <ul>
+                                <li>{{ iconlink(baseLink + '?from=1', 'Beginning', 'beginning', pagination.from <= 1) }}</li>
+                                <li>{{ iconlink(baseLink + '?from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1) }}</li>
+                                <li>{{ iconlink(baseLink + '?from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.total.isEmpty() ? false : (pagination.from + pagination.pageSize > pagination.total.get()) ) }}</li>
+                            </ul>
+                        {% endif %}
                     </nav>
                 </div>
             </div>
         </div>
         <div id="folderlist">
             {% for folder in folders %}
-                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + folder.id, folder.name, 'folder', selected = (currentFolder.id == folder.id)) }}
+                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + folder.id, folder.name, 'folder', selected = (currentFolder != null ? currentFolder.id == folder.id : false)) }}
             {% endfor %}
         </div>
         <div id="messagelist">
@@ -63,7 +67,7 @@
                             <span hidden>Select E-Mail</span>
                         </label>
                     </div>
-                    <div class="fromname">{{ emailHeader.sender().name().orElse(emailHeader.sender().emailAddress()) }}</div>
+                    <div class="fromname">{{ emailHeader.sender().name().orElse(emailHeader.sender().emailAddress()) | raw}}</div>
                     <div class="date-and-actions">
                         <span class="date">
                             {% if emailHeader.attachment %}
@@ -82,10 +86,10 @@
                         </form>
                     </div>
                     <div class="subjectline">
-                        {{ emailHeader.subject }}
+                        {{ emailHeader.subject | raw}}
                     </div>
                     <div class="bodyline">
-                        {{ emailHeader.bodyExcerpt }}
+                        {{ emailHeader.bodyExcerpt | raw}}
                     </div>
                     <div class="emailstar">
                         {% if emailHeader.starred %}
@@ -99,7 +103,7 @@
         </div>
         <dialog id="messagepreview">
             <form id="emailviewercloser" method="dialog">
-                    {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer') }}
+                    {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'document.getElementById("messagelist").classList.remove("showspreview");') }}
             </form>
             <iframe name="emailviewer">
             </iframe>

@@ -25,8 +25,8 @@
     {% if currentAccount != null %}
         {{ iconlink('#newmail', 'New Mail', 'newmail') }}
 
-        <form id="searchemailform">
-            <input id="searchemailinput" name="q" type="search" aria-label="Search all e-mail" required>
+        <form id="searchemailform" method="GET" action="/accounts/{{ currentAccount.id }}/search">
+            <input id="searchemailinput" name="query" type="search" aria-label="Search all e-mail" required>
             <button>Search</button>
         </form>
     {% endif %}

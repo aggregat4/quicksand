@@ -20,7 +20,7 @@
         </button>
         {% else %}
         <button class="{{showText ? '' : 'iconButton' }}" type="submit" name="{{ name }}" title="{{ label }}"
-                aria-label="{{ label }}" {% if clickHandler %}onclick=" document.getElementById('#messagelist').classList.remove('showspreview');"{% endif %}>
+                aria-label="{{ label }}" {% if clickHandler %}onclick="{{ clickHandler }}"{% endif %}>
             {% if icon != null %}{{ svgIcon(icon) | raw }}{% endif %}{{ showText ? label : '' }}
         </button>
         {% endif %}
