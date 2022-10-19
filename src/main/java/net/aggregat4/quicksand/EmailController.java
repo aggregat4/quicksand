@@ -18,7 +18,6 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -70,11 +69,10 @@ public class EmailController {
     private static final Attachment ATTACHMENT1 = new Attachment(1, "sounds and music.mp3", 43534555, new org.springframework.http.MediaType("audio", "mpeg"));
 
 
-    @GetMapping(value = "/accounts/{accountId}/folders/{folderId}/emails/{emailId}", produces = {"text/html"})
-    public String emailViewerPage(@PathVariable int accountId, @PathVariable int folderId, @PathVariable int emailId, @RequestParam(defaultValue = "false") boolean showImages) throws IOException {
+    @GetMapping(value = "/accounts/{accountId}/emails/{emailId}", produces = {"text/html"})
+    public String emailViewerPage(@PathVariable int accountId, @PathVariable int emailId, @RequestParam(defaultValue = "false") boolean showImages) throws IOException {
         Map<String, Object> context = new HashMap<>();
         context.put("accountId", accountId);
-        context.put("folderId", folderId);
         context.put("showImages", showImages);
         if (emailId == 1) {
             context.put("email",
@@ -123,8 +121,8 @@ public class EmailController {
         return PebbleRenderer.renderTemplate(context, emailViewerTemplate);
     }
 
-    @GetMapping(value = "/accounts/{accountId}/folders/{folderId}/emails/{emailId}/body", produces = {"text/html"})
-    public String emailBodyPage(@PathVariable int accountId, @PathVariable int folderId, @PathVariable int emailId, @RequestParam(defaultValue = "false") boolean showImages) throws IOException {
+    @GetMapping(value = "/accounts/{accountId}/emails/{emailId}/body", produces = {"text/html"})
+    public String emailBodyPage(@PathVariable int accountId, @PathVariable int emailId, @RequestParam(defaultValue = "false") boolean showImages) throws IOException {
         StringWriter sw = new StringWriter();
         BufferedWriter bw = new BufferedWriter(sw);
         HtmlStreamRenderer renderer = HtmlStreamRenderer.create(
@@ -147,8 +145,8 @@ public class EmailController {
         return sw.toString();
     }
 
-    @GetMapping(value = "/accounts/{accountId}/folders/{folderId}/emails/{emailId}/attachments/{attachmentId}")
-    public ResponseEntity<InputStreamSource> emailAttachment(@PathVariable int accountId, @PathVariable int folderId, @PathVariable int emailId, @PathVariable int attachmentId, HttpServletResponse response) throws IOException {
+    @GetMapping(value = "/accounts/{accountId}/emails/{emailId}/attachments/{attachmentId}")
+    public ResponseEntity<InputStreamSource> emailAttachment(@PathVariable int accountId, @PathVariable int emailId, @PathVariable int attachmentId, HttpServletResponse response) throws IOException {
         if (attachmentId == 1) {
             var attachment = ATTACHMENT1;
             HttpHeaders httpHeaders = new HttpHeaders();
