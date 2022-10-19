@@ -24,7 +24,7 @@
                     {{ iconlink('#', 'Move', 'move') }}
                 </form>
                 <div id="email-paging-controls">
-                    <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total.get() }}</div>
+                    <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total.isEmpty() ? 'Many' : pagination.total.get() }}</div>
                     <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
                         {% if currentFolder != null %}
                             {% set baseLink = '/accounts/' + currentAccount.id + '/folders/' + currentFolder.id %}

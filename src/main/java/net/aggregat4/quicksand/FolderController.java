@@ -91,6 +91,7 @@ public class FolderController {
         context.put("folders", NAMED_FOLDERS);
         context.put("pagination", new Pagination(from, from + PAGE_SIZE, Optional.empty(), PAGE_SIZE));
         context.put("emailHeaders", searchResults);
+        context.put("currentQuery", query);
         return PebbleRenderer.renderTemplate(context, folderTemplate);
     }
 
