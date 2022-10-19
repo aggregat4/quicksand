@@ -1,4 +1,5 @@
 package net.aggregat4.quicksand.domain;
 
-public record Folder(int id, String name) {
+public sealed interface Folder permits NamedFolder, SearchFolder {
+    String name();
 }

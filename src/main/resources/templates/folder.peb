@@ -3,7 +3,7 @@
 {% block pageTitle %} Account {{ currentAccount.name }} {% endblock %}
 
 {% block additionalHeader %}
-<link rel="stylesheet" href="/css/account.css">
+<link rel="stylesheet" href="/css/folder.css">
 {% endblock %}
 
 {% block content %}

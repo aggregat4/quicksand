@@ -155,14 +155,14 @@ a.iconlink.selected {
 /* Main Layout --------  */
 
 /* The header takes the space at the top and the main content expands to fill the rest vertically */
-body.accountpage,
+body.folderpage,
 body.homepage{
     display: flex;
     flex-direction: column;
     color: var(--text-color);
 }
 
-body.accountpage main,
+body.folderpage main,
 body.homepage main {
     /*Make it fill the entire space*/
     flex: 2;
