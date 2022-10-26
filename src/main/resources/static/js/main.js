@@ -26,26 +26,38 @@ function init() {
     const menuItems = document.querySelectorAll('li.has-submenu')
     let menuTimer = null
     Array.prototype.forEach.call(menuItems, function(el, i){
-        el.addEventListener("mouseover", function(event){
-            this.classList.add("open")
+        el.addEventListener('mouseover', function(event){
+            this.classList.add('open')
             clearTimeout(menuTimer)
         });
-        el.addEventListener("mouseout", function(event){
+        el.addEventListener('mouseout', function(event){
             menuTimer = setTimeout(function(event){
-                document.querySelector(".has-submenu.open").className = "has-submenu"
+                document.querySelector('.has-submenu.open').className = 'has-submenu'
             }, 1000)
         });
         // activate the submenus on activation (click, keyboard activation, etc) for non sighted users
-        el.querySelector('a').addEventListener("click",  function(event){
-            if (!this.parentNode.classList.contains("open")) {
-                this.parentNode.classList.add("open")
-                this.setAttribute('aria-expanded', "true")
+        el.querySelector('a').addEventListener('click',  function(event){
+            if (!this.parentNode.classList.contains('open')) {
+                this.parentNode.classList.add('open')
+                this.setAttribute('aria-expanded', 'true')
             } else {
-                this.parentNode.classList.remove("open")
-                this.setAttribute('aria-expanded', "false")
+                this.parentNode.classList.remove('open')
+                this.setAttribute('aria-expanded', 'false')
             }
             event.preventDefault()
             return false
         });
     });
+}
+
+/*
+  Called when the selection state of a mail changes. It checks if the selection is empty and update the state of the
+  bulk action buttons accordingly.
+ */
+function updateActionButtons() {
+    const anyMailsSelected = Array.from(document.querySelectorAll('.emailselection input[type=checkbox]'))
+        .map(node => node.checked)
+        .reduce((prev, next) => prev || next)
+    document.querySelectorAll('#selected-email-controls > button')
+        .forEach((button) => button.disabled = !anyMailsSelected)
 }

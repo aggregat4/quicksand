@@ -1,11 +1,16 @@
     {% macro iconlink(link, label, icon, disabled, selected) %}
         {% if disabled %}
-        <a class="iconlink{{ selected ? ' selected' : '' }}" role="link" aria-disabled="true" aria-label="{{ label }}"
+        <a class="iconlink{{ selected ? ' selected' : '' }}"
+           href="{{ link }}"
+           aria-disabled="true"
+           aria-label="{{ label }}"
            title="{{ label }}">
             {{ svgIcon(icon) | raw }} {{ label }}
         </a>
         {% else %}
-        <a class="iconlink{{ selected ? ' selected' : '' }}" href="{{ link }}" aria-label="{{ label }}"
+        <a class="iconlink{{ selected ? ' selected' : '' }}"
+           href="{{ link }}"
+           aria-label="{{ label }}"
            title="{{ label }}">
             {{ svgIcon(icon) | raw }} {{ label }}
         </a>
@@ -13,15 +18,8 @@
     {% endmacro %}
 
     {% macro submitButton(showText, icon, disabled, name, label, clickHandler) %}
-        {% if disabled %}
-        <button disabled class="{{showText ? '' : 'iconButton' }}" type="submit" name="{{ name }}" title="{{ label }}"
-                aria-label="{{ label }}">
-            {% if icon != null %}{{ svgIcon(icon) | raw }}{% endif %}{{ showText ? label : '' }}
-        </button>
-        {% else %}
-        <button class="{{showText ? '' : 'iconButton' }}" type="submit" name="{{ name }}" title="{{ label }}"
+        <button {{ disabled ? 'disabled' : '' }} class="{{showText ? '' : 'iconButton' }}" type="submit" name="{{ name }}" title="{{ label }}"
                 aria-label="{{ label }}" {% if clickHandler %}onclick="{{ clickHandler }}"{% endif %}>
             {% if icon != null %}{{ svgIcon(icon) | raw }}{% endif %}{{ showText ? label : '' }}
         </button>
-        {% endif %}
     {% endmacro %}

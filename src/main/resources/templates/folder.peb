@@ -14,14 +14,12 @@
                     {{ svgIcon('selectall') | raw }} Select all
                 </button>
                 <form id="selected-email-controls" method="POST" action="/accounts/{{ currentAccount.id }}/emails/selection">
-                    {#  TODO disable button when no selection #}
-                    {{ submitButton(true, 'archive',    false, 'email_selection_action_archive', 'Archive') }}
-                    {{ submitButton(true, null,         false, 'email_selection_action_mark_spam', 'Mark Spam') }}
-                    {{ submitButton(true, 'delete',     false, 'email_selection_action_delete', 'Delete') }}
-                    {{ submitButton(true, 'markread',   false, 'email_selection_action_mark_read', 'Mark Read') }}
-                    {{ submitButton(true, 'markunread', false, 'email_selection_action_mark_unread', 'Mark Unread') }}
-
-                    {{ iconlink('#', 'Move', 'move') }}
+                    {{ submitButton(true, 'archive',    true, 'email_selection_action_archive', 'Archive') }}
+                    {{ submitButton(true, null,         true, 'email_selection_action_mark_spam', 'Mark Spam') }}
+                    {{ submitButton(true, 'delete',     true, 'email_selection_action_delete', 'Delete') }}
+                    {{ submitButton(true, 'markread',   true, 'email_selection_action_mark_read', 'Mark Read') }}
+                    {{ submitButton(true, 'markunread', true, 'email_selection_action_mark_unread', 'Mark Unread') }}
+                    {{ submitButton(true, 'move',       true, 'email_selection_action_move', 'Move') }}
                 </form>
                 <div id="email-paging-controls">
                     <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total.isEmpty() ? 'Many' : pagination.total.get() }}</div>
@@ -59,11 +57,11 @@
                    class="emailheader{{ emailHeader.read ? ' read' : '' }}"
                    {# Clicking the link will open it in the iframe inside of the message viewer dialog #}
                    target="emailviewer"
-                   {# Sadly dialogs can not be opened without javascript (or horrible CSS hacks), but we can close it using javascript... #}
+                   {# Sadly dialogs can not be opened without javascript (or horrible CSS hacks), but at least we can close it without using javascript... #}
                    onclick="document.getElementById('messagepreview').show(); document.getElementById('messagelist').classList.add('showspreview');">
                     <div class="emailselection">
                         <label>
-                            <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="selected-email-controls">
+                            <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="selected-email-controls" onchange="updateActionButtons()">
                             <span hidden>Select E-Mail</span>
                         </label>
                     </div>
