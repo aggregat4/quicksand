@@ -10,9 +10,12 @@
     <main>
         <div id="accountnav">
             <div id="emailcontrols">
-                <button id="select-mail-button" type="button" aria-pressed="false" title="Select All E-Mails">
-                    {{ svgIcon('selectall') | raw }} Select all
-                </button>
+                {#  as per https://www.barrierefreies-webdesign.de/knowhow/checkbox/ #}
+                <div id="select-all-mail-checkbox" role="checkbox" aria-checked="false" tabindex="0" title="Select All E-Mails" onclick="onClickSelectAllEmails()">
+                    {{ svgIcon('noneselected') | raw }}
+                    {{ svgIcon('someselected') | raw }}
+                    {{ svgIcon('allselected')  | raw }}
+                </div>
                 <form id="selected-email-controls" method="POST" action="/accounts/{{ currentAccount.id }}/emails/selection">
                     {{ submitButton(true, 'archive',    true, 'email_selection_action_archive', 'Archive') }}
                     {{ submitButton(true, null,         true, 'email_selection_action_mark_spam', 'Mark Spam') }}
@@ -61,7 +64,7 @@
                    onclick="document.getElementById('messagepreview').show(); document.getElementById('messagelist').classList.add('showspreview');">
                     <div class="emailselection">
                         <label>
-                            <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="selected-email-controls" onchange="updateActionButtons()">
+                            <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="selected-email-controls" onchange="onChangeEmailSelection()">
                             <span hidden>Select E-Mail</span>
                         </label>
                     </div>

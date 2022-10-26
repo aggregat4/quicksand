@@ -54,6 +54,32 @@
     align-items: center;
 }
 
+/* CSS nesting would be really nice here */
+#select-all-mail-checkbox[aria-checked='true'] svg.bi-check-some-square,
+#select-all-mail-checkbox[aria-checked='true'] svg.bi-square{
+    display: none;
+}
+#select-all-mail-checkbox[aria-checked='true'] svg.bi-check-square {
+    display: inline-block;
+}
+
+#select-all-mail-checkbox[aria-checked='false'] svg.bi-check-some-square,
+#select-all-mail-checkbox[aria-checked='false'] svg.bi-check-square {
+    display: none;
+}
+#select-all-mail-checkbox[aria-checked='false'] svg.bi-square {
+    display: inline-block;
+}
+
+#select-all-mail-checkbox[aria-checked='mixed'] svg.bi-square,
+#select-all-mail-checkbox[aria-checked='mixed'] svg.bi-check-square {
+    display: none;
+}
+#select-all-mail-checkbox[aria-checked='mixed'] svg.bi-check-some-square {
+    display: inline-block;
+}
+
+
 #selected-email-controls {
     display: flex;
     gap: 6px;

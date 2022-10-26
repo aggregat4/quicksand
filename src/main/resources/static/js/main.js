@@ -54,10 +54,47 @@ function init() {
   Called when the selection state of a mail changes. It checks if the selection is empty and update the state of the
   bulk action buttons accordingly.
  */
-function updateActionButtons() {
-    const anyMailsSelected = Array.from(document.querySelectorAll('.emailselection input[type=checkbox]'))
-        .map(node => node.checked)
-        .reduce((prev, next) => prev || next)
+function onChangeEmailSelection() {
+    let allMailsSelected = true
+    let anyMailsSelected = false
+    document.querySelectorAll('.emailselection input[type=checkbox]')
+        .forEach(node => {
+            anyMailsSelected ||= node.checked
+            allMailsSelected &&= node.checked
+        })
+    updateActionButtons(anyMailsSelected)
+    const allEmailSelectionCheckBox = document.getElementById('select-all-mail-checkbox')
+    if (allMailsSelected) {
+        allEmailSelectionCheckBox.setAttribute('aria-checked', 'true')
+    } else if (anyMailsSelected) {
+        allEmailSelectionCheckBox.setAttribute('aria-checked', 'mixed')
+    } else {
+        allEmailSelectionCheckBox.setAttribute('aria-checked', 'false')
+    }
+}
+
+function updateActionButtons(anyMailsSelected) {
     document.querySelectorAll('#selected-email-controls > button')
         .forEach((button) => button.disabled = !anyMailsSelected)
+}
+
+function onClickSelectAllEmails() {
+    const allEmailSelectionCheckBox = document.getElementById('select-all-mail-checkbox')
+    const ariaCheckedState = allEmailSelectionCheckBox.getAttribute('aria-checked')
+    const anySelectionPresent = (ariaCheckedState === 'true' || ariaCheckedState === 'mixed')
+    if (anySelectionPresent) {
+        allEmailSelectionCheckBox.setAttribute('aria-checked', 'false')
+        changeSelectionOfEmails(false)
+    } else {
+        allEmailSelectionCheckBox.setAttribute('aria-checked', 'true')
+        changeSelectionOfEmails(true)
+    }
+    updateActionButtons(!anySelectionPresent)
+}
+
+function changeSelectionOfEmails(selectAll) {
+    document.querySelectorAll('.emailselection input[type=checkbox]')
+        .forEach(node => {
+            node.checked = !!selectAll
+        })
 }
