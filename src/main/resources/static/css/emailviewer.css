@@ -95,6 +95,9 @@
     font-family: sans-serif;
     width: 100%;
     max-width: 66ch;
+    /* https://developer.mozilla.org/en-US/docs/Web/CSS/white-space
+       white space sequences are preserved, breaking at box boundaries */
+    white-space: pre-wrap;
 }
 
 #emailbody > iframe {
