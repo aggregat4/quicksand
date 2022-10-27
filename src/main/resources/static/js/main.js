@@ -98,3 +98,30 @@ function changeSelectionOfEmails(selectAll) {
             node.checked = !!selectAll
         })
 }
+
+function onEmailHeaderClick(event) {
+    // make the preview window visible
+    const messagePreviewDialog = document.getElementById('messagepreview')
+    if (!messagePreviewDialog.open) {
+        messagePreviewDialog.show()
+        document.getElementById('messagelist').classList.add('showspreview')
+    }
+    if (! event.currentTarget.classList.contains('active')) {
+        markAllEmailHeadersInactive()
+        event.currentTarget.classList.add('active')
+    }
+}
+
+function markAllEmailHeadersInactive() {
+    const emailHeaderNodelist = document.querySelectorAll('#messagelist a')
+    emailHeaderNodelist.forEach(node => {
+        if (node.classList.contains('active')) {
+            node.classList.remove('active')
+        }
+    })
+}
+
+function onCloseMessagePreview() {
+    document.getElementById("messagelist").classList.remove("showspreview")
+    markAllEmailHeadersInactive()
+}

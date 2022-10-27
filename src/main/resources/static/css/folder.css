@@ -125,12 +125,12 @@
 }
 
 .emailheader,
-.emailheader:active,
-.emailheader:hover {
+.emailheader:active {
     color: var(--text-color);
 }
 
-.emailheader:hover {
+.emailheader:hover,
+.emailheader.active {
     background-color: var(--hover-bgcolor);
     color: var(--hover-color);
 }
@@ -138,6 +138,7 @@
 .emailheader:hover button.iconbutton {
     border-color: var(--hover-color);
 }
+
 
 .emailselection {
     grid-column: 1 / 2;

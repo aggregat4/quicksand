@@ -61,7 +61,7 @@
                    {# Clicking the link will open it in the iframe inside of the message viewer dialog #}
                    target="emailviewer"
                    {# Sadly dialogs can not be opened without javascript (or horrible CSS hacks), but at least we can close it without using javascript... #}
-                   onclick="document.getElementById('messagepreview').show(); document.getElementById('messagelist').classList.add('showspreview');">
+                   onclick="onEmailHeaderClick(event)">
                     <div class="emailselection">
                         <label>
                             <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="selected-email-controls" onchange="onChangeEmailSelection()">
@@ -104,7 +104,7 @@
         </div>
         <dialog id="messagepreview">
             <form id="emailviewercloser" method="dialog">
-                    {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'document.getElementById("messagelist").classList.remove("showspreview");') }}
+                    {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
             </form>
             <iframe name="emailviewer">
             </iframe>
