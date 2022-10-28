@@ -118,6 +118,7 @@
     column-gap: 6px;
 
     padding: 6px 12px;
+    border: 1px solid transparent;
     border-bottom: 1px solid lightgray;
     background-color: white;
 
@@ -129,14 +130,17 @@
     color: var(--text-color);
 }
 
-.emailheader:hover,
-.emailheader.active {
-    background-color: var(--hover-bgcolor);
-    color: var(--hover-color);
+.emailheader:hover {
+    border: 1px solid black;
 }
 
-.emailheader:hover button.iconbutton {
-    border-color: var(--hover-color);
+.emailheader.active {
+    background-color: var(--selected-bgcolor);
+    color: var(--selected-color);
+}
+
+.emailheader:active button.iconbutton {
+    border-color: var(--selected-color);
 }
 
 
@@ -178,11 +182,6 @@
     align-items: center;
     justify-content: flex-end;
     gap: 6px;
-}
-
-.emailheader:hover button.iconbutton {
-    background: var(--hover-bgcolor);
-    color: var(--hover-color);
 }
 
 .fromname,
