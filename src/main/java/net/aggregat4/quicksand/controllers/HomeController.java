@@ -1,4 +1,4 @@
-package net.aggregat4.quicksand;
+package net.aggregat4.quicksand.controllers;
 
 import com.mitchellbosecke.pebble.template.PebbleTemplate;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
