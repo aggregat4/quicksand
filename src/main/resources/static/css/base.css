@@ -79,17 +79,14 @@ h2 {
     font-size: 24px;
 }
 
-nav > ul li       ul { display: none; }
-nav > ul li:hover ul { display: block;}
-
-nav ul {
+nav > ul {
     list-style-type: none;
     display: flex;
     padding: 0;
     margin: 0;
     align-items: center;
 }
-nav ul li {
+nav > ul > li {
     display: inline-block;
     position: relative;
     margin: 0;
@@ -118,17 +115,31 @@ button:hover {
 
 
 /* submenus are position specifically */
-nav ul li ul {
+.has-submenu ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+
+    display: none;
     position: absolute;
     top: 100%;
     left: 0;
-    right: 0;
+    background-color: white;
+    box-shadow: rgba(149, 157, 165, 0.2) 0px 8px 24px;
+    /* We need to set the zindex explicitlyz so the background is visible*/
+    z-index: 5;
 }
-.has-submenu ul {
-    display: none;
+
+.has-submenu ul li {
+    padding: 3px 6px;
 }
+
 .has-submenu.open ul  {
     display: block;
+}
+
+.has-submenu.open ul a {
+    display: inline-block;
 }
 
 /* icon-link component ------ */

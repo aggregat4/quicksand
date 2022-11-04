@@ -4,6 +4,7 @@ import com.mitchellbosecke.pebble.template.PebbleTemplate;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Actor;
+import net.aggregat4.quicksand.domain.EmailGroup;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.Folder;
 import net.aggregat4.quicksand.domain.NamedFolder;
@@ -49,13 +50,16 @@ public class FolderController {
                 .filter(f -> f.id() == folderId)
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(String.format("Folderid %s is unknown", folderId)));
-        List<EmailHeader> emailHeaders = List.of(
-                new EmailHeader(1, EMAIL1_SENDER, EMAIL1_RECIPIENT, EMAIL1_SUBJECT, EMAIL1_RECEIVEDDATE, "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, false),
-                new EmailHeader(2, EMAIL2_SENDER, EMAIL2_RECIPIENT, EMAIL2_SUBJECT, EMAIL2_RECEIVEDDATE, "Asd askl; sdkljhs ldkjfhaslkdjfhalksdjfh aslkd  falskjd alskdfhqw qwe ", false, false, false),
-                new EmailHeader(3, new Actor("izzi342@gmail.com", Optional.of("Eddie Izzard")), EMAIL1_RECIPIENT, "This is the greatest thing ever!", ZonedDateTime.now().minus(44, ChronoUnit.MINUTES), "Dear Mr. Michalson, This is the winter of my discontent. And I hope you are fine.", false, false, true),
-                new EmailHeader(4, new Actor("ceo@ibm.com", Optional.of("John Hockenberry von Hockenstein")), EMAIL1_RECIPIENT, "Hocky my hockface", ZonedDateTime.now().minus(2, ChronoUnit.HOURS), "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, true),
-                new EmailHeader(5, new Actor("john@waterman.org", Optional.of("John Doe")), EMAIL1_RECIPIENT, "Hi", ZonedDateTime.now().minus(3, ChronoUnit.DAYS), "JKHGajkls glasjkdfgh djshfsdklj fhskdjlfh asdkljfh asdkljf qweuihawioeusdv bj", true, false, true),
-                new EmailHeader(6, new Actor("whatevs@mail.org", Optional.of("Evan Watts")), EMAIL1_RECIPIENT, "Dude, wassup!", ZonedDateTime.now().minus(7, ChronoUnit.DAYS), "And now my dear there is a chance that we may meet again in fields", false, false, true)
+        List<EmailGroup> emailGroups = List.of(
+                new EmailGroup.TodayEmailGroup(List.of(
+                    new EmailHeader(1, EMAIL1_SENDER, EMAIL1_RECIPIENT, EMAIL1_SUBJECT, EMAIL1_RECEIVEDDATE, "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, false),
+                    new EmailHeader(2, EMAIL2_SENDER, EMAIL2_RECIPIENT, EMAIL2_SUBJECT, EMAIL2_RECEIVEDDATE, "Asd askl; sdkljhs ldkjfhaslkdjfhalksdjfh aslkd  falskjd alskdfhqw qwe ", false, false, false))),
+                new EmailGroup.ThisWeekEmailGroup(List.of(
+                    new EmailHeader(3, new Actor("izzi342@gmail.com", Optional.of("Eddie Izzard")), EMAIL1_RECIPIENT, "This is the greatest thing ever!", ZonedDateTime.now().minus(44, ChronoUnit.MINUTES), "Dear Mr. Michalson, This is the winter of my discontent. And I hope you are fine.", false, false, true))),
+                new EmailGroup.ThisMonthEmailGroup(List.of(
+                    new EmailHeader(4, new Actor("ceo@ibm.com", Optional.of("John Hockenberry von Hockenstein")), EMAIL1_RECIPIENT, "Hocky my hockface", ZonedDateTime.now().minus(2, ChronoUnit.HOURS), "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, true),
+                    new EmailHeader(5, new Actor("john@waterman.org", Optional.of("John Doe")), EMAIL1_RECIPIENT, "Hi", ZonedDateTime.now().minus(3, ChronoUnit.DAYS), "JKHGajkls glasjkdfgh djshfsdklj fhskdjlfh asdkljfh asdkljf qweuihawioeusdv bj", true, false, true),
+                    new EmailHeader(6, new Actor("whatevs@mail.org", Optional.of("Evan Watts")), EMAIL1_RECIPIENT, "Dude, wassup!", ZonedDateTime.now().minus(7, ChronoUnit.DAYS), "And now my dear there is a chance that we may meet again in fields", false, false, true)))
         );
 
         Map<String, Object> context = new HashMap<>();
@@ -65,7 +69,7 @@ public class FolderController {
         context.put("currentFolder", currentFolder);
         context.put("folders", NAMED_FOLDERS);
         context.put("pagination", new Pagination(from, Math.min(from + PAGE_SIZE, total), Optional.of(total), PAGE_SIZE));
-        context.put("emailHeaders", emailHeaders);
+        context.put("emailGroups", emailGroups);
         return PebbleRenderer.renderTemplate(context, folderTemplate);
     }
 

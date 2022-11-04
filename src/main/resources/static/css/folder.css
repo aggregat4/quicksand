@@ -102,13 +102,23 @@
 #folderlist {
     /*border-right: 1px dashed gray;*/
 }
+
 #folderlist a {
-    /*margin: 6px 12px;*/
+    padding: 6px 12px;
+    display: inline-block;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    width: 100%;
 }
 
 
 /* email headers --------- */
 #messagelist {
+}
+
+.emailgroup {
+    padding: 3px 6px;
 }
 
 .emailheader {
@@ -141,6 +151,11 @@
 
 .emailheader:active button.iconbutton {
     border-color: var(--selected-color);
+}
+
+.emailheader .iconbutton {
+    border: none;
+    padding: 3px;
 }
 
 

@@ -55,52 +55,20 @@
             {% endfor %}
         </div>
         <div id="messagelist">
-            {% for emailHeader in emailHeaders %}
-                <a href="/accounts/{{ currentAccount.id }}/emails/{{ emailHeader.id }}?showImages=false"
-                   class="emailheader{{ emailHeader.read ? ' read' : '' }}"
-                   {# Clicking the link will open it in the iframe inside of the message viewer dialog #}
-                   target="emailviewer"
-                   {# Sadly dialogs can not be opened without javascript (or horrible CSS hacks), but at least we can close it without using javascript... #}
-                   onclick="onEmailHeaderClick(event)">
-                    <div class="emailselection">
-                        <label>
-                            <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="selected-email-controls" onchange="onChangeEmailSelection()">
-                            <span hidden>Select E-Mail</span>
-                        </label>
+            {% if emailGroups != null %}
+                {% for group in emailGroups %}
+                    <div class="emailgroup">
+                        {{ group.name() }}
                     </div>
-                    <div class="fromname">{{ emailHeader.sender().name().orElse(emailHeader.sender().emailAddress()) | raw}}</div>
-                    <div class="date-and-actions">
-                        <span class="date">
-                            {% if emailHeader.attachment %}
-                                <span class="attachment">{{ svgIcon('attachment') | raw }}</span>
-                            {% endif %}
-                            {{ emailHeader.shortFormattedReceivedDate }}
-                        </span>
-                        <form class="emailactions" method="POST" action="/account/{{ currentAccount.id }}/emails/{{ emailHeader.id }}/actions">
-                            <button class="iconbutton" type="submit" name="action_archive_{{ emailHeader.id }}" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
-                            <button class="iconbutton" type="submit" name="action_delete_{{ emailHeader.id }}" title="Delete E-Mail" aria-label="Delete E-Mail">{{ svgIcon('delete') | raw }}</button>
-                            {% if emailHeader.read %}
-                                <button class="iconbutton" type="submit" name="action_markunread_{{ emailHeader.id }}" title="Mark E-Mail Unread" aria-label="Mark E-Mail Unread">{{ svgIcon('markunread') | raw }}</button>
-                            {% else %}
-                                <button class="iconbutton" type="submit" name="action_markread_{{ emailHeader.id }}" title="Mark E-Mail Read" aria-label="Mark E-Mail Read">{{ svgIcon('markread') | raw }}</button>
-                            {% endif %}
-                        </form>
-                    </div>
-                    <div class="subjectline">
-                        {{ emailHeader.subject | raw}}
-                    </div>
-                    <div class="bodyline">
-                        {{ emailHeader.bodyExcerpt | raw}}
-                    </div>
-                    <div class="emailstar">
-                        {% if emailHeader.starred %}
-                            {{ svgIcon('starfilled') | raw }}
-                        {% else %}
-                            {{ svgIcon('starunfilled') | raw }}
-                        {% endif %}
-                    </div>
-                </a>
-            {% endfor %}
+                    {% for emailHeader in group.headers() %}
+                        {% include 'templates/emailheader.peb' %}
+                    {% endfor %}
+                {% endfor %}
+            {% else %}
+                {% for emailHeader in emailHeaders %}
+                    {% include 'templates/emailheader.peb' %}
+                {% endfor %}
+            {% endif %}
         </div>
         <dialog id="messagepreview">
             <form id="emailviewercloser" method="dialog">

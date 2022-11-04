@@ -3,19 +3,17 @@ package net.aggregat4.quicksand.domain;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 public interface EmailGroup {
-    String getName();
 
-    boolean matches(EmailHeader emailHeader);
+    String name();
 
-    void add(EmailHeader emailHeader);
-
-    List<EmailHeader> getEmailHeaders();
+    List<EmailHeader> headers();
 
     abstract class AbstractEmailgroup implements EmailGroup {
         private final List<EmailHeader> headers = new ArrayList<>();
@@ -23,22 +21,33 @@ public interface EmailGroup {
         private final ZonedDateTime startOfPeriod;
         private final ZonedDateTime startOfNextPeriod;
 
-        public AbstractEmailgroup(ZonedDateTime startOfPeriod, ZonedDateTime startOfNextPeriod) {
+        public AbstractEmailgroup(List<EmailHeader> emailHeaders, ZonedDateTime startOfPeriod, ZonedDateTime startOfNextPeriod) {
+            this.headers.addAll(emailHeaders);
             this.startOfPeriod = startOfPeriod;
             this.startOfNextPeriod = startOfNextPeriod;
         }
 
-        @Override
+        public static LocalDate getBeginningOfWeek() {
+            return LocalDate.now()
+                    // now change this date to the beginning of the week (that's the "1") and do this in a locale dependent way (US starts on Sunday, rest of the world on Monday)
+                    .with(WeekFields.of(Locale.getDefault()).dayOfWeek(), 1);
+        }
+
+        public static LocalDate getBeginningOfMonth() {
+            return LocalDate.now()
+                    // now change this date to the beginning of the week (that's the "1") and do this in a locale dependent way (US starts on Sunday, rest of the world on Monday)
+                    .with(TemporalAdjusters.firstDayOfMonth());
+        }
+
         public void add(EmailHeader emailHeader) {
             this.headers.add(emailHeader);
         }
 
         @Override
-        public List<EmailHeader> getEmailHeaders() {
+        public List<EmailHeader> headers() {
             return this.headers;
         }
 
-        @Override
         public boolean matches(EmailHeader emailHeader) {
             return !emailHeader.receivedDate().isBefore(startOfPeriod) &&
                     emailHeader.receivedDate().isBefore(startOfNextPeriod);
@@ -46,21 +55,23 @@ public interface EmailGroup {
     }
 
     class TodayEmailGroup extends AbstractEmailgroup {
-        public TodayEmailGroup() {
+        public TodayEmailGroup(List<EmailHeader> headers) {
             super(
+                    headers,
                     LocalDate.now().atStartOfDay(ZoneId.systemDefault()),
                     LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()));
         }
 
         @Override
-        public String getName() {
+        public String name() {
             return "Today";
         }
     }
 
     class ThisWeekEmailGroup extends AbstractEmailgroup {
-        public ThisWeekEmailGroup() {
+        public ThisWeekEmailGroup(List<EmailHeader> headers) {
             super(
+                    headers,
                     getBeginningOfWeek().atStartOfDay(ZoneId.systemDefault()),
                     getBeginningOfWeek()
                             // jump ahead one week since we want to check against the start of the next week
@@ -69,31 +80,38 @@ public interface EmailGroup {
             );
         }
 
-        private static LocalDate getBeginningOfWeek() {
-            return LocalDate.now()
-                    // now change this date to the beginning of the week (that's the "1") and do this in a locale dependent way (US starts on Sunday, rest of the world on Monday)
-                    .with(WeekFields.of(Locale.getDefault()).dayOfWeek(), 1);
-        }
-
         @Override
-        public String getName() {
-            return "Today";
+        public String name() {
+            return "This Week";
         }
     }
 
-    // TODO: continue with groups here
-    class NextWeekEmailGroup extends AbstractEmailgroup {
-        public NextWeekEmailGroup() {
+    class LastWeekEmailGroup extends AbstractEmailgroup {
+        public LastWeekEmailGroup(List<EmailHeader> headers) {
             super(
-                    LocalDate.now().atStartOfDay(ZoneId.systemDefault()),
-                    LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()));
+                    headers,
+                    getBeginningOfWeek().minusWeeks(1).atStartOfDay(ZoneId.systemDefault()),
+                    getBeginningOfWeek().atStartOfDay(ZoneId.systemDefault()));
         }
 
         @Override
-        public String getName() {
-            return "Today";
+        public String name() {
+            return "Last Week";
         }
     }
 
+    class ThisMonthEmailGroup extends AbstractEmailgroup {
+        public ThisMonthEmailGroup(List<EmailHeader> headers) {
+            super(
+                    headers,
+                    getBeginningOfMonth().atStartOfDay(ZoneId.systemDefault()),
+                    getBeginningOfMonth().plusMonths(1).atStartOfDay(ZoneId.systemDefault()));
+        }
+
+        @Override
+        public String name() {
+            return "This Month";
+        }
+    }
 
 }
