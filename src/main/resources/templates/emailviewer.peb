@@ -65,16 +65,18 @@
         </div>
         <div id="emailattachments">
             {% if not email.attachments.isEmpty() %}
-            Attachments:
-            <ul>
-            {% for attachment in email.attachments %}
-                <li><a class="attachment" href="/accounts/{{ accountId }}/emails/{{ email.header.id }}/attachments/{{ attachment.id }}">{{ (attachment.name != null and attachment.name != "") ? attachment.name : 'attachment without name' }}</a>, {{ attachment.sizeInBytes / 1024 }}KB, {{ attachment.mediaType }}</li>
-            {% endfor %}
-            </ul>
+                Attachments:
+                <ul>
+                {% for attachment in email.attachments %}
+                    <li><a class="attachment" href="/accounts/{{ accountId }}/emails/{{ email.header.id }}/attachments/{{ attachment.id }}">{{ (attachment.name != null and attachment.name != "") ? attachment.name : 'attachment without name' }}</a>, {{ attachment.sizeInBytes / 1024 }}KB, {{ attachment.mediaType }}</li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                No attachments.
             {% endif %}
         </div>
         <div id="emailbottomactions">
-            some actions, maybe just reply?
+            {# some actions, maybe just reply? #}
         </div>
     </main>
 
