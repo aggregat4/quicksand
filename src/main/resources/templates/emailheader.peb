@@ -6,7 +6,7 @@
    onclick="onEmailHeaderClick(event)">
     <div class="emailselection">
         <label>
-            <input type="checkbox" name="email_select_{{ emailHeader.id }}" form="selected-email-controls" onchange="onChangeEmailSelection()">
+            <input type="checkbox" name="email_select" value="{{ emailHeader.id }}" form="selected-email-controls" onchange="onChangeEmailSelection()">
             <span hidden>Select E-Mail</span>
         </label>
     </div>

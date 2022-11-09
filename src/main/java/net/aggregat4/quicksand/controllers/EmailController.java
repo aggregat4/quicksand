@@ -1,6 +1,7 @@
 package net.aggregat4.quicksand.controllers;
 
 import com.mitchellbosecke.pebble.template.PebbleTemplate;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
@@ -15,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,6 +24,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -97,6 +100,25 @@ public class EmailController {
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
+    }
+
+    @PostMapping(value = "/accounts/{accountId}/emails/selection")
+    public void selectedEmailAction(
+            @PathVariable int accountId,
+            @RequestParam(name = "email_select") List<Integer> selectionIds,
+            HttpServletRequest req,
+            HttpServletResponse resp) throws IOException {
+        var action = "undefined";
+        for (Map.Entry<String, String[]> param : req.getParameterMap().entrySet()) {
+            if (param.getKey().startsWith("email_selection_action")) {
+                action = param.getKey();
+            }
+        }
+        System.out.printf("Selection action %s for emails %s%n", action, selectionIds.toString());
+        // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local applications
+        // it is no problem
+        String referer = req.getHeader("Referer");
+        resp.sendRedirect(referer);
     }
 
 }
