@@ -1,5 +1,6 @@
 <a href="/accounts/{{ currentAccount.id }}/emails/{{ emailHeader.id }}?showImages=false"
-   class="emailheader{{ emailHeader.read ? ' read' : '' }}"
+   id="email{{ emailHeader.id }}"
+   class="emailheader{{ emailHeader.read ? ' read' : '' }}{{ emailActive and selectedEmailId == emailHeader.id ? ' active' : '' }}"
     {# Clicking the link will open it in the iframe inside of the message viewer dialog #}
    target="emailviewer"
     {# Sadly dialogs can not be opened without javascript (or horrible CSS hacks), but at least we can close it without using javascript... #}
@@ -12,12 +13,12 @@
     </div>
     <div class="fromname">{{ emailHeader.sender().name().orElse(emailHeader.sender().emailAddress()) | raw}}</div>
     <div class="date-and-actions">
-                            <span class="date">
-                                {% if emailHeader.attachment %}
-                                    <span class="attachment">{{ svgIcon('attachment') | raw }}</span>
-                                {% endif %}
-                                {{ emailHeader.shortFormattedReceivedDate }}
-                            </span>
+        <span class="date">
+            {% if emailHeader.attachment %}
+                <span class="attachment">{{ svgIcon('attachment') | raw }}</span>
+            {% endif %}
+            {{ emailHeader.shortFormattedReceivedDate }}
+        </span>
         <form class="emailactions" method="POST" action="/accounts/{{ currentAccount.id }}/emails/{{ emailHeader.id }}/actions">
             <button class="iconbutton" type="submit" name="action_archive_{{ emailHeader.id }}" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
             <button class="iconbutton" type="submit" name="action_delete_{{ emailHeader.id }}" title="Delete E-Mail" aria-label="Delete E-Mail">{{ svgIcon('delete') | raw }}</button>
@@ -29,16 +30,16 @@
         </form>
     </div>
     <div class="subjectline">
-            {{ emailHeader.subject | raw}}
+        {{ emailHeader.subject | raw}}
     </div>
     <div class="bodyline">
-            {{ emailHeader.bodyExcerpt | raw}}
+        {{ emailHeader.bodyExcerpt | raw}}
     </div>
     <div class="emailstar">
-            {% if emailHeader.starred %}
-                                {{ svgIcon('starfilled') | raw }}
-                            {% else %}
-                                {{ svgIcon('starunfilled') | raw }}
-                            {% endif %}
+        {% if emailHeader.starred %}
+            {{ svgIcon('starfilled') | raw }}
+        {% else %}
+            {{ svgIcon('starunfilled') | raw }}
+        {% endif %}
     </div>
 </a>

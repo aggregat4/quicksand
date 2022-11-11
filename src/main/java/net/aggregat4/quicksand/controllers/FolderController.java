@@ -34,12 +34,16 @@ public class FolderController {
     private final List<Account> ACCOUNTS = List.of(new Account(1, "foo@example.com"), new Account(2, "bar@example.org"));
 
     @GetMapping(value = "/accounts/{id}", produces = {"text/html"})
-    public String accountPage(@PathVariable int id, @RequestParam(required = false, defaultValue = "1") Integer from) throws IOException {
-        return folderPage(id, 1, 1);
+    public String accountPage(@PathVariable int id) throws IOException {
+        return folderPage(id, 1, 1, null);
     }
 
     @GetMapping(value = "/accounts/{accountId}/folders/{folderId}", produces = {"text/html"})
-    public String folderPage(@PathVariable int accountId, @PathVariable int folderId, @RequestParam(required = false, defaultValue = "1") Integer from) throws IOException {
+    public String folderPage(
+            @PathVariable int accountId,
+            @PathVariable int folderId,
+            @RequestParam(required = false, defaultValue = "1") Integer from,
+            @RequestParam(required = false) Integer selectedEmailId) throws IOException {
         int total = 2526;
         if (from > total || from < 1) {
             throw new IllegalArgumentException("Accounts page called with invalid pagination offset");
@@ -68,11 +72,17 @@ public class FolderController {
         context.put("folders", NAMED_FOLDERS);
         context.put("pagination", new Pagination(from, Math.min(from + PAGE_SIZE, total), Optional.of(total), PAGE_SIZE));
         context.put("emailGroups", emailGroups);
+        if (selectedEmailId != null) {
+            context.put("selectedEmailId", selectedEmailId);
+        }
         return PebbleRenderer.renderTemplate(context, folderTemplate);
     }
 
     @GetMapping(value = "/accounts/{accountId}/search", produces = {"text/html"})
-    public String folderPage(@PathVariable int accountId, @RequestParam(required = false, defaultValue = "1") Integer from, @RequestParam(required = true) String query) throws IOException {
+    public String folderPage(
+            @PathVariable int accountId,
+            @RequestParam(required = false, defaultValue = "1") Integer from,
+            @RequestParam String query) throws IOException {
         SearchFolder searchFolder = new SearchFolder(new Query(query));
         // The search results are "just" "normal" paginated results but there are some special things
         // - there is probably no count to the search (too expensive)

@@ -26,12 +26,12 @@ function init() {
     const menuItems = document.querySelectorAll('li.has-submenu')
     let menuTimer = null
     Array.prototype.forEach.call(menuItems, function(el, i){
-        el.addEventListener('mouseover', function(event){
+        el.addEventListener('mouseover', function(){
             this.classList.add('open')
             clearTimeout(menuTimer)
         });
-        el.addEventListener('mouseout', function(event){
-            menuTimer = setTimeout(function(event){
+        el.addEventListener('mouseout', function(){
+            menuTimer = setTimeout(function(){
                 document.querySelector('.has-submenu.open').className = 'has-submenu'
             }, 1000)
         });
@@ -104,7 +104,6 @@ function onEmailHeaderClick(event) {
     const messagePreviewDialog = document.getElementById('messagepreview')
     if (!messagePreviewDialog.open) {
         messagePreviewDialog.show()
-        document.getElementById('messagelist').classList.add('showspreview')
     }
     if (! event.currentTarget.classList.contains('active')) {
         markAllEmailHeadersInactive()
@@ -122,6 +121,5 @@ function markAllEmailHeadersInactive() {
 }
 
 function onCloseMessagePreview() {
-    document.getElementById("messagelist").classList.remove("showspreview")
     markAllEmailHeadersInactive()
 }

@@ -54,6 +54,8 @@
                 {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + folder.id, folder.name, 'folder', selected = (currentFolder != null ? currentFolder.id == folder.id : false)) }}
             {% endfor %}
         </div>
+        {# need to declare emailActive here since otherwise it won't be in scope for the dialog below #}
+        {% set emailActive = false %}
         <div id="messagelist">
             {% if emailGroups != null %}
                 {% for group in emailGroups %}
@@ -61,22 +63,27 @@
                         {{ group.name() }}
                     </div>
                     {% for emailHeader in group.headers() %}
+                        {% set emailActive = emailActive or selectedEmailId == emailHeader.id %}
                         {% include 'templates/emailheader.peb' %}
                     {% endfor %}
                 {% endfor %}
             {% else %}
                 {% for emailHeader in emailHeaders %}
+                    {% set emailActive = emailActive or selectedEmailId == emailHeader.id %}
                     {% include 'templates/emailheader.peb' %}
                 {% endfor %}
             {% endif %}
         </div>
-        <dialog id="messagepreview">
+        <dialog id="messagepreview" {{ emailActive ? 'open' : '' }}>
             <form id="emailviewercloser" method="dialog">
                     {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
             </form>
-            <iframe name="emailviewer">
+            <iframe name="emailviewer"
+            {% if emailActive %}
+                src="{{ '/accounts/' + currentAccount.id + '/emails/' + selectedEmailId + '?showImages=false' }}"
+            {% endif %}
+            >
             </iframe>
         </dialog>
     </main>
-
 {% endblock %}

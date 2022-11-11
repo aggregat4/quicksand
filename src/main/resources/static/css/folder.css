@@ -240,39 +240,39 @@
    is shown so we can do two separate media queries: one to determine when to show
    one line message headers when the preview is showing and one where it isn't showing. */
 @media screen and (min-width: 1200px) {
-    #messagelist.showspreview .emailheader {
+    .emailheader.active {
         grid-template-columns: min-content min-content min-content min-content 1fr min-content;
         grid-template-rows: min-content;
     }
 
-    #messagelist.showspreview .emailheader  .emailselection {
+    .emailheader.active  .emailselection {
         grid-column: 1 / 2;
         grid-row: 1 / 2;
     }
 
-    #messagelist.showspreview .emailheader .emailstar {
+    .emailheader.active .emailstar {
         grid-column: 2 / 3;
         grid-row: 1 / 2;
     }
 
-    #messagelist.showspreview .emailheader .fromname {
+    .emailheader.active .fromname {
         grid-column: 3 / 4;
         grid-row: 1 / 2;
 
         width: 11rem;
     }
 
-    #messagelist.showspreview .emailheader .subjectline {
+    .emailheader.active .subjectline {
         grid-column: 4 / 5;
         grid-row: 1 / 2;
     }
 
-    #messagelist.showspreview .emailheader .bodyline {
+    .emailheader.active .bodyline {
         grid-column: 5 / 6;
         grid-row: 1 / 2;
     }
 
-    #messagelist.showspreview .emailheader .date-and-actions {
+    .emailheader.active .date-and-actions {
         grid-column: 6 / 7;
         grid-row: 1 / 2;
     }
@@ -280,39 +280,39 @@
 }
 
 @media screen and (min-width: 600px) {
-    #messagelist:not(.showspreview) .emailheader {
+    .emailheader:not(.active) {
         grid-template-columns: min-content min-content min-content min-content 1fr min-content;
         grid-template-rows: min-content;
     }
 
-    #messagelist:not(.showspreview) .emailheader  .emailselection {
+    .emailheader:not(.active)  .emailselection {
         grid-column: 1 / 2;
         grid-row: 1 / 2;
     }
 
-    #messagelist:not(.showspreview) .emailheader .emailstar {
+    .emailheader:not(.active) .emailstar {
         grid-column: 2 / 3;
         grid-row: 1 / 2;
     }
 
-    #messagelist:not(.showspreview) .emailheader .fromname {
+    .emailheader:not(.active) .fromname {
         grid-column: 3 / 4;
         grid-row: 1 / 2;
 
         width: 11rem;
     }
 
-    #messagelist:not(.showspreview) .emailheader .subjectline {
+    .emailheader:not(.active) .subjectline {
         grid-column: 4 / 5;
         grid-row: 1 / 2;
     }
 
-    #messagelist:not(.showspreview) .emailheader .bodyline {
+    .emailheader:not(.active) .bodyline {
         grid-column: 5 / 6;
         grid-row: 1 / 2;
     }
 
-    #messagelist:not(.showspreview) .emailheader .date-and-actions {
+    .emailheader:not(.active) .date-and-actions {
         grid-column: 6 / 7;
         grid-row: 1 / 2;
     }
