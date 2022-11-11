@@ -100,10 +100,8 @@ function changeSelectionOfEmails(selectAll) {
 function onEmailHeaderClick(event) {
     // make the preview window visible
     document.getElementById('messagepreview').show()
-    if (! event.currentTarget.classList.contains('active')) {
-        markAllEmailHeadersInactive()
-        event.currentTarget.classList.add('active')
-    }
+    markAllEmailHeadersInactive()
+    event.currentTarget.classList.add('active')
 }
 
 function markAllEmailHeadersInactive() {
