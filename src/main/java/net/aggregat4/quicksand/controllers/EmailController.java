@@ -10,6 +10,7 @@ import org.owasp.html.HtmlSanitizer;
 import org.owasp.html.HtmlStreamRenderer;
 import org.owasp.html.PolicyFactory;
 import org.springframework.core.io.InputStreamSource;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +53,7 @@ public class EmailController {
             .toFactory();
 
     @GetMapping(value = "/accounts/{accountId}/emails/{emailId}", produces = {"text/html"})
-    public String emailViewerPage(@PathVariable int accountId, @PathVariable int emailId, @RequestParam(defaultValue = "false") boolean showImages) throws IOException {
+    public ResponseEntity<String> emailViewerPage(@PathVariable int accountId, @PathVariable int emailId, @RequestParam(defaultValue = "false") boolean showImages) throws IOException {
         Map<String, Object> context = new HashMap<>();
         context.put("accountId", accountId);
         context.put("showImages", showImages);
@@ -60,11 +62,14 @@ public class EmailController {
         } else {
             context.put("email", MockEmailData.HTML_EMAIL);
         }
-        return PebbleRenderer.renderTemplate(context, emailViewerTemplate);
+        HttpHeaders httpHeaders = new HttpHeaders();
+        // TODO: we should if-last modified here so we can instruct the browser to use the cached version as long we did not restart the program
+//        httpHeaders.setCacheControl(CacheControl.maxAge(Duration.ofDays(365)));
+        return new ResponseEntity<>(PebbleRenderer.renderTemplate(context, emailViewerTemplate), httpHeaders, 200);
     }
 
     @GetMapping(value = "/accounts/{accountId}/emails/{emailId}/body", produces = {"text/html"})
-    public String emailBodyPage(@PathVariable int accountId, @PathVariable int emailId, @RequestParam(defaultValue = "false") boolean showImages) throws IOException {
+    public ResponseEntity<String> emailBodyPage(@PathVariable int accountId, @PathVariable int emailId, @RequestParam(defaultValue = "false") boolean showImages) throws IOException {
         StringWriter sw = new StringWriter();
         BufferedWriter bw = new BufferedWriter(sw);
         HtmlStreamRenderer renderer = HtmlStreamRenderer.create(
@@ -84,7 +89,9 @@ public class EmailController {
         } else {
             HtmlSanitizer.sanitize(MockEmailData.HTML_EMAIL_BODY, NO_IMAGES_POLICY.apply(renderer));
         }
-        return sw.toString();
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setCacheControl(CacheControl.maxAge(Duration.ofDays(365)));
+        return new ResponseEntity<>(sw.toString(), httpHeaders, 200);
     }
 
     @GetMapping(value = "/accounts/{accountId}/emails/{emailId}/attachments/{attachmentId}")
@@ -96,6 +103,7 @@ public class EmailController {
             if (attachment.name() != null) {
                 httpHeaders.setContentDisposition(ContentDisposition.attachment().filename(attachment.name()).build());
             }
+            httpHeaders.setCacheControl(CacheControl.maxAge(Duration.ofDays(365)));
             return new ResponseEntity<>(MockEmailData.sampleMp3Resource, httpHeaders, 200);
         } else {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
