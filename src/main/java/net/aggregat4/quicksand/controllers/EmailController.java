@@ -110,11 +110,31 @@ public class EmailController {
             HttpServletResponse resp) throws IOException {
         var action = "undefined";
         for (Map.Entry<String, String[]> param : req.getParameterMap().entrySet()) {
-            if (param.getKey().startsWith("email_selection_action")) {
+            if (param.getKey().startsWith("email_selection_action_")) {
                 action = param.getKey();
             }
         }
         System.out.printf("Selection action %s for emails %s%n", action, selectionIds.toString());
+        // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local applications
+        // it is no problem
+        String referer = req.getHeader("Referer");
+        resp.sendRedirect(referer);
+    }
+
+    // TODO: on delete we may want to redirect to a more general URL since the email is gone?
+    @PostMapping(value = "/accounts/{accountId}/emails/{emailId}/actions")
+    public void emailAction(
+            @PathVariable int accountId,
+            @PathVariable int emailId,
+            HttpServletRequest req,
+            HttpServletResponse resp) throws IOException {
+        var action = "undefined";
+        for (Map.Entry<String, String[]> param : req.getParameterMap().entrySet()) {
+            if (param.getKey().startsWith("action_")) {
+                action = param.getKey();
+            }
+        }
+        System.out.printf("Selection action %s for emails %s%n", action, emailId);
         // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local applications
         // it is no problem
         String referer = req.getHeader("Referer");

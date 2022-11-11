@@ -18,7 +18,7 @@
                                 {% endif %}
                                 {{ emailHeader.shortFormattedReceivedDate }}
                             </span>
-        <form class="emailactions" method="POST" action="/account/{{ currentAccount.id }}/emails/{{ emailHeader.id }}/actions">
+        <form class="emailactions" method="POST" action="/accounts/{{ currentAccount.id }}/emails/{{ emailHeader.id }}/actions">
             <button class="iconbutton" type="submit" name="action_archive_{{ emailHeader.id }}" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
             <button class="iconbutton" type="submit" name="action_delete_{{ emailHeader.id }}" title="Delete E-Mail" aria-label="Delete E-Mail">{{ svgIcon('delete') | raw }}</button>
             {% if emailHeader.read %}
