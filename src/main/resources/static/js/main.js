@@ -25,7 +25,7 @@ function init() {
     // open submenus on hover and close automatically after a timeout (instead of immediately disappearing with css hover)
     const menuItems = document.querySelectorAll('li.has-submenu')
     let menuTimer = null
-    Array.prototype.forEach.call(menuItems, function(el, i){
+    Array.prototype.forEach.call(menuItems, function(el){
         el.addEventListener('mouseover', function(){
             this.classList.add('open')
             clearTimeout(menuTimer)
@@ -94,17 +94,12 @@ function onClickSelectAllEmails() {
 
 function changeSelectionOfEmails(selectAll) {
     document.querySelectorAll('.emailselection input[type=checkbox]')
-        .forEach(node => {
-            node.checked = !!selectAll
-        })
+        .forEach(node => node.checked = !!selectAll)
 }
 
 function onEmailHeaderClick(event) {
     // make the preview window visible
-    const messagePreviewDialog = document.getElementById('messagepreview')
-    if (!messagePreviewDialog.open) {
-        messagePreviewDialog.show()
-    }
+    document.getElementById('messagepreview').show()
     if (! event.currentTarget.classList.contains('active')) {
         markAllEmailHeadersInactive()
         event.currentTarget.classList.add('active')
@@ -112,12 +107,8 @@ function onEmailHeaderClick(event) {
 }
 
 function markAllEmailHeadersInactive() {
-    const emailHeaderNodelist = document.querySelectorAll('#messagelist a')
-    emailHeaderNodelist.forEach(node => {
-        if (node.classList.contains('active')) {
-            node.classList.remove('active')
-        }
-    })
+    document.querySelectorAll('#messagelist a.active')
+        .forEach(node => node.classList.remove('active'))
 }
 
 function onCloseMessagePreview() {
