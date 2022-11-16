@@ -101,6 +101,11 @@ function onEmailHeaderClick(event) {
     document.getElementById('messagepreview').show()
     markAllEmailHeadersInactive()
     event.currentTarget.classList.add('active')
+    const emailIdAttribute = event.currentTarget.getAttribute('id')
+    const prefixLength = 'email'.length
+    const emailId = emailIdAttribute.substring(prefixLength)
+    // TODO: continue here
+    // history.pushState(null, '', window.location.href change param TODO!)
 }
 
 function markAllEmailHeadersInactive() {

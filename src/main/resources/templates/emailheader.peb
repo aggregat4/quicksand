@@ -1,4 +1,4 @@
-<a href="/accounts/{{ currentAccount.id }}/emails/{{ emailHeader.id }}?showImages=false"
+<a href="/emails/{{ emailHeader.id }}?showImages=false"
    id="email{{ emailHeader.id }}"
    class="emailheader{{ emailHeader.read ? ' read' : '' }}{{ emailActive and selectedEmailId == emailHeader.id ? ' active' : '' }}"
     {# Clicking the link will open it in the iframe inside of the message viewer dialog #}
@@ -19,7 +19,7 @@
             {% endif %}
             {{ emailHeader.shortFormattedReceivedDate }}
         </span>
-        <form class="emailactions" method="POST" action="/accounts/{{ currentAccount.id }}/emails/{{ emailHeader.id }}/actions">
+        <form class="emailactions" method="POST" action="/emails/{{ emailHeader.id }}/actions">
             <button class="iconbutton" type="submit" name="action_archive_{{ emailHeader.id }}" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
             <button class="iconbutton" type="submit" name="action_delete_{{ emailHeader.id }}" title="Delete E-Mail" aria-label="Delete E-Mail">{{ svgIcon('delete') | raw }}</button>
             {% if emailHeader.read %}

@@ -8,9 +8,13 @@ import java.util.Map;
 
 public class PebbleRenderer {
 
-    public static String renderTemplate(Map<String, Object> context, PebbleTemplate template) throws IOException {
+    public static String renderTemplate(Map<String, Object> context, PebbleTemplate template) {
         StringWriter writer = new StringWriter();
-        template.evaluate(writer, context);
+        try {
+            template.evaluate(writer, context);
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not parse template: " + e.getMessage(), e);
+        }
         return writer.toString();
     }
 }

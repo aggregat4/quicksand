@@ -1,16 +1,17 @@
-package net.aggregat4.quicksand.controllers;
+package net.aggregat4.quicksand.services;
 
 import net.aggregat4.quicksand.domain.Actor;
 import net.aggregat4.quicksand.domain.Attachment;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
-import org.springframework.core.io.ClassPathResource;
 
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+
+import io.helidon.common.http.MediaType;
 
 public class MockEmailData {
     public static final Actor EMAIL1_SENDER = new Actor("someone@somewhere.com", Optional.of("Someone"));
@@ -21,8 +22,8 @@ public class MockEmailData {
     public static final Actor EMAIL2_RECIPIENT = new Actor("me@example.org", Optional.of("Doe, Me"));
     public static final String EMAIL2_SUBJECT = "Foo du fafa";
     public static final ZonedDateTime EMAIL2_RECEIVEDDATE = ZonedDateTime.now().minus(3, ChronoUnit.MINUTES);
-    static final Attachment ATTACHMENT1 = new Attachment(1, "sounds and music.mp3", 43534555, new org.springframework.http.MediaType("audio", "mpeg"));
-    static final ClassPathResource sampleMp3Resource = new ClassPathResource("/sample-3s.mp3");
+    static final Attachment ATTACHMENT1 = new Attachment(1, "sounds and music.mp3", 43534555, MediaType.builder().type("audio").subtype("mpeg").build());
+     static final String sampleMp3Resource = "/sample-3s.mp3";
     static final Email PLAINTEXT_EMAIL = new Email(
             new EmailHeader(
                     1,
@@ -40,7 +41,7 @@ public class MockEmailData {
                                                         
                     This is an email body.
                                                         
-                    -- 
+                    --
                     Sent from my iPhone
                     """,
             List.of(ATTACHMENT1)
