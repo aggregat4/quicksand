@@ -125,7 +125,7 @@ button:hover {
     top: 100%;
     left: 0;
     background-color: white;
-    box-shadow: rgba(149, 157, 165, 0.2) 0px 8px 24px;
+    box-shadow: rgba(149, 157, 165, 0.2) 0 8px 24px;
     /* We need to set the zindex explicitlyz so the background is visible*/
     z-index: 5;
 }
@@ -167,7 +167,7 @@ a.iconlink.selected {
 
 /* The header takes the space at the top and the main content expands to fill the rest vertically */
 body.folderpage,
-body.homepage{
+body.homepage {
     display: flex;
     flex-direction: column;
     color: var(--text-color);

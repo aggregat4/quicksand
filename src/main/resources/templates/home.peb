@@ -2,6 +2,10 @@
 
 {% block pageTitle %} Home {% endblock %}
 
+{% block additionalHeader %}
+<link rel="stylesheet" href="/css/home.css">
+{% endblock %}
+
 {% block content %}
     <main>
         Hello World!
