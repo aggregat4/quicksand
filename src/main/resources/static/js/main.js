@@ -74,7 +74,7 @@ function onChangeEmailSelection() {
 }
 
 function updateActionButtons(anyMailsSelected) {
-    document.querySelectorAll('#selected-email-controls > button')
+    document.querySelectorAll('#emailcontrols .emailaction')
         .forEach((button) => button.disabled = !anyMailsSelected)
 }
 
@@ -101,6 +101,7 @@ function onEmailHeaderClick(event) {
     document.getElementById('messagepreview').show()
     markAllEmailHeadersInactive()
     event.currentTarget.classList.add('active')
+    // modify URL to reflect selected email
     const emailIdAttribute = event.currentTarget.getAttribute('id')
     const prefixLength = 'email'.length
     const emailId = emailIdAttribute.substring(prefixLength)

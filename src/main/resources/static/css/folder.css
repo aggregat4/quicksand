@@ -54,7 +54,9 @@
     align-items: center;
 }
 
-/* CSS nesting would be really nice here */
+/*  Tri-State icon swapping for select all emails control.
+    It's a bit nasty.
+    CSS nesting would be really nice here */
 #select-all-mail-checkbox[aria-checked='true'] svg.bi-check-some-square,
 #select-all-mail-checkbox[aria-checked='true'] svg.bi-square{
     display: none;
@@ -84,6 +86,22 @@
     display: flex;
     gap: 6px;
     align-items: center;
+}
+
+#move-emails-dialog {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#movefolders {
+    max-height: 80vh;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 #email-paging-controls {
