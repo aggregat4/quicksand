@@ -104,8 +104,10 @@ function onEmailHeaderClick(event) {
     const emailIdAttribute = event.currentTarget.getAttribute('id')
     const prefixLength = 'email'.length
     const emailId = emailIdAttribute.substring(prefixLength)
-    // TODO: continue here
-    // history.pushState(null, '', window.location.href change param TODO!)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('selectedEmailId')
+    url.searchParams.append('selectedEmailId', emailId)
+    history.pushState(null, '', url.toString())
 }
 
 function markAllEmailHeadersInactive() {
@@ -115,4 +117,7 @@ function markAllEmailHeadersInactive() {
 
 function onCloseMessagePreview() {
     markAllEmailHeadersInactive()
+    const url = new URL(window.location.href)
+    url.searchParams.delete('selectedEmailId')
+    history.pushState(null, '', url.toString())
 }

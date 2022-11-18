@@ -41,18 +41,19 @@ public class FolderService implements Service {
 
     private void getAccountHandler(ServerRequest request, ServerResponse response) {
         int accountId = RequestUtils.intPathParam(request, "accountId");
-        handleFolder(request, response, accountId, 1, 1, Optional.empty());
+        var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
+        handleFolder(request, response, accountId, 1, 1, selectedEmailId);
     }
 
     private void getFolderHandler(ServerRequest request, ServerResponse response) {
         int accountId = RequestUtils.intPathParam(request, "accountId");
         int folderId = RequestUtils.intPathParam(request, "folderId");
         int from = request.queryParams().first("from").map(Integer::parseInt).orElse(1);
-        Optional<String> selectedEmailId = request.queryParams().first("selectedEmailId");
+        var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
         handleFolder(request, response, accountId, folderId, from, selectedEmailId);
     }
 
-    private void handleFolder(ServerRequest request, ServerResponse response, int accountId, int folderId, int from, Optional<String> selectedEmailId) {
+    private void handleFolder(ServerRequest request, ServerResponse response, int accountId, int folderId, int from, Optional<Integer> selectedEmailId) {
         int total = 2526;
         if (from > total || from < 1) {
             throw new IllegalArgumentException("Accounts page called with invalid pagination offset");
