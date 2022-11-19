@@ -25,18 +25,19 @@
                     {{ submitButton(true, 'move',       true, '', 'Move...', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
                 </form>
                 <dialog id="move-emails-dialog">
-                    <form>
-                        <fieldset id="movefolders">
-                            <legend>Select folder</legend>
-                            {% for folder in folders %}
-                                <label>
-                                    <input type="radio" form="selected-email-controls" name="target_folder" value="{{ folder.id }}">
-                                    {{ folder.name }}
-                                </label>
-                            {% endfor %}
-                        </fieldset>
-                        {{ submitButton(true, null, false, 'email_selection_action_move', 'Move', form = 'selected-email-controls') }}
+                    <form class="dialogcloser" method="dialog">
+                            {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
                     </form>
+                    <fieldset id="movefolders">
+                        <legend>Select folder</legend>
+                        {% for folder in folders %}
+                            <label>
+                                <input type="radio" form="selected-email-controls" name="target_folder" value="{{ folder.id }}">
+                                {{ folder.name }}
+                            </label>
+                        {% endfor %}
+                    </fieldset>
+                    {{ submitButton(true, null, false, 'email_selection_action_move', 'Move Emails', form = 'selected-email-controls') }}
                 </dialog>
                 <div id="email-paging-controls">
                     <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total.isEmpty() ? 'Many' : pagination.total.get() }}</div>
@@ -89,7 +90,7 @@
             {% endif %}
         </div>
         <dialog id="messagepreview" {{ emailActive ? 'open' : '' }}>
-            <form id="emailviewercloser" method="dialog">
+            <form class="dialogcloser" method="dialog">
                     {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
             </form>
             <iframe name="emailviewer"

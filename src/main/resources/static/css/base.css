@@ -163,6 +163,13 @@ a.iconlink.selected {
 }
 
 
+form.dialogcloser {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+}
+
+
 /* Main Layout --------  */
 
 /* The header takes the space at the top and the main content expands to fill the rest vertically */
