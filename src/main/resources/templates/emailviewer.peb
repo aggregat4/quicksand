@@ -30,18 +30,19 @@
                 To: {{  (email.header.recipient.name.isPresent() ? email.header.recipient.name.get() : '') }} &lt;{{ email.header.recipient.emailAddress }}&gt;
             </div>
         </div>
-        <form id="emailactions" method="POST" action="/emails/{{ email.header.id }}/actions">
+        <form id="emailactions" method="POST" action="/emails/selection">
+            <input type="text" name="email_select" value="{{ email.header.id }}" hidden aria-hidden="true">
             <div>
                 {# Some actions are just navigation to more UI where the user can do something #}
                 {{ iconlink('#', 'Reply', 'reply') }}
                 {{ iconlink('#', 'Forward', 'forward') }}
-                {{ iconlink('#', 'Move', 'move') }}
+                {# TODO: implement move! #}
             </div>
             <div>
                 {# other actions are immediate and perform some operation on the resource #}
-                {{ submitButton(true, 'archive',    false, 'action_archive', 'Archive') }}
-                {{ submitButton(true, null,         false, 'action_mark_spam', 'Mark Spam') }}
-                {{ submitButton(true, 'delete',     false, 'action_delete', 'Delete') }}
+                {{ submitButton(true, 'archive',    false, 'email_action_archive', 'Archive') }}
+                {{ submitButton(true, null,         false, 'email_action_mark_spam', 'Mark Spam') }}
+                {{ submitButton(true, 'delete',     false, 'email_action_delete', 'Delete') }}
             </div>
         </form>
         {% if not email.plainText %}
