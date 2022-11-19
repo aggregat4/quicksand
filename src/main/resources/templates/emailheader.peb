@@ -19,13 +19,14 @@
             {% endif %}
             {{ emailHeader.shortFormattedReceivedDate }}
         </span>
-        <form class="emailactions" method="POST" action="/emails/{{ emailHeader.id }}/actions">
-            <button class="iconbutton" type="submit" name="action_archive_{{ emailHeader.id }}" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
-            <button class="iconbutton" type="submit" name="action_delete_{{ emailHeader.id }}" title="Delete E-Mail" aria-label="Delete E-Mail">{{ svgIcon('delete') | raw }}</button>
+        <form class="emailactions" method="POST" action="/emails/selection">
+            <input type="text" name="email_select" value="{{ emailHeader.id }}" hidden aria-hidden="true">
+            <button class="iconbutton" type="submit" name="email_action_archive" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
+            <button class="iconbutton" type="submit" name="email_action_delete" title="Delete E-Mail" aria-label="Delete E-Mail">{{ svgIcon('delete') | raw }}</button>
             {% if emailHeader.read %}
-                <button class="iconbutton" type="submit" name="action_markunread_{{ emailHeader.id }}" title="Mark E-Mail Unread" aria-label="Mark E-Mail Unread">{{ svgIcon('markunread') | raw }}</button>
+                <button class="iconbutton" type="submit" name="email_action_markunread" title="Mark E-Mail Unread" aria-label="Mark E-Mail Unread">{{ svgIcon('markunread') | raw }}</button>
                 {% else %}
-                <button class="iconbutton" type="submit" name="action_markread_{{ emailHeader.id }}" title="Mark E-Mail Read" aria-label="Mark E-Mail Read">{{ svgIcon('markread') | raw }}</button>
+                <button class="iconbutton" type="submit" name="email_action_markread" title="Mark E-Mail Read" aria-label="Mark E-Mail Read">{{ svgIcon('markread') | raw }}</button>
             {% endif %}
         </form>
     </div>

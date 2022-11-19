@@ -47,8 +47,7 @@ public class EmailService implements Service {
     public void update(Routing.Rules rules) {
         rules.get("/{emailId}", this::emailHandler);
         rules.get("/{emailId}/body", this::htmlEmailBodyHandler);
-        rules.post("/selection", this::selectedEmailActionHandler);
-        rules.post("/{emailId}/actions", this::emailActionHandler);
+        rules.post("/selection", this::emailActionHandler);
     }
 
     private void emailHandler(ServerRequest request, ServerResponse response) {
@@ -96,34 +95,16 @@ public class EmailService implements Service {
         return Boolean.parseBoolean(request.queryParams().computeSingleIfAbsent("showImages", (key) -> "false").iterator().next());
     }
 
-    private void selectedEmailActionHandler(ServerRequest request, ServerResponse response) {
+    private void emailActionHandler(ServerRequest request, ServerResponse response) {
         request.content().as(FormParams.class).thenAccept(fp -> {
             var action = "undefined";
             for (Map.Entry<String, List<String>> param : fp.toMap().entrySet()) {
-                if (param.getKey().startsWith("email_selection_action_")) {
+                if (param.getKey().startsWith("email_action_")) {
                     action = param.getKey();
                 }
             }
             List<String> selectionIds = fp.all("email_select");
             System.out.printf("Selection action %s for emails %s%n", action, selectionIds.toString());
-            // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local applications
-            // it is no problem
-            URI location = request.headers().referer().orElse(URI.create("/"));
-            ResponseUtils.redirectAfterPost(response, location);
-        });
-    }
-
-    // TODO: on delete we may want to redirect to a more general URL since the email is gone?
-    private void emailActionHandler(ServerRequest request, ServerResponse response) {
-        int emailId = Integer.parseInt(request.path().param("emailId"));
-        request.content().as(FormParams.class).thenAccept(fp -> {
-            var action = "undefined";
-            for (Map.Entry<String, List<String>> param : fp.toMap().entrySet()) {
-                if (param.getKey().startsWith("action_")) {
-                    action = param.getKey();
-                }
-            }
-            System.out.printf("Selection action %s for emails %s%n", action, emailId);
             // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local applications
             // it is no problem
             URI location = request.headers().referer().orElse(URI.create("/"));

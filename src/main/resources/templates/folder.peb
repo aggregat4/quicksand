@@ -17,11 +17,11 @@
                     {{ svgIcon('allselected')  | raw }}
                 </div>
                 <form id="selected-email-controls" method="POST" action="/emails/selection">
-                    {{ submitButton(true, 'archive',    true, 'email_selection_action_archive', 'Archive', classes = 'emailaction') }}
-                    {{ submitButton(true, null,         true, 'email_selection_action_mark_spam', 'Mark Spam', classes = 'emailaction') }}
-                    {{ submitButton(true, 'delete',     true, 'email_selection_action_delete', 'Delete', classes = 'emailaction') }}
-                    {{ submitButton(true, 'markread',   true, 'email_selection_action_mark_read', 'Mark Read', classes = 'emailaction') }}
-                    {{ submitButton(true, 'markunread', true, 'email_selection_action_mark_unread', 'Mark Unread', classes = 'emailaction') }}
+                    {{ submitButton(true, 'archive',    true, 'email_action_archive', 'Archive', classes = 'emailaction') }}
+                    {{ submitButton(true, null,         true, 'email_action_mark_spam', 'Mark Spam', classes = 'emailaction') }}
+                    {{ submitButton(true, 'delete',     true, 'email_action_delete', 'Delete', classes = 'emailaction') }}
+                    {{ submitButton(true, 'markread',   true, 'email_action_mark_read', 'Mark Read', classes = 'emailaction') }}
+                    {{ submitButton(true, 'markunread', true, 'email_action_mark_unread', 'Mark Unread', classes = 'emailaction') }}
                     {{ submitButton(true, 'move',       true, '', 'Move...', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
                 </form>
                 <dialog id="move-emails-dialog">
@@ -37,7 +37,7 @@
                             </label>
                         {% endfor %}
                     </fieldset>
-                    {{ submitButton(true, null, false, 'email_selection_action_move', 'Move Emails', form = 'selected-email-controls') }}
+                    {{ submitButton(true, null, false, 'email_action_move', 'Move Emails', form = 'selected-email-controls') }}
                 </dialog>
                 <div id="email-paging-controls">
                     <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total.isEmpty() ? 'Many' : pagination.total.get() }}</div>
