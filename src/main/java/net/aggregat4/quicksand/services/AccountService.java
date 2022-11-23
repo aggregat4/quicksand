@@ -18,6 +18,7 @@ import net.aggregat4.quicksand.domain.Query;
 import net.aggregat4.quicksand.domain.SearchFolder;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 
+import java.net.URI;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -25,10 +26,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class FolderService implements Service {
+public class AccountService implements Service {
     public static final int PAGE_SIZE = 100;
+
     private static final PebbleTemplate folderTemplate =
             PebbleConfig.getEngine().getTemplate("templates/folder.peb");
+
     private final List<NamedFolder> NAMED_FOLDERS = List.of(new NamedFolder(1, "INBOX"), new NamedFolder(2, "Archive"), new NamedFolder(3, "Sent"), new NamedFolder(4, "Junk"));
     private final List<Account> ACCOUNTS = List.of(new Account(1, "foo@example.com"), new Account(2, "bar@example.org"));
 
@@ -37,6 +40,7 @@ public class FolderService implements Service {
         rules.get("/{accountId}", this::getAccountHandler);
         rules.get("/{accountId}/folders/{folderId}", this::getFolderHandler);
         rules.get("/{accountId}/search", this::getSearchHandler);
+        rules.post("/{accountId}/emails", this::emailComposerHandler);
     }
 
     private void getAccountHandler(ServerRequest request, ServerResponse response) {
@@ -117,6 +121,12 @@ public class FolderService implements Service {
         context.put("currentQuery", query);
         response.headers().contentType(MediaType.TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, folderTemplate));
+    }
+
+    private void emailComposerHandler(ServerRequest request, ServerResponse response) {
+        // TODO: pick up here, create new email draft (fake) and redirect to composer
+        int newEmailId = 42;
+        ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/composer".formatted(newEmailId)));
     }
 
 }

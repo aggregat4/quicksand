@@ -9,7 +9,7 @@ import io.helidon.webserver.WebServer;
 import io.helidon.webserver.staticcontent.StaticContentSupport;
 import net.aggregat4.quicksand.services.AttachmentService;
 import net.aggregat4.quicksand.services.EmailService;
-import net.aggregat4.quicksand.services.FolderService;
+import net.aggregat4.quicksand.services.AccountService;
 import net.aggregat4.quicksand.services.HomeService;
 
 public final class Main {
@@ -69,7 +69,7 @@ public final class Main {
                 .register("/css", StaticContentSupport.create("/static/css"))
                 .register("/js", StaticContentSupport.create("/static/js"))
                 .register("/images", StaticContentSupport.create("/static/images"))
-                .register("/accounts", new FolderService())
+                .register("/accounts", new AccountService())
                 .register("/emails", new EmailService())
                 .register("/attachments", new AttachmentService())
                 .register("/", new HomeService());

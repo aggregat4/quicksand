@@ -1,4 +1,4 @@
-<a href="/emails/{{ emailHeader.id }}?showImages=false"
+<a href="/emails/{{ emailHeader.id }}/viewer?showImages=false"
    id="email{{ emailHeader.id }}"
    class="emailheader{{ emailHeader.read ? ' read' : '' }}{{ emailActive and selectedEmailId == emailHeader.id ? ' active' : '' }}"
     {# Clicking the link will open it in the iframe inside of the message viewer dialog #}

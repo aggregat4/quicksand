@@ -26,6 +26,10 @@ public class EmailService implements Service {
     private static final PebbleTemplate emailViewerTemplate =
             PebbleConfig.getEngine().getTemplate("templates/emailviewer.peb");
 
+
+    private static final PebbleTemplate emailComposerTemplate =
+            PebbleConfig.getEngine().getTemplate("templates/emailcomposer.peb");
+
     private static final PolicyFactory NO_IMAGES_POLICY = new HtmlPolicyBuilder()
             .allowCommonBlockElements()
             .allowElements("table", "tr", "td", "a", "img")
@@ -45,9 +49,12 @@ public class EmailService implements Service {
 
     @Override
     public void update(Routing.Rules rules) {
-        rules.get("/{emailId}", this::emailHandler);
-        rules.get("/{emailId}/body", this::htmlEmailBodyHandler);
+        // NOTE: using a subresource to distinguish between a viewer and a composer view type. This should theoretically
+        // be something like an accept header but I couldn't be bothered
+        rules.get("/{emailId}/viewer", this::emailHandler);
+        rules.get("/{emailId}/viewer/body", this::htmlEmailBodyHandler);
         rules.post("/selection", this::emailActionHandler);
+        rules.get("/{emailId}/composer", this::emailComposerHandler);
     }
 
     private void emailHandler(ServerRequest request, ServerResponse response) {
@@ -110,6 +117,12 @@ public class EmailService implements Service {
             URI location = request.headers().referer().orElse(URI.create("/"));
             ResponseUtils.redirectAfterPost(response, location);
         });
+    }
+
+    private void emailComposerHandler(ServerRequest request, ServerResponse response) {
+        Map<String, Object> context = new HashMap<>();
+        response.headers().contentType(MediaType.TEXT_HTML);
+        response.send(PebbleRenderer.renderTemplate(context, emailComposerTemplate));
     }
 
 }

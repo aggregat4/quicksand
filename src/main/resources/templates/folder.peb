@@ -95,7 +95,7 @@
             </form>
             <iframe name="emailviewer"
             {% if emailActive %}
-                src="{{ '/emails/' + selectedEmailId + '?showImages=false' }}"
+                src="{{ '/emails/' + selectedEmailId + '/viewer?showImages=false' }}"
             {% endif %}
             >
             </iframe>

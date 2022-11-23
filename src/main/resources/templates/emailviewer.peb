@@ -44,7 +44,7 @@
             </form>
         </div>
         {% if not email.plainText %}
-            <a id="emailimages" href="/emails/{{ email.header.id }}?showImages={{ showImages ? 'false' : 'true' }}">
+            <a id="emailimages" href="/emails/{{ email.header.id }}/viewer?showImages={{ showImages ? 'false' : 'true' }}">
                 {% if showImages %}
                     Disable Images
                     {% else %}
@@ -57,7 +57,7 @@
                 <pre>{{  email.body | raw }}</pre>
             {% else %}
                 <iframe id="emailbodyframe"
-                        src="/emails/{{ email.header.id }}/body?showImages={{ showImages ? 'true' : 'false' }}"
+                        src="/emails/{{ email.header.id }}/viewer/body?showImages={{ showImages ? 'true' : 'false' }}"
                         sandbox="allow-same-origin"
                 ></iframe>
             {% endif %}
