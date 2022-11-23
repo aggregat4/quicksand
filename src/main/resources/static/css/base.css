@@ -113,6 +113,13 @@ button:hover {
     /* TODO figure out a nice hover on button effect */
 }
 
+dialog,
+.has-submenu ul {
+    background: white;
+    --shadow-color: 0deg 0% 58%;
+    --shadow-elevation-medium: 2px 4px 8px hsl(var(--shadow-color) / 0.5);
+    box-shadow: var(--shadow-elevation-medium);
+}
 
 /* submenus are position specifically */
 .has-submenu ul {
@@ -125,9 +132,8 @@ button:hover {
     top: 100%;
     left: 0;
     background-color: white;
-    box-shadow: rgba(149, 157, 165, 0.2) 0 8px 24px;
-    /* We need to set the zindex explicitlyz so the background is visible*/
-    z-index: 5;
+    /* We need to set the z-index explicitly so the background is visible*/
+    z-index: 1;
 }
 
 .has-submenu ul li {
@@ -215,4 +221,16 @@ li.has-submenu a {
 
 header #apptitle {
     flex-grow: 1;
+}
+
+#newmail-composer-dialog {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 36px 24px 24px 24px;
+    border: none;
+}
+
+#newmail-composer-frame {
+    border: none;
 }

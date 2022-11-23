@@ -16,14 +16,14 @@
                     {{ svgIcon('someselected') | raw }}
                     {{ svgIcon('allselected')  | raw }}
                 </div>
-                <form id="selected-email-controls" method="POST" action="/emails/selection">
+                <form id="selected-email-actions" method="POST" action="/emails/selection">
                     {{ submitButton(true, 'archive',    true, 'email_action_archive', 'Archive', classes = 'emailaction') }}
                     {{ submitButton(true, null,         true, 'email_action_mark_spam', 'Mark Spam', classes = 'emailaction') }}
                     {{ submitButton(true, 'delete',     true, 'email_action_delete', 'Delete', classes = 'emailaction') }}
                     {{ submitButton(true, 'markread',   true, 'email_action_mark_read', 'Mark Read', classes = 'emailaction') }}
                     {{ submitButton(true, 'markunread', true, 'email_action_mark_unread', 'Mark Unread', classes = 'emailaction') }}
-                    {{ submitButton(true, 'move',       true, '', 'Move...', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
                 </form>
+                {{ submitButton(true, 'move',       true, '', 'Move...', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
                 <dialog id="move-emails-dialog">
                     <form class="dialogcloser" method="dialog">
                             {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
@@ -32,12 +32,12 @@
                         <legend>Select folder</legend>
                         {% for folder in folders %}
                             <label>
-                                <input type="radio" form="selected-email-controls" name="target_folder" value="{{ folder.id }}">
+                                <input type="radio" form="selected-email-actions" name="target_folder" value="{{ folder.id }}">
                                 {{ folder.name }}
                             </label>
                         {% endfor %}
                     </fieldset>
-                    {{ submitButton(true, null, false, 'email_action_move', 'Move Emails', form = 'selected-email-controls') }}
+                    {{ submitButton(true, null, false, 'email_action_move', 'Move Emails', form = 'selected-email-actions') }}
                 </dialog>
                 <div id="email-paging-controls">
                     <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total.isEmpty() ? 'Many' : pagination.total.get() }}</div>

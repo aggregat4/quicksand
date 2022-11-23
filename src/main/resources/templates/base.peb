@@ -23,7 +23,15 @@
     {% endif %}
 
     {% if currentAccount != null %}
-        {{ iconlink('#newmail', 'New Mail', 'newmail') }}
+        {{ iconlink('/accounts/' + currentAccount.id + '/emailcomposer', 'New Mail', 'newmail', target = 'newmailframe', onclick = 'document.getElementById("newmail-composer-dialog").showModal()') }}
+        <dialog id="newmail-composer-dialog">
+            <form class="dialogcloser" method="dialog">
+                {{ submitButton(false, 'close', false, 'closeMessageComposer', 'Close Message Comoposer', 'onCloseEmailComposerDialog()') }}
+            </form>
+            <iframe id="newmail-composer-frame" name="newmailframe" >
+fsdf asdfasdf asdf asdf
+            </iframe>
+        </dialog>
 
         <form id="searchemailform" method="GET" action="/accounts/{{ currentAccount.id }}/search">
             <input id="searchemailinput"
