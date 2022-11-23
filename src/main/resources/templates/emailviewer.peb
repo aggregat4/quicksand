@@ -79,6 +79,6 @@
         </div>
     </main>
 
-    <script src="/js/messagepreview.js"></script>
+    <script src="/js/messageviewer.js"></script>
 </body>
 </html>
