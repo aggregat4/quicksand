@@ -24,7 +24,7 @@
         {% endif %}
     {% endmacro %}
 
-    {% macro submitButton(showText, icon, disabled, name, label, clickHandler, type = 'submit', classes = '', form = null) %}
+    {% macro submitButton(showText, icon, disabled, name, label, clickHandler = null, type = 'submit', classes = '', form = null) %}
         <button
             {{ disabled ? 'disabled' : '' }}
             class="{{showText ? '' : 'iconButton' }}{{ classes == '' ? '' : ' ' + classes }}"
@@ -32,7 +32,7 @@
             name="{{ name }}"
             title="{{ label }}"
             aria-label="{{ label }}"
-            {% if clickHandler %}onclick="{{ clickHandler }}"{% endif %}
+            {% if clickHandler != null %}onclick="{{ clickHandler }}"{% endif %}
             {% if form != null %}form="{{ form }}"{% endif %}>
             {% if icon != null %}{{ svgIcon(icon) | raw }}{% endif %}{{ showText ? label : '' }}
         </button>

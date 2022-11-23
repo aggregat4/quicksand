@@ -23,7 +23,9 @@
     {% endif %}
 
     {% if currentAccount != null %}
-        {{ iconlink('/accounts/' + currentAccount.id + '/emailcomposer', 'New Mail', 'newmail', target = 'newmailframe', onclick = 'document.getElementById("newmail-composer-dialog").showModal()') }}
+        <form method="POST" action="/accounts/{{ currentAccount.id }}/emails" target="newmailframe">
+            {{ submitButton(true, 'newmail', false, 'create_new_email', 'New Mail', clickHandler = 'document.getElementById("newmail-composer-dialog").showModal()') }}
+        </form>
         <dialog id="newmail-composer-dialog">
             <form class="dialogcloser" method="dialog">
                 {{ submitButton(false, 'close', false, 'closeMessageComposer', 'Close Message Comoposer', 'onCloseEmailComposerDialog()') }}
