@@ -28,9 +28,7 @@
             <form class="dialogcloser" method="dialog">
                 {{ submitButton(false, 'close', false, 'closeMessageComposer', 'Close Message Comoposer', 'onCloseEmailComposerDialog()') }}
             </form>
-            <iframe id="newmail-composer-frame" name="newmailframe" >
-fsdf asdfasdf asdf asdf
-            </iframe>
+            <iframe id="newmail-composer-frame" name="newmailframe" ></iframe>
         </dialog>
 
         <form id="searchemailform" method="GET" action="/accounts/{{ currentAccount.id }}/search">
@@ -49,9 +47,9 @@ fsdf asdfasdf asdf asdf
                 <li class="has-submenu">
                     <a href="#flyoutnavkbfixed" aria-expanded="false">Accounts</a>
                     <ul hidden>
-                            {% for account in accounts %}
+                        {% for account in accounts %}
                             <li><a href="/accounts/{{ account.id }}">{{ account.name }}</a></li>
-                            {% endfor %}
+                        {% endfor %}
                     </ul>
                 </li>
             {% endif %}
