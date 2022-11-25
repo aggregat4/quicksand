@@ -1,0 +1,29 @@
+.email-composer main {
+    height: 100%;
+}
+
+#save-email-form {
+    width: 100%;
+    height: 100%;
+
+    display: grid;
+    gap: 6px;
+    grid-template-columns: min-content 1fr;
+    grid-template-rows: min-content min-content min-content min-content 4fr min-content;
+}
+
+#email-body {
+    grid-column: 1 / 3;
+    grid-row: 5 / 6;
+
+    resize: none;
+    overflow: scroll;
+}
+
+#email-toolbar {
+    grid-column: 1 / 3;
+    grid-row: 6 / 7;
+
+    display: flex;
+    flex-direction: row;
+}

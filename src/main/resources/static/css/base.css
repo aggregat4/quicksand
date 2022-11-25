@@ -224,13 +224,23 @@ header #apptitle {
 }
 
 #newmail-composer-dialog {
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    /* position in bottom right corner by default */
+    bottom: 0;
+    right: 36px;
+    left: auto;
+    min-width: 60ch;
+    min-height: 50ch;
     padding: 36px 24px 24px 24px;
     border: none;
+    /* make sure it is on top of the message  preview dialog */
+    z-index: 10;
 }
 
 #newmail-composer-frame {
     border: none;
+    /* if the iframe does not have position absolute it will not fill the full width or height of the container */
+    position: absolute;
+    /* Since we are position absolute, the 100% does not take into account the padding of the container,  we need to deduct that manually */
+    width: calc(100% - 24px - 24px);
+    height: calc(100% - 36px - 24px);
 }

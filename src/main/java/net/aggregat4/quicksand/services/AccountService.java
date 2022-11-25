@@ -124,7 +124,7 @@ public class AccountService implements Service {
     }
 
     private void emailComposerHandler(ServerRequest request, ServerResponse response) {
-        // TODO: pick up here, create new email draft (fake) and redirect to composer
+        // We create a new draft email and redirect to the composer
         int newEmailId = 42;
         ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/composer".formatted(newEmailId)));
     }

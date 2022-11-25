@@ -3,15 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-Mail Viewer - Quicksand</title>
+    <title>E-Mail Composer - Quicksand</title>
     <link rel="stylesheet" href="/css/base.css">
     <link rel="stylesheet" href="/css/emailcomposer.css">
 </head>
 <body class="email-composer">
     {% import "templates/macros.peb" %}
     <main>
-    </main>
+        <form id="save-email-form" method="POST" action="/emails/{{ emailId }}">
+            <label for="email-to">To:</label>
+            <input id="email-to" type="text" name="email-to">
 
+            <label for="email-cc">CC:</label>
+            <input id="email-cc" type="text" name="email-cc">
+
+            <label for="email-bcc">BCC:</label>
+            <input id="email-bcc" type="text" name="email-bcc">
+
+            <label for="email-subject">Subject:</label>
+            <input id="email-subject" type="text" name="email-subject">
+
+            <textarea id="email-body" aria-label="Email Body"></textarea>
+
+            <div id="email-toolbar">
+                {{ submitButton(true, 'send', false, 'email-action-send', 'Send Email') }}
+                {{ submitButton(true, 'delete', false, 'email-action-delete', 'Delete Draft') }}
+            </div>
+        </form>
+    </main>
     <script src="/js/messagecomposer.js"></script>
 </body>
 </html>
