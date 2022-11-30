@@ -37,7 +37,20 @@
                 </div>
 
                 <div id="attachments">
-                    <input class="email-attachment-input" type="file" name="email-attachment">
+                    {#
+                     TODO: what I want is the ability to add multiple attachments. Multiselect in one file input is not
+                     really flexible enough since you can basically only multiselect in one directory.
+                     this would mean some sort of UI with a button to add a new attachment which would spawn a new
+                     form element like the one below and keep incrementing the counter.
+                     And also the ability to remove one of the selected attachments by removing such a form element.
+                     What's nasty here is that we basically need to replicate this "component" in javascript.
+                     Is this a first use case for custom elements? We could then have a button in the toolbar below to add
+                     a new attachment to the form
+                     #}
+                    <label class="attachment-label">
+                        Select Attachment...
+                        <input class="email-attachment-input" type="file" name="email-attachment-1" onchange="onAttachmentChange(event)">
+                    </label>
                 </div>
             </div>
 
