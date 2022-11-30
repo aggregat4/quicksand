@@ -229,7 +229,7 @@ header #apptitle {
     right: 36px;
     left: auto;
     min-width: 60ch;
-    min-height: 50ch;
+    min-height: 60ch;
     padding: 36px 24px 24px 24px;
     border: none;
     /* make sure it is on top of the message  preview dialog */

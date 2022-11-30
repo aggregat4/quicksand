@@ -23,7 +23,23 @@
             <label for="email-subject">Subject:</label>
             <input id="email-subject" type="text" name="email-subject">
 
-            <textarea id="email-body" aria-label="Email Body"></textarea>
+            <div id="body-with-attachments">
+                {# This is the simplest way I could find for making a text area grow in vertical size so that itself
+                   does not become a scrollable rectangle. We wna this because we want the attachments to hang to the
+                   bottom of the body of the email and not take up vertical space in the editor itself.
+                   See https://css-tricks.com/the-cleanest-trick-for-autogrowing-textareas/
+                   #}
+                <div id="email-body-grow-wrap" class="grow-wrap">
+                    <textarea
+                            id="email-body"
+                            aria-label="Email Body"
+                            onInput="this.parentNode.dataset.replicatedValue = this.value"></textarea>
+                </div>
+
+                <div id="attachments">
+                    <input class="email-attachment-input" type="file" name="email-attachment">
+                </div>
+            </div>
 
             <div id="email-toolbar">
                 {{ submitButton(true, 'send', false, 'email-action-send', 'Send Email') }}
