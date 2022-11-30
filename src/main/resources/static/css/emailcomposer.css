@@ -28,6 +28,10 @@
     flex-grow: 1;
 }
 
+/*
+  Auto growing textarea as prototyped by
+  https://css-tricks.com/the-cleanest-trick-for-autogrowing-textareas/
+ */
 .grow-wrap {
     /* easy way to plop the elements on top of each other and have them both sized based on the tallest one's height */
     display: grid;
