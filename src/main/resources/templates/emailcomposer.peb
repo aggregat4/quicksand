@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    {% import "templates/macros.peb" %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>E-Mail Composer - Quicksand</title>
     <link rel="stylesheet" href="/css/base.css">
     <link rel="stylesheet" href="/css/emailcomposer.css">
+    {% include 'templates/component-fileupload-template.peb' %}
 </head>
 <body class="email-composer">
-    {% import "templates/macros.peb" %}
     <main>
         <form id="save-email-form" method="POST" action="/emails/{{ emailId }}">
             <label for="email-to">To:</label>
@@ -37,29 +38,18 @@
                 </div>
 
                 <div id="attachments">
-                    {#
-                     TODO: what I want is the ability to add multiple attachments. Multiselect in one file input is not
-                     really flexible enough since you can basically only multiselect in one directory.
-                     this would mean some sort of UI with a button to add a new attachment which would spawn a new
-                     form element like the one below and keep incrementing the counter.
-                     And also the ability to remove one of the selected attachments by removing such a form element.
-                     What's nasty here is that we basically need to replicate this "component" in javascript.
-                     Is this a first use case for custom elements? We could then have a button in the toolbar below to add
-                     a new attachment to the form
-                     #}
-                    <label class="attachment-label">
-                        Select Attachment...
-                        <input class="email-attachment-input" type="file" name="email-attachment-1" onchange="onAttachmentChange(event)">
-                    </label>
+                    <file-upload></file-upload>
                 </div>
             </div>
 
             <div id="email-toolbar">
                 {{ submitButton(true, 'send', false, 'email-action-send', 'Send Email') }}
                 {{ submitButton(true, 'delete', false, 'email-action-delete', 'Delete Draft') }}
+                {{ submitButton(true, 'add', false, 'email-action-send', 'Add Attachment', type = 'button', clickHandler = 'document.getElementById("attachments").append(new FileUpload())') }}
             </div>
         </form>
     </main>
     <script src="/js/messagecomposer.js"></script>
+    {% include 'templates/component-fileupload-init.peb' %}
 </body>
 </html>

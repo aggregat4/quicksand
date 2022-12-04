@@ -78,6 +78,8 @@
     flex-flow: row-reverse;
 }
 
-.email-attachment-input {
-    display: none;
+#attachments {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }

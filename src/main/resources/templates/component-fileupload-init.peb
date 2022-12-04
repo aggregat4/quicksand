@@ -1,0 +1,13 @@
+<script>
+    class FileUpload extends HTMLElement {
+        constructor() {
+            super();
+            // This component does not use shadow DOM because I can't remove myself from the DOM from inside the shadow DOM (I think)
+            // this.attachShadow({ mode: 'open' });
+            const template = document.getElementById('email-attachments-template')
+            this.appendChild(template.content.cloneNode(true));
+        }
+    }
+
+    window.customElements.define('file-upload', FileUpload);
+</script>
