@@ -36,7 +36,6 @@
                             aria-label="Email Body"
                             onInput="this.parentNode.dataset.replicatedValue = this.value"></textarea>
                 </div>
-
                 <div id="attachments">
                     <file-upload></file-upload>
                 </div>

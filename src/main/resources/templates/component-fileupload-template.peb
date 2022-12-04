@@ -1,8 +1,8 @@
 <template id="email-attachments-template">
     <label class="attachment-label">
-        <span class="upload-label">Select Attachment...</span>
-        <input class="email-attachment-input" type="file" name="email-attachment" onchange="onAttachmentChange(event)">
-        {{ submitButton(false, 'delete', false, 'file-upload-remove', 'Remove Attachment', type = 'button', clickHandler = 'onAttachmentRemove(event)') }}
+        <span class="upload-label">Select File...</span>
+        <input class="email-attachment-input" type="file" name="email-attachment" onchange="onFileChange(event)">
+        {{ submitButton(false, 'delete', false, 'file-upload-remove', 'Remove File', type = 'button', clickHandler = 'onFileRemove(event)') }}
     </label>
     <style>
         .email-attachment-input {
@@ -15,13 +15,13 @@
         }
     </style>
     <script>
-        function onAttachmentChange(event) {
+        function onFileChange(event) {
             if (event.target.files[0]) {
                 event.target.parentElement.querySelector('.upload-label').textContent = event.target.files[0].name
             }
         }
 
-        function onAttachmentRemove(event) {
+        function onFileRemove(event) {
             event.target.closest('file-upload').remove()
         }
     </script>
