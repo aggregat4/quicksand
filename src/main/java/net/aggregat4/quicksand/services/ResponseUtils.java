@@ -1,10 +1,16 @@
 package net.aggregat4.quicksand.services;
 
 import io.helidon.common.http.Http;
+import io.helidon.webserver.HttpException;
 import io.helidon.webserver.ServerResponse;
 
 import java.net.URI;
 import java.nio.charset.Charset;
+import java.util.concurrent.CompletionException;
+import java.util.function.Consumer;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ResponseUtils {
     public static void redirectAfterPost(ServerResponse response, URI location) {
@@ -52,5 +58,21 @@ public class ResponseUtils {
 
     static void setCacheControlImmutable(ServerResponse response) {
         response.headers().add(Http.Header.CACHE_CONTROL, "max-age=365000000, immutable");
+    }
+
+    private static Logger LOGGER = LoggerFactory.getLogger(ResponseUtils.class);
+
+    static Consumer<Throwable> asyncExceptionConsumer(ServerResponse response) {
+        return throwable -> {
+            if (throwable instanceof CompletionException completionException && completionException.getCause() instanceof HttpException httpException) {
+                response.send(httpException);
+            } else if (throwable instanceof HttpException httpException) {
+                response.send(httpException);
+            } else {
+                LOGGER.error("Internal error occurred: " + throwable.getMessage(), throwable);
+                response.status(500);
+                response.send();
+            }
+        };
     }
 }

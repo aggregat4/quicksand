@@ -2,6 +2,7 @@ package net.aggregat4.quicksand.services;
 
 import com.mitchellbosecke.pebble.template.PebbleTemplate;
 import io.helidon.common.http.MediaType;
+import io.helidon.webserver.BadRequestException;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
@@ -96,9 +97,11 @@ public class AccountService implements Service {
     private void getSearchHandler(ServerRequest request, ServerResponse response) {
         int accountId = RequestUtils.intPathParam(request, "accountId");
         int from = RequestUtils.intPathParam(request, "from");
-        String query = request.path().param("query");
-
-        SearchFolder searchFolder = new SearchFolder(new Query(query));
+        Optional<String> query = request.queryParams().first("query");
+        if (!query.isPresent()) {
+            throw new BadRequestException("Search URL must contain 'query' parameter");
+        }
+        SearchFolder searchFolder = new SearchFolder(new Query(query.get()));
         // The search results are "just" "normal" paginated results but there are some special things
         // - there is probably no count to the search (too expensive)
         // - the following strings/texts can have highlighted snippets: sender name, sender email, subject, bodyExcerpt

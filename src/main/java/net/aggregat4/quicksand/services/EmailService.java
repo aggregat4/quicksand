@@ -3,6 +3,7 @@ package net.aggregat4.quicksand.services;
 import com.mitchellbosecke.pebble.template.PebbleTemplate;
 import io.helidon.common.http.FormParams;
 import io.helidon.common.http.MediaType;
+import io.helidon.webserver.BadRequestException;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
@@ -17,9 +18,12 @@ import org.owasp.html.PolicyFactory;
 import java.io.BufferedWriter;
 import java.io.StringWriter;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class EmailService implements Service {
 
@@ -55,6 +59,7 @@ public class EmailService implements Service {
         rules.get("/{emailId}/viewer/body", this::htmlEmailBodyHandler);
         rules.post("/selection", this::emailActionHandler);
         rules.get("/{emailId}/composer", this::emailComposerHandler);
+        rules.post("/{emailId}", this::emailSendOrDeleteHandler);
     }
 
     private void emailHandler(ServerRequest request, ServerResponse response) {
@@ -120,9 +125,38 @@ public class EmailService implements Service {
     }
 
     private void emailComposerHandler(ServerRequest request, ServerResponse response) {
+        int emailId = RequestUtils.intPathParam(request, "emailId");
         Map<String, Object> context = new HashMap<>();
+        context.put("emailId", emailId);
+        Optional<String> validationErrors = request.queryParams().first("validationErrors");
+        if (validationErrors.isPresent()) {
+            context.put("validationErrors", validationErrors.get());
+        }
         response.headers().contentType(MediaType.TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, emailComposerTemplate));
+    }
+
+    /**
+     * This can be a delete or a send, we validate that these actions are selected.
+     */
+    private void emailSendOrDeleteHandler(ServerRequest request, ServerResponse response) {
+        int emailId = RequestUtils.intPathParam(request, "emailId");
+        request.content().as(FormParams.class).thenAccept(fp -> {
+            Map<String, List<String>> params = fp.toMap();
+            var shouldSendEmail = params.containsKey("email-action-send");
+            var shouldDeleteEmail = params.containsKey("email-action-delete");
+            if ((!shouldDeleteEmail && !shouldSendEmail) || (shouldDeleteEmail && shouldSendEmail)) {
+                throw new BadRequestException("Posting to a concrete email requires either the delete or send action");
+            }
+            System.out.printf("Action '%s' for email %s%n", shouldDeleteEmail ? "delete" : "send", emailId);
+            // validate
+            if (!params.containsKey("email-to") || params.get("email-to").isEmpty()) {
+                // TODO: redirect to the composer again but transmit validation errors in the URL?
+                String relativeUrl = "/emails/%s/composer?validationErrors=%s".formatted(emailId, URLEncoder.encode("Missing to field", StandardCharsets.UTF_8));
+                URI composerUri = URI.create(relativeUrl);
+                ResponseUtils.redirectAfterPost(response, composerUri);
+            }
+        }).exceptionallyAccept(ResponseUtils.asyncExceptionConsumer(response));
     }
 
 }

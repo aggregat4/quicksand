@@ -12,6 +12,8 @@
 <body class="email-composer">
     <main>
         <form id="save-email-form" method="POST" action="/emails/{{ emailId }}">
+            <div id="validation-errors"  class="validation-errors">{% if validationErrors != null %}{{ validationErrors }}{% endif %}</div>
+
             <label for="email-to">To:</label>
             <input id="email-to" type="text" name="email-to">
 
