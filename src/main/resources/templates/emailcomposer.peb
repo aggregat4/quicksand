@@ -36,6 +36,7 @@
                 <div id="email-body-grow-wrap" class="grow-wrap">
                     <textarea
                             id="email-body"
+                            name="email-body"
                             aria-label="Email Body"
                             onInput="this.parentNode.dataset.replicatedValue = this.value"></textarea>
                 </div>

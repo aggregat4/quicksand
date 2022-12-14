@@ -236,6 +236,11 @@ header #apptitle {
     z-index: 10;
 }
 
+#newmail-composer-dialog.minimized {
+    min-width: 40ch;
+    min-height: 11ch;
+}
+
 #newmail-composer-frame {
     border: none;
     /* if the iframe does not have position absolute it will not fill the full width or height of the container */

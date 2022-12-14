@@ -122,3 +122,27 @@ function onCloseMessagePreview() {
     url.searchParams.delete('selectedEmailId')
     history.pushState(null, '', url.toString())
 }
+
+function onCloseEmailComposerDialog() {
+    // to make sure we clean up the minimized style if a user closes the composer and opens it immediately afterwards
+    const composer = document.getElementById('newmail-composer-dialog')
+    composer.classList.remove('minimized')
+}
+
+/*
+    Installs a postMessage event listener that listens for messages from iframes to act on.
+ */
+window.addEventListener("message", function(event) {
+    if (event.data === "email-queued") {
+        // reduce the size of the composer window to be a small bar
+        // set a timeout for closing that window automatically
+        const composer = document.getElementById('newmail-composer-dialog')
+        if (composer) {
+            composer.classList.add('minimized')
+            setTimeout(() => {
+                composer.close()
+                composer.classList.remove('minimized')
+            }, 7000);
+        }
+    }
+});
