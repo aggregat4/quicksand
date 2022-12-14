@@ -51,7 +51,6 @@
             </div>
         </form>
     </main>
-    <script src="/js/messagecomposer.js"></script>
     {% include 'templates/component-fileupload-init.peb' %}
 </body>
 </html>
