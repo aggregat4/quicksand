@@ -20,6 +20,8 @@ import java.io.StringWriter;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +35,9 @@ public class EmailService implements Service {
 
     private static final PebbleTemplate emailComposerTemplate =
             PebbleConfig.getEngine().getTemplate("templates/emailcomposer.peb");
+
+    private static final PebbleTemplate emailQueuedTemplate =
+            PebbleConfig.getEngine().getTemplate("templates/emailqueued.peb");
 
     private static final PolicyFactory NO_IMAGES_POLICY = new HtmlPolicyBuilder()
             .allowCommonBlockElements()
@@ -60,6 +65,7 @@ public class EmailService implements Service {
         rules.post("/selection", this::emailActionHandler);
         rules.get("/{emailId}/composer", this::emailComposerHandler);
         rules.post("/{emailId}", this::emailSendOrDeleteHandler);
+        rules.get("/{emailId}/queued", this::emailQueued);
     }
 
     private void emailHandler(ServerRequest request, ServerResponse response) {
@@ -150,13 +156,40 @@ public class EmailService implements Service {
             }
             System.out.printf("Action '%s' for email %s%n", shouldDeleteEmail ? "delete" : "send", emailId);
             // validate
-            if (!params.containsKey("email-to") || params.get("email-to").isEmpty()) {
-                // TODO: redirect to the composer again but transmit validation errors in the URL?
-                String relativeUrl = "/emails/%s/composer?validationErrors=%s".formatted(emailId, URLEncoder.encode("Missing to field", StandardCharsets.UTF_8));
-                URI composerUri = URI.create(relativeUrl);
-                ResponseUtils.redirectAfterPost(response, composerUri);
+            List<String> validationErrors = new ArrayList<>();
+            if (isEmpty(params.get("email-to"))) {
+                validationErrors.add("Missing 'To' field");
+            }
+            if (isEmpty(params.get("email-subject")) && isEmpty(params.get("email-body"))) {
+                validationErrors.add("Require at least a 'Subject' or a 'Body'");
+            }
+            if (! validationErrors.isEmpty()) {
+                redirectWithValidationErrors(emailId, String.join(" ", validationErrors), response);
+            } else {
+                // queue email for sending and signal frontend that we were successfull
+                ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/queued".formatted(emailId)));
             }
         }).exceptionallyAccept(ResponseUtils.asyncExceptionConsumer(response));
+    }
+
+    private void emailQueued(ServerRequest request, ServerResponse response) {
+        // TODO: we should if-last modified here so we can instruct the browser to use the cached version as long we did not restart the program
+        response.headers().contentType(MediaType.TEXT_HTML);
+        response.send(PebbleRenderer.renderTemplate(Collections.emptyMap(), emailQueuedTemplate));
+    }
+
+    private static void redirectWithValidationErrors(int emailId, String s, ServerResponse response) {
+        String relativeUrl = "/emails/%s/composer?validationErrors=%s".formatted(emailId, URLEncoder.encode(s, StandardCharsets.UTF_8));
+        URI composerUri = URI.create(relativeUrl);
+        ResponseUtils.redirectAfterPost(response, composerUri);
+    }
+
+    private boolean isEmpty(List<String> list) {
+        return list == null || list.isEmpty();
+    }
+
+    private boolean isEmpty(String value) {
+        return value == null || value.trim().equals("");
     }
 
 }

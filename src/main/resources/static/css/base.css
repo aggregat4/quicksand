@@ -245,6 +245,21 @@ header #apptitle {
     height: calc(100% - 36px - 24px);
 }
 
-.validation-errors {
+/* ---- Notifications ---- */
+.validation-errors,
+.info-notification {
+    padding: 6px;
+    border-radius: 3px;
+}
 
+.validation-errors {
+    border: 1px solid darkred;
+    color: darkred;
+    background-color: #eabdbd;
+}
+
+.info-notification {
+    border: 1px solid darkblue;
+    color: darkblue;
+    background-color: lightblue;
 }

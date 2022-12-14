@@ -12,6 +12,7 @@
 <body class="email-composer">
     <main>
         <form id="save-email-form" method="POST" action="/emails/{{ emailId }}">
+            {# Note that this div must be empty when no validation errors since the CSS selects on :empty #}
             <div id="validation-errors"  class="validation-errors">{% if validationErrors != null %}{{ validationErrors }}{% endif %}</div>
 
             <label for="email-to">To:</label>
@@ -39,7 +40,7 @@
                             onInput="this.parentNode.dataset.replicatedValue = this.value"></textarea>
                 </div>
                 <div id="attachments">
-                    <file-upload></file-upload>
+                    {# <file-upload></file-upload>  #}
                 </div>
             </div>
 
