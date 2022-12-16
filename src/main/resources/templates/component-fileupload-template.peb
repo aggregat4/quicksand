@@ -1,11 +1,11 @@
 <template id="email-attachments-template">
     <label class="attachment-label">
         <span class="upload-label">Select File...</span>
-        <input class="email-attachment-input" type="file" name="email-attachment" onchange="onFileChange(event)">
+        <input class="file-upload-input" type="file" name="uploaded-file" onchange="onFileChange(event)">
         {{ submitButton(false, 'delete', false, 'file-upload-remove', 'Remove File', type = 'button', clickHandler = 'onFileRemove(event)') }}
     </label>
     <style>
-        .email-attachment-input {
+        .file-upload-input {
             display: none;
         }
         .attachment-label {

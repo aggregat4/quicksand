@@ -3,6 +3,7 @@ package net.aggregat4.quicksand.services;
 import com.mitchellbosecke.pebble.template.PebbleTemplate;
 import io.helidon.common.http.FormParams;
 import io.helidon.common.http.MediaType;
+import io.helidon.media.multipart.ReadableBodyPart;
 import io.helidon.webserver.BadRequestException;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerRequest;
@@ -147,8 +148,21 @@ public class EmailService implements Service {
      */
     private void emailSendOrDeleteHandler(ServerRequest request, ServerResponse response) {
         int emailId = RequestUtils.intPathParam(request, "emailId");
-        request.content().as(FormParams.class).thenAccept(fp -> {
-            Map<String, List<String>> params = fp.toMap();
+        Map<String, String> params = new HashMap<>();
+        request.content().asStream(ReadableBodyPart.class).forEach(part -> {
+            if (part.name().equals("uploaded-file")) {
+                // TODO: save actual files somewhere and track that list here
+                params.put("uploaded-file", params.get("uploaded-file") + ", " + part.filename());
+                part.drain();
+            } else {
+                part.content().as(String.class).thenAccept(s -> {
+                    params.put(part.name(), s);
+                });
+            }
+        }).onError(throwable -> {
+            // error handling
+        }).onComplete(() -> {
+            // send response
             var shouldSendEmail = params.containsKey("email-action-send");
             var shouldDeleteEmail = params.containsKey("email-action-delete");
             if ((!shouldDeleteEmail && !shouldSendEmail) || (shouldDeleteEmail && shouldSendEmail)) {
@@ -163,13 +177,18 @@ public class EmailService implements Service {
             if (isEmpty(params.get("email-subject")) && isEmpty(params.get("email-body"))) {
                 validationErrors.add("Require at least a 'Subject' or a 'Body'");
             }
+            System.out.println("The following files were uploaded: " + params.get("uploaded-file"));
             if (! validationErrors.isEmpty()) {
                 redirectWithValidationErrors(emailId, String.join(" ", validationErrors), response);
             } else {
                 // queue email for sending and signal frontend that we were successfull
                 ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/queued".formatted(emailId)));
             }
-        }).exceptionallyAccept(ResponseUtils.asyncExceptionConsumer(response));
+        }).ignoreElement();
+
+//        request.content().as(FormParams.class).thenAccept(fp -> {
+//            Map<String, List<String>> params = fp.toMap();
+//        }).exceptionallyAccept(ResponseUtils.asyncExceptionConsumer(response));
     }
 
     private void emailQueued(ServerRequest request, ServerResponse response) {

@@ -4,6 +4,7 @@ import io.helidon.common.LogConfig;
 import io.helidon.common.reactive.Single;
 import io.helidon.config.Config;
 import io.helidon.media.jsonp.JsonpSupport;
+import io.helidon.media.multipart.MultiPartSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.staticcontent.StaticContentSupport;
@@ -41,6 +42,7 @@ public final class Main {
         WebServer server = WebServer.builder(createRouting(config))
                 .config(config.get("server"))
                 .addMediaSupport(JsonpSupport.create())
+                .addMediaSupport(MultiPartSupport.create())
                 .build();
 
         Single<WebServer> webserver = server.start();
