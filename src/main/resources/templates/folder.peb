@@ -42,24 +42,22 @@
                 <div id="email-paging-controls">
                     <div id="pagination-status">{{ pagination.from }}–{{ pagination.to }} of {{ pagination.total.isEmpty() ? 'Many' : pagination.total.get() }}</div>
                     <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
-                        {% if currentFolder != null %}
-                            {% set baseLink = '/accounts/' + currentAccount.id + '/folders/' + currentFolder.id %}
-                            <ul>
-                                <li>{{ iconlink(baseLink + '?from=1', 'Beginning', 'beginning', pagination.from <= 1) }}</li>
-                                <li>{{ iconlink(baseLink + '?from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1) }}</li>
-                                <li>{{ iconlink(baseLink + '?from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.from + pagination.pageSize > pagination.total.get()) }}</li>
-                                {# Only display the "go to end" link if we actually know how many there are, in case of a search we don't #}
-                                <li>{{ iconlink(baseLink + '?from=' + (((pagination.total.get() % pagination.pageSize) - 1) * pagination.pageSize + 1), 'End', 'end', pagination.from + pagination.pageSize > pagination.total.get()) }}</li>
-                            </ul>
+                        {% set baseLink = '/accounts/' + currentAccount.id %}
+                        {% if currentQuery.isEmpty() %}
+                            {% set baseLink = baseLink + '/folders/' + currentFolder.id + '?' %}
                         {% else %}
                             {# This is the case where we have a search and we have to write a modified navigation #}
-                            {% set baseLink = '/accounts/' + currentAccount.id + '/search?query=' + (currentSearchFolder.query().query() | urlencode) %}
-                            <ul>
-                                <li>{{ iconlink(baseLink + '?from=1', 'Beginning', 'beginning', pagination.from <= 1) }}</li>
-                                <li>{{ iconlink(baseLink + '?from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1) }}</li>
-                                <li>{{ iconlink(baseLink + '?from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.total.isEmpty() ? false : (pagination.from + pagination.pageSize > pagination.total.get()) ) }}</li>
-                            </ul>
+                            {% set baseLink = baseLink + '/search?query=' + (currentQuery.get() | urlencode) + '&' %}
                         {% endif %}
+                        <ul>
+                            <li>{{ iconlink(baseLink + 'from=1', 'Beginning', 'beginning', pagination.from <= 1) }}</li>
+                            <li>{{ iconlink(baseLink + 'from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1) }}</li>
+                            <li>{{ iconlink(baseLink + 'from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.total.isEmpty() ? false : (pagination.from + pagination.pageSize > pagination.total.get()) ) }}</li>
+                            {# Only display the "go to end" link if we actually know how many there are, in case of a search we don't #}
+                            {% if pagination.total.isPresent() %}
+                                <li>{{ iconlink(baseLink + 'from=' + (((pagination.total.get() % pagination.pageSize) - 1) * pagination.pageSize + 1), 'End', 'end', pagination.from + pagination.pageSize > pagination.total.get()) }}</li>
+                            {% endif %}
+                        </ul>
                     </nav>
                 </div>
             </div>
@@ -72,22 +70,17 @@
         {# need to declare emailActive here since otherwise it won't be in scope for the dialog below #}
         {% set emailActive = false %}
         <div id="messagelist">
-            {% if emailGroups != null %}
-                {% for group in emailGroups %}
+            {% for group in emailGroups %}
+                {% if group.name().isPresent() %}
                     <div class="emailgroup">
-                        {{ group.name() }}
+                        {{ group.name().get() }}
                     </div>
-                    {% for emailHeader in group.headers() %}
-                        {% set emailActive = emailActive or selectedEmailId == emailHeader.id %}
-                        {% include 'templates/emailheader.peb' %}
-                    {% endfor %}
-                {% endfor %}
-            {% else %}
-                {% for emailHeader in emailHeaders %}
+                {% endif %}
+                {% for emailHeader in group.headers() %}
                     {% set emailActive = emailActive or selectedEmailId == emailHeader.id %}
                     {% include 'templates/emailheader.peb' %}
                 {% endfor %}
-            {% endif %}
+            {% endfor %}
         </div>
         <dialog id="messagepreview" {{ emailActive ? 'open' : '' }}>
             <form class="dialogcloser" method="dialog">

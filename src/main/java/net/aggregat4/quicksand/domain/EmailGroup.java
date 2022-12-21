@@ -8,12 +8,27 @@ import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 public interface EmailGroup {
 
-    String name();
+    Optional<String> name();
 
     List<EmailHeader> headers();
+
+    static EmailGroup createNoGroupEmailgroup(List<EmailHeader> emailHeaders) {
+        return new EmailGroup() {
+            @Override
+            public Optional<String> name() {
+                return Optional.empty();
+            }
+
+            @Override
+            public List<EmailHeader> headers() {
+                return emailHeaders;
+            }
+        };
+    }
 
     abstract class AbstractEmailgroup implements EmailGroup {
         private final List<EmailHeader> headers = new ArrayList<>();
@@ -63,8 +78,8 @@ public interface EmailGroup {
         }
 
         @Override
-        public String name() {
-            return "Today";
+        public Optional<String> name() {
+            return Optional.of("Today");
         }
     }
 
@@ -81,8 +96,8 @@ public interface EmailGroup {
         }
 
         @Override
-        public String name() {
-            return "This Week";
+        public Optional<String> name() {
+            return Optional.of("This Week");
         }
     }
 
@@ -95,8 +110,8 @@ public interface EmailGroup {
         }
 
         @Override
-        public String name() {
-            return "Last Week";
+        public Optional<String> name() {
+            return Optional.of("Last Week");
         }
     }
 
@@ -109,8 +124,8 @@ public interface EmailGroup {
         }
 
         @Override
-        public String name() {
-            return "This Month";
+        public Optional<String> name() {
+            return Optional.of("This Month");
         }
     }
 

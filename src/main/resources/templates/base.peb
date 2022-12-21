@@ -37,7 +37,7 @@
             <input id="searchemailinput"
                    name="query"
                    type="search"
-                   {% if currentQuery %}value="{{ currentQuery }}"{% endif %}
+                   {% if currentQuery.isPresent() %}value="{{ currentQuery.get() }}"{% endif %}
                    aria-label="Search all e-mail" required>
             <button>Search</button>
         </form>
