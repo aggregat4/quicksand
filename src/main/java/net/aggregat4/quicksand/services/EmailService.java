@@ -153,6 +153,7 @@ public class EmailService implements Service {
             if (part.name().equals("uploaded-file")) {
                 // TODO: save actual files somewhere and track that list here
                 params.put("uploaded-file", params.get("uploaded-file") + ", " + part.filename());
+                // When not consuming parts, we need to drain them
                 part.drain();
             } else {
                 part.content().as(String.class).thenAccept(s -> {
@@ -185,10 +186,6 @@ public class EmailService implements Service {
                 ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/queued".formatted(emailId)));
             }
         }).ignoreElement();
-
-//        request.content().as(FormParams.class).thenAccept(fp -> {
-//            Map<String, List<String>> params = fp.toMap();
-//        }).exceptionallyAccept(ResponseUtils.asyncExceptionConsumer(response));
     }
 
     private void emailQueued(ServerRequest request, ServerResponse response) {
