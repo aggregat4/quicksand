@@ -71,7 +71,7 @@
                 {% endfor %}
                 </ul>
             {% else %}
-                No attachments.
+                No attachments
             {% endif %}
         </div>
         <div id="emailbottomactions">

@@ -23,7 +23,7 @@
                     {{ submitButton(true, 'markread',   true, 'email_action_mark_read', 'Mark Read', classes = 'emailaction') }}
                     {{ submitButton(true, 'markunread', true, 'email_action_mark_unread', 'Mark Unread', classes = 'emailaction') }}
                 </form>
-                {{ submitButton(true, 'move',       true, '', 'Move...', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
+                {{ submitButton(true, 'move',       true, '', 'Move', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
                 <dialog id="move-emails-dialog">
                     <form class="dialogcloser" method="dialog">
                             {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
@@ -50,12 +50,12 @@
                             {% set baseLink = baseLink + '/search?query=' + (currentQuery.get() | urlencode) + '&' %}
                         {% endif %}
                         <ul>
-                            <li>{{ iconlink(baseLink + 'from=1', 'Beginning', 'beginning', pagination.from <= 1) }}</li>
-                            <li>{{ iconlink(baseLink + 'from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1) }}</li>
-                            <li>{{ iconlink(baseLink + 'from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.total.isEmpty() ? false : (pagination.from + pagination.pageSize > pagination.total.get()) ) }}</li>
+                            <li>{{ iconlink(baseLink + 'from=1', 'Beginning', 'beginning', pagination.from <= 1, showLabel = false) }}</li>
+                            <li>{{ iconlink(baseLink + 'from=' + (pagination.from - pagination.pageSize), 'Previous', 'previous', pagination.from <= 1, showLabel = false) }}</li>
+                            <li>{{ iconlink(baseLink + 'from=' + (pagination.from + pagination.pageSize), 'Next', 'next', pagination.total.isEmpty() ? false : (pagination.from + pagination.pageSize > pagination.total.get()), showLabel = false ) }}</li>
                             {# Only display the "go to end" link if we actually know how many there are, in case of a search we don't #}
                             {% if pagination.total.isPresent() %}
-                                <li>{{ iconlink(baseLink + 'from=' + (((pagination.total.get() % pagination.pageSize) - 1) * pagination.pageSize + 1), 'End', 'end', pagination.from + pagination.pageSize > pagination.total.get()) }}</li>
+                                <li>{{ iconlink(baseLink + 'from=' + (((pagination.total.get() % pagination.pageSize) - 1) * pagination.pageSize + 1), 'End', 'end', pagination.from + pagination.pageSize > pagination.total.get(), showLabel = false) }}</li>
                             {% endif %}
                         </ul>
                     </nav>

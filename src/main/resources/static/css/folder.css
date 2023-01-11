@@ -52,6 +52,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 6px;
+}
+/* This trick makes the last element in the flex container be right aligned as its left margin will expand to take up available space */
+#emailcontrols #email-paging-controls {
+    margin-left: auto;
 }
 
 /*  Tri-State icon swapping for select all emails control.
