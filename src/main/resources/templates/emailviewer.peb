@@ -31,8 +31,12 @@
         </div>
         <div id="emailactions">
             <div id="emailreplyforward">
-                {{ iconlink('#', 'Reply', 'reply') }}
-                {{ iconlink('#', 'Forward', 'forward') }}
+{#                <form method="POST" action="/accounts/{{ currentAccount.id }}/emails?replyTo={{ email.header.id }}" target="newmailframe">#}
+                    {{ submitButton(true, 'reply', false, 'reply_email', 'Reply', clickHandler = 'replyToEmail(' + email.header.id + ')') }}
+{#                </form>#}
+{#                <form method="POST" action="/accounts/{{ currentAccount.id }}/emails?emailToForward={{ email.header.id }}" target="newmailframe">#}
+                        {{ submitButton(true, 'reply', false, 'forward_email', 'Forward', clickHandler = 'forwardEmail(' + email.header.id + ')') }}
+{#                </form>#}
                 {# TODO: implement move! or not? #}
             </div>
             <form  method="POST" action="/emails/selection">

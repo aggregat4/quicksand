@@ -132,8 +132,8 @@ function onCloseEmailComposerDialog() {
 /*
     Installs a postMessage event listener that listens for messages from iframes to act on.
  */
-window.addEventListener("message", function(event) {
-    if (event.data === "email-queued") {
+window.addEventListener("message", async function (event) {
+    if (event.data.type === "email-queued") {
         // reduce the size of the composer window to be a small bar
         // set a timeout for closing that window automatically
         const composer = document.getElementById('newmail-composer-dialog')
@@ -144,5 +144,15 @@ window.addEventListener("message", function(event) {
                 composer.classList.remove('minimized')
             }, 7000);
         }
+    } else if (event.data.type === "reply-to-email") {
+        await createEmailAndShowComposer(`replyEmail=${event.data.emailId}`);
+    } else if (event.data.type === "forward-email") {
+        await createEmailAndShowComposer(`forwardEmail=${event.data.emailId}`);
     }
 });
+
+async function createEmailAndShowComposer(urlParams) {
+    const response = await fetch(`/accounts/${window.quicksand.currentAccountId}/emails?${urlParams}`, {method: 'POST'});
+    document.getElementById('newmail-composer-frame').src = response.headers['Location']
+    document.getElementById("newmail-composer-dialog").show()
+}

@@ -65,7 +65,11 @@
     </nav>
 </header>
     {% block content %}{% endblock %}
-
+    <script>
+        window.quicksand = {
+            currentAccountId: parseInt("{{ currentAccount.id }}")
+        }
+    </script>
     <script src="/js/main.js" async></script>
 </body>
 </html>

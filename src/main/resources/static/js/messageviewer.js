@@ -22,3 +22,11 @@ function init() {
 function setHeightToContent(iframe) {
     iframe.height = Math.max( iframe.contentWindow.document.body.scrollHeight, iframe.contentWindow.document.body.offsetHeight, iframe.contentWindow.document.documentElement.clientHeight, iframe.contentWindow.document.documentElement.scrollHeight, iframe.contentWindow.document.documentElement.offsetHeight ) + 'px';
 }
+
+function replyToEmail(emailId) {
+    window.parent.postMessage({ type: 'reply-to-email', emailId }, "*")
+}
+
+function forwardEmail(emailId) {
+    window.parent.postMessage({ type: 'forward-email', emailId }, "*")
+}

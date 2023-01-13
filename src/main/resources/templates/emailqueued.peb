@@ -11,7 +11,7 @@
         <p class="info-notification">Email was queued for delivery.</p>
     </main>
     <script>
-        window.parent.postMessage("email-queued", "*");
+        window.parent.postMessage({type: "email-queued"}, "*")
     </script>
 </body>
 </html>
