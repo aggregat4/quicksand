@@ -152,7 +152,9 @@ window.addEventListener("message", async function (event) {
 });
 
 async function createEmailAndShowComposer(urlParams) {
-    const response = await fetch(`/accounts/${window.quicksand.currentAccountId}/emails?${urlParams}`, {method: 'POST'});
-    document.getElementById('newmail-composer-frame').src = response.headers['Location']
+    const response = await fetch(
+        `/accounts/${window.quicksand.currentAccountId}/emails?${urlParams}&redirect=false`,
+        {method: 'POST'})
+    document.getElementById('newmail-composer-frame').src = await response.text()
     document.getElementById("newmail-composer-dialog").show()
 }

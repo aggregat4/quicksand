@@ -9,7 +9,8 @@ public record EmailHeader(
         Actor sender,
         Actor recipient,
         String subject,
-        ZonedDateTime receivedDate,
+        ZonedDateTime sentDateTime,
+        ZonedDateTime receivedDateTime,
         String bodyExcerpt,
         boolean starred,
         boolean attachment,
@@ -18,10 +19,18 @@ public record EmailHeader(
     private static DateTimeFormatter longDateFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM);
 
     public String shortFormattedReceivedDate() {
-        return currentYearFormatter.format(receivedDate.toLocalDate());
+        return currentYearFormatter.format(receivedDateTime.toLocalDate());
     }
 
     public String longFormattedReceivedDate() {
-        return longDateFormatter.format(receivedDate.toLocalDateTime());
+        return longDateFormatter.format(receivedDateTime.toLocalDateTime());
+    }
+
+    public String shortFormattedSentDate() {
+        return currentYearFormatter.format(sentDateTime.toLocalDate());
+    }
+
+    public String longFormattedSentDate() {
+        return longDateFormatter.format(sentDateTime.toLocalDateTime());
     }
 }

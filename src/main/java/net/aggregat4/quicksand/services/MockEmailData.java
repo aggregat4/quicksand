@@ -7,21 +7,26 @@ import net.aggregat4.quicksand.domain.EmailHeader;
 
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAmount;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import io.helidon.common.http.MediaType;
 
 public class MockEmailData {
+    public static final Actor ACCOUNT1_OWNER = new Actor("me@example.com", Optional.of("me"));
     public static final Actor EMAIL1_SENDER = new Actor("someone@somewhere.com", Optional.of("Someone"));
     public static final Actor EMAIL1_RECIPIENT = new Actor("me@example.com", Optional.of("Me Doe"));
     public static final String EMAIL1_SUBJECT = "Hey there how are you?";
     public static final ZonedDateTime EMAIL1_RECEIVEDDATE = ZonedDateTime.now();
+    public static final ZonedDateTime EMAIL1_SENTDATE = ZonedDateTime.now().minus(5, ChronoUnit.MINUTES);
     public static final Actor EMAIL2_SENDER = new Actor("foo@bar.net", Optional.empty());
     public static final Actor EMAIL2_RECIPIENT = new Actor("me@example.org", Optional.of("Doe, Me"));
     public static final String EMAIL2_SUBJECT = "Foo du fafa";
     public static final ZonedDateTime EMAIL2_RECEIVEDDATE = ZonedDateTime.now().minus(3, ChronoUnit.MINUTES);
+    public static final ZonedDateTime EMAIL2_SENTDATE = ZonedDateTime.now().minus(13, ChronoUnit.MINUTES);
     static final Attachment ATTACHMENT1 = new Attachment(1, "sounds and music.mp3", 43534555, MediaType.builder().type("audio").subtype("mpeg").build());
      static final String sampleMp3Resource = "/sample-3s.mp3";
     static final Email PLAINTEXT_EMAIL = new Email(
@@ -31,6 +36,7 @@ public class MockEmailData {
                     EMAIL1_RECIPIENT,
                     EMAIL1_SUBJECT,
                     EMAIL1_RECEIVEDDATE,
+                    EMAIL1_SENTDATE,
                     null,
                     false,
                     true,
@@ -53,6 +59,7 @@ public class MockEmailData {
                     EMAIL2_RECIPIENT,
                     EMAIL2_SUBJECT,
                     EMAIL2_RECEIVEDDATE,
+                    EMAIL2_SENTDATE,
                     null,
                     false,
                     false,
@@ -61,6 +68,83 @@ public class MockEmailData {
             false,
             null,
             Collections.emptyList());
+
+    static final Email NEW_EMAIL = new Email(
+            new EmailHeader(
+                    42,
+                    ACCOUNT1_OWNER,
+                    null,
+                    "",
+                    null,
+                    null,
+                    "",
+                    false,
+                    false,
+                    false
+            ),
+            true,
+            "",
+            Collections.emptyList()
+    );
+    static final Email REPLY_EMAIL = new Email(
+            new EmailHeader(
+                    100,
+                    ACCOUNT1_OWNER,
+                    PLAINTEXT_EMAIL.header().sender(),
+                    "Re: " + PLAINTEXT_EMAIL.header().subject(),
+                    null,
+                    null,
+                    "",
+                    false,
+                    false,
+                    false
+            ),
+            true,
+            quoteEmailBody(PLAINTEXT_EMAIL.body()),
+            Collections.emptyList()
+    );
+
+    private static String quoteEmailBody(String body) {
+        return body
+                .lines()
+                // empty quoted lines do not get a space added and if the line is already quoted we just increase the quote level
+                // all other lines have '> ' prefixed
+                // see also https://en.wikipedia.org/wiki/Posting_style
+                .map(line -> line.isEmpty() || line.startsWith(">") ? ">" : "> " + line)
+                .collect(Collectors.joining("\n"));
+    }
+
+    static final Email FORWARD_EMAIL = new Email(
+            new EmailHeader(
+                    200,
+                    ACCOUNT1_OWNER,
+                    null,
+                    "Fwd: " + PLAINTEXT_EMAIL.header().subject(),
+                    null,
+                    null,
+                    "",
+                    false,
+                    false,
+                    false
+            ),
+            true,
+            createForwardEmailBody(PLAINTEXT_EMAIL),
+            Collections.emptyList()
+    );
+
+    private static String createForwardEmailBody(Email originalEmail) {
+        return """
+                
+                -------- Original Message --------                               
+                """ +
+                "From: %s\n".formatted(originalEmail.header().sender().toString()) +
+                "Sent: %s\n".formatted(originalEmail.header().longFormattedSentDate()) +
+                "To: %s\n".formatted(originalEmail.header().recipient().toString()) +
+                "Subject: %s\n".formatted(originalEmail.header().subject()) +
+                "\n\n\n" +
+                originalEmail.body();
+    }
+
     static final String HTML_EMAIL_BODY = """
 <!doctype html>
 <html>

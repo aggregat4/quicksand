@@ -64,8 +64,8 @@ public interface EmailGroup {
         }
 
         public boolean matches(EmailHeader emailHeader) {
-            return !emailHeader.receivedDate().isBefore(startOfPeriod) &&
-                    emailHeader.receivedDate().isBefore(startOfNextPeriod);
+            return !emailHeader.receivedDateTime().isBefore(startOfPeriod) &&
+                    emailHeader.receivedDateTime().isBefore(startOfNextPeriod);
         }
     }
 

@@ -16,7 +16,7 @@
             <div id="validation-errors"  class="validation-errors">{% if validationErrors != null %}{{ validationErrors }}{% endif %}</div>
 
             <label for="email-to">To:</label>
-            <input id="email-to" type="text" name="email-to">
+            <input id="email-to" type="text" name="email-to" value="{{  email.header().recipient() != null ? email.header().recipient().toString() : "" }}">
 
             <label for="email-cc">CC:</label>
             <input id="email-cc" type="text" name="email-cc">
@@ -25,7 +25,7 @@
             <input id="email-bcc" type="text" name="email-bcc">
 
             <label for="email-subject">Subject:</label>
-            <input id="email-subject" type="text" name="email-subject">
+            <input id="email-subject" type="text" name="email-subject" value="{{ email.header().subject() }}">
 
             <div id="body-with-attachments">
                 {# This is the simplest way I could find for making a text area grow in vertical size so that it
@@ -38,7 +38,7 @@
                             id="email-body"
                             name="email-body"
                             aria-label="Email Body"
-                            onInput="this.parentNode.dataset.replicatedValue = this.value"></textarea>
+                            onInput="this.parentNode.dataset.replicatedValue = this.value">{{ email.body() }}</textarea>
                 </div>
                 <div id="attachments">
                     {# <file-upload></file-upload>  #}

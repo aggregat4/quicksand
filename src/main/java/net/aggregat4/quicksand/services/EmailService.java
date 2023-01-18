@@ -10,6 +10,8 @@ import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
 import io.helidon.webserver.Service;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
+import net.aggregat4.quicksand.domain.Email;
+import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.HtmlSanitizer;
@@ -133,14 +135,23 @@ public class EmailService implements Service {
 
     private void emailComposerHandler(ServerRequest request, ServerResponse response) {
         int emailId = RequestUtils.intPathParam(request, "emailId");
+        Email email = loadEmail(emailId);
         Map<String, Object> context = new HashMap<>();
-        context.put("emailId", emailId);
+        context.put("email", email);
         Optional<String> validationErrors = request.queryParams().first("validationErrors");
         if (validationErrors.isPresent()) {
             context.put("validationErrors", validationErrors.get());
         }
         response.headers().contentType(MediaType.TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, emailComposerTemplate));
+    }
+
+    private Email loadEmail(int emailId) {
+        return switch(emailId) {
+            case 100 -> MockEmailData.REPLY_EMAIL;
+            case 200 -> MockEmailData.FORWARD_EMAIL;
+            default -> MockEmailData.NEW_EMAIL;
+        };
     }
 
     /**
