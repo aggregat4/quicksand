@@ -56,25 +56,34 @@ p, h1, h2, h3, h4, h5, h6 {
 /* Custom Properties --------  */
 
 :root {
-    --muted-bgcolor: #f5f5f5;
-    --highlighted-bgcolor: white;
-
-    --disabled-text-color: gray;
-    --selected-color: white;
-    --selected-bgcolor: rgba(13, 110, 253, 0.7); /* #566bac; */
-    --hover-bgcolor: darkgray;
-    --hover-color: white;
-
     --text-color: #333;
     --muted-text-color: #666;
     --body-text-color: #666;
 
+    --muted-bgcolor: #f5f5f5;
+    --highlighted-bgcolor: white;
+
+    --disabled-text-color: gray;
+    --selected-color: var(--text-color);
+    --selected-bgcolor: rgba(144, 184, 245, 0.7); /* #566bac; */
+    --hover-bgcolor: darkgray;
+    --hover-color: white;
+
     --button-bgcolor: white;
-    --button-pressed-color: white;
-    --button-pressed-bgcolor: rgba(13, 110, 253, 0.7);
+    --button-pressed-color: var(--selected-color);
+    --button-pressed-bgcolor: #d5d5d5;
+    --button-border-color: #d5d5d5;
 
     --shadow-color: 0deg 0% 58%;
     --shadow-elevation-medium: 2px 4px 8px hsl(var(--shadow-color) / 0.5);
+    --hover-shadow:
+            0 1px 2px 0 rgba(60,64,67,.3),
+            0 1px 3px 1px rgba(60,64,67,.15);
+    /*--hover-shadow:*/
+    /*        inset 1px 0 0 #dadce0,*/
+    /*        inset -1px 0 0 #dadce0,*/
+    /*        0 1px 2px 0 rgba(60,64,67,.3),*/
+    /*        0 1px 3px 1px rgba(60,64,67,.15);*/
 
     --standard-border: 1px solid lightgray;
 
@@ -93,6 +102,7 @@ p, h1, h2, h3, h4, h5, h6 {
 body {
     background-color: var(--muted-bgcolor);
 }
+
 h1 {
     font-size: 26px;
 }
@@ -116,12 +126,14 @@ nav > ul > li {
 }
 
 input[type=text],
+input[type=search],
 textarea {
     border: var(--standard-border);
+    padding: var(--gap-s) var(--gap-m);
 }
 
 button {
-    border: 1px solid var(--text-color);
+    border: 1px solid var(--button-border-color);
     border-radius: 3px;
     background-color: var(--button-bgcolor);
     padding: var(--gap-s) var(--gap-m);
@@ -133,7 +145,7 @@ button {
 button[aria-pressed=true] {
     color: var(--button-pressed-color);
     background-color: var(--button-pressed-bgcolor);
-    border-color: var(--button-pressed-color);
+    border-color: var(--button-border-color);
 }
 
 button:hover {
@@ -177,6 +189,7 @@ dialog,
 /* icon-link component ------ */
 a[aria-disabled="true"] {
     color: var(--disabled-text-color);
+    pointer-events: none;
 }
 
 a.iconlink {
@@ -193,7 +206,6 @@ a.iconlink.selected {
     color: var(--selected-color);
     background-color: var(--selected-bgcolor);
 }
-
 
 form.dialogcloser {
     position: absolute;

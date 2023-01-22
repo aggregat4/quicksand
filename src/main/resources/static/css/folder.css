@@ -22,10 +22,12 @@
 
 #folderlist {
     grid-column: 1 / 2;
-    grid-row: 1 / 3;
+    grid-row: 2 / 3;
 
     overflow: auto;
     resize: horizontal;
+
+    border-top: 1px lightgray solid;
 }
 
 #messagelist {
@@ -141,7 +143,8 @@
 
 /* email headers --------- */
 .emailgroup {
-    padding: var(--gap-s) var(--gap-m);
+    padding: var(--gap-m) var(--gap-l);
+    background: var(--muted-bgcolor);
 }
 
 .emailheader {
@@ -164,7 +167,7 @@
 }
 
 .emailheader:hover {
-    border: 1px solid black;
+    background-color: var(--selected-bgcolor);
 }
 
 .emailheader.active {
@@ -239,10 +242,6 @@
     grid-column: 2 / 3;
     grid-row: 3 / 4;
     color: var(--muted-text-color);
-}
-
-.emailheader.active .bodyline {
-    color: var(--hover-color);
 }
 
 .emailstar {
