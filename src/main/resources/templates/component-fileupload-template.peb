@@ -11,7 +11,7 @@
         .attachment-label {
             display: flex;
             flex-direction: row;
-            gap: 6px;
+            gap: var(--gap-m);
         }
     </style>
     <script>

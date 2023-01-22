@@ -56,21 +56,43 @@ p, h1, h2, h3, h4, h5, h6 {
 /* Custom Properties --------  */
 
 :root {
+    --muted-bgcolor: #f5f5f5;
+    --highlighted-bgcolor: white;
+
     --disabled-text-color: gray;
     --selected-color: white;
-    --selected-bgcolor: black;
+    --selected-bgcolor: rgba(13, 110, 253, 0.7); /* #566bac; */
     --hover-bgcolor: darkgray;
     --hover-color: white;
+
     --text-color: #333;
+    --muted-text-color: #666;
     --body-text-color: #666;
+
     --button-bgcolor: white;
     --button-pressed-color: white;
-    --button-pressed-bgcolor: black;
-}
+    --button-pressed-bgcolor: rgba(13, 110, 253, 0.7);
 
+    --shadow-color: 0deg 0% 58%;
+    --shadow-elevation-medium: 2px 4px 8px hsl(var(--shadow-color) / 0.5);
+
+    --standard-border: 1px solid lightgray;
+
+    --gap-s: 3px;
+    --gap-m: 6px;
+    --gap-l: 12px;
+    --gap-xl: 24px;
+
+    --dialog-padding-top: 36px;
+    --dialog-padding-other: 24px;
+
+}
 
 /* General Style overrides ----- */
 
+body {
+    background-color: var(--muted-bgcolor);
+}
 h1 {
     font-size: 26px;
 }
@@ -93,14 +115,19 @@ nav > ul > li {
     padding: 0;
 }
 
+input[type=text],
+textarea {
+    border: var(--standard-border);
+}
+
 button {
     border: 1px solid var(--text-color);
     border-radius: 3px;
     background-color: var(--button-bgcolor);
-    padding: 3px 6px;
+    padding: var(--gap-s) var(--gap-m);
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--gap-m);
 }
 
 button[aria-pressed=true] {
@@ -115,10 +142,9 @@ button:hover {
 
 dialog,
 .has-submenu ul {
-    background: white;
-    --shadow-color: 0deg 0% 58%;
-    --shadow-elevation-medium: 2px 4px 8px hsl(var(--shadow-color) / 0.5);
+    background: var(--highlighted-bgcolor);
     box-shadow: var(--shadow-elevation-medium);
+    border: var(--standard-border);
 }
 
 /* submenus are position specifically */
@@ -131,13 +157,13 @@ dialog,
     position: absolute;
     top: 100%;
     left: 0;
-    background-color: white;
+    background-color: var(--highlighted-bgcolor);
     /* We need to set the z-index explicitly so the background is visible*/
     z-index: 1;
 }
 
 .has-submenu ul li {
-    padding: 3px 6px;
+    padding: var(--gap-s) var(--gap-m);
 }
 
 .has-submenu.open ul  {
@@ -156,11 +182,11 @@ a[aria-disabled="true"] {
 a.iconlink {
     display: flex;
     align-items: center;
-    padding: 6px 6px;
+    padding: var(--gap-m) var(--gap-m);
 }
 
 a.iconlink svg {
-    margin-right: 6px;
+    margin-right: var(--gap-m);
 }
 
 a.iconlink.selected {
@@ -171,8 +197,8 @@ a.iconlink.selected {
 
 form.dialogcloser {
     position: absolute;
-    right: 6px;
-    top: 6px;
+    right: var(--gap-m);
+    top: var(--gap-m);
 }
 
 
@@ -201,22 +227,22 @@ header {
     display: flex;
     flex-direction: row;
     align-items: center;
-    padding: 6px;
+    padding: var(--gap-m);
     /*border-bottom: 1px dashed gray;*/
 }
 
 #toggle-folderlist-button {
-    margin-right: 6px;
+    margin-right: var(--gap-m);
 }
 
 #searchemailform {
     display: flex;
     align-items: center;
-    margin: 0 12px;
+    margin: 0 var(--gap-l);
 }
 
 li.has-submenu a {
-    padding: 6px 12px;
+    padding: var(--gap-m) var(--gap-l);
 }
 
 header #apptitle {
@@ -230,8 +256,7 @@ header #apptitle {
     left: auto;
     min-width: 60ch;
     min-height: 60ch;
-    padding: 36px 24px 24px 24px;
-    border: none;
+    padding: var(--dialog-padding-top) var(--dialog-padding-other) var(--dialog-padding-other) var(--dialog-padding-other);
     /* make sure it is on top of the message  preview dialog */
     z-index: 10;
 }
@@ -246,14 +271,14 @@ header #apptitle {
     /* if the iframe does not have position absolute it will not fill the full width or height of the container */
     position: absolute;
     /* Since we are position absolute, the 100% does not take into account the padding of the container,  we need to deduct that manually */
-    width: calc(100% - 24px - 24px);
-    height: calc(100% - 36px - 24px);
+    width: calc(100% - var(--dialog-padding-other) - var(--dialog-padding-other));
+    height: calc(100% - var(--dialog-padding-top) - var(--dialog-padding-other));
 }
 
 /* ---- Notifications ---- */
 .validation-errors,
 .info-notification {
-    padding: 6px;
+    padding: var(--gap-m);
     border-radius: 3px;
 }
 

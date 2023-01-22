@@ -1,11 +1,15 @@
 /* email viewer ------------ */
 
+body {
+    background-color: var(--highlighted-bgcolor);
+}
+
 .emailviewer main {
     display: grid;
     grid-template-columns: 1fr;
     grid-template-rows: min-content min-content min-content min-content min-content min-content min-content;
-    row-gap: 6px;
-    padding: 12px;
+    row-gap: var(--gap-m);
+    padding: var(--gap-l);
 }
 
 #emailsubject {
@@ -24,7 +28,7 @@
     display: grid;
     grid-template-columns: 1fr min-content;
     grid-template-rows: min-content min-content;
-    row-gap: 6px;
+    row-gap: var(--gap-m);
 }
 
 #emailmetadata #from {
@@ -59,7 +63,7 @@
     grid-row-end: 4;
 
     display: flex;
-    gap: 6px;
+    gap: var(--gap-m);
     align-items: center;
     justify-content: space-between;
 }
@@ -67,7 +71,7 @@
 #emailactions > div,
 #emailactions > form {
     display: flex;
-    gap: 6px;
+    gap: var(--gap-m);
 }
 
 #emailimages {
@@ -90,11 +94,11 @@
     border-bottom: 1px solid lightgray;
     width: 100%;
     height: 100%;
-    padding: 12px 0;
+    padding: var(--gap-l) 0;
 }
 
 #emailbody > pre  {
-    background-color: white;
+    background-color: var(--highlighted-bgcolor);
     font-family: sans-serif;
     width: 100%;
     max-width: 66ch;
@@ -106,7 +110,7 @@
 #emailbody > iframe {
     width: 100%;
     max-width: 66ch;
-    background-color: white;
+    background-color: var(--highlighted-bgcolor);
     margin: auto;
     overflow: hidden;
     border: none;

@@ -1,3 +1,7 @@
+body {
+    background-color: var(--highlighted-bgcolor);
+}
+
 .email-composer main {
     height: 100%;
 }
@@ -7,7 +11,7 @@
     height: 100%;
 
     display: grid;
-    gap: 6px;
+    gap: var(--gap-m);
     grid-template-columns: min-content 1fr;
     grid-template-rows: min-content min-content min-content min-content min-content 4fr min-content;
 }
@@ -30,7 +34,7 @@
 
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--gap-m);
 }
 
 #email-body-grow-wrap {
@@ -65,7 +69,6 @@
 .grow-wrap > textarea,
 .grow-wrap::after {
     /* Identical styling required!! */
-    border: 1px solid lightgray;
     padding: 0.5rem;
     font: inherit;
     /* Place on top of each other */
@@ -83,12 +86,12 @@
 
     display: flex;
     flex-direction: row;
-    column-gap: 6px;
+    column-gap: var(--gap-m);
     flex-flow: row-reverse;
 }
 
 #attachments {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--gap-m);
 }
