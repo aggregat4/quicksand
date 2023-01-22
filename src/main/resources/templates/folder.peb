@@ -1,6 +1,6 @@
 {% extends "templates/base.peb" %}
 
-{% block pageTitle %} Account {{ currentAccount.name }} {% endblock %}
+{% block pageTitle %} {{ currentFolder.name }} of {{ currentAccount.name }} {% endblock %}
 
 {% block additionalHeader %}
 <link rel="stylesheet" href="/css/folder.css">
