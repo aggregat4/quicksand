@@ -263,79 +263,79 @@
    is shown so we can do two separate media queries: one to determine when to show
    one line message headers when the preview is showing and one where it isn't showing. */
 @media screen and (min-width: 1200px) {
-    .emailheader.active {
+    .emailheader {
         grid-template-columns: min-content min-content min-content min-content 1fr min-content;
         grid-template-rows: min-content;
     }
 
-    .emailheader.active  .emailselection {
+    .emailheader  .emailselection {
         grid-column: 1 / 2;
         grid-row: 1 / 2;
     }
 
-    .emailheader.active .emailstar {
+    .emailheader .emailstar {
         grid-column: 2 / 3;
         grid-row: 1 / 2;
     }
 
-    .emailheader.active .fromname {
+    .emailheader .fromname {
         grid-column: 3 / 4;
         grid-row: 1 / 2;
 
         width: 11rem;
     }
 
-    .emailheader.active .subjectline {
+    .emailheader .subjectline {
         grid-column: 4 / 5;
         grid-row: 1 / 2;
     }
 
-    .emailheader.active .bodyline {
+    .emailheader .bodyline {
         grid-column: 5 / 6;
         grid-row: 1 / 2;
     }
 
-    .emailheader.active .date-and-actions {
+    .emailheader .date-and-actions {
         grid-column: 6 / 7;
         grid-row: 1 / 2;
     }
 
 }
 
-@media screen and (min-width: 600px) {
-    .emailheader:not(.active) {
+@media screen and (min-width: 800px) {
+    .emailheader {
         grid-template-columns: min-content min-content min-content min-content 1fr min-content;
         grid-template-rows: min-content;
     }
 
-    .emailheader:not(.active)  .emailselection {
+    .emailheader  .emailselection {
         grid-column: 1 / 2;
         grid-row: 1 / 2;
     }
 
-    .emailheader:not(.active) .emailstar {
+    .emailheader .emailstar {
         grid-column: 2 / 3;
         grid-row: 1 / 2;
     }
 
-    .emailheader:not(.active) .fromname {
+    .emailheader .fromname {
         grid-column: 3 / 4;
         grid-row: 1 / 2;
 
         width: 11rem;
     }
 
-    .emailheader:not(.active) .subjectline {
+    .emailheader .subjectline {
         grid-column: 4 / 5;
         grid-row: 1 / 2;
     }
 
-    .emailheader:not(.active) .bodyline {
+    .emailheader .bodyline {
         grid-column: 5 / 6;
         grid-row: 1 / 2;
     }
 
-    .emailheader:not(.active) .date-and-actions {
+    .emailheader .date-and-actions {
         grid-column: 6 / 7;
         grid-row: 1 / 2;
     }
