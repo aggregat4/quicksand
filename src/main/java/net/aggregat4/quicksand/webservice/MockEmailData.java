@@ -1,4 +1,4 @@
-package net.aggregat4.quicksand.services;
+package net.aggregat4.quicksand.webservice;
 
 import net.aggregat4.quicksand.domain.Actor;
 import net.aggregat4.quicksand.domain.Attachment;
@@ -7,7 +7,6 @@ import net.aggregat4.quicksand.domain.EmailHeader;
 
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAmount;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;

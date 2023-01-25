@@ -1,4 +1,4 @@
-package net.aggregat4.quicksand.services;
+package net.aggregat4.quicksand.webservice;
 
 import io.helidon.common.http.Http;
 import io.helidon.webserver.HttpException;

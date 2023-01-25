@@ -2,6 +2,7 @@ package net.aggregat4.quicksand;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -30,7 +31,7 @@ class MainTest {
     private static WebClient webClient;
 
     @BeforeAll
-    static void startTheServer() {
+    static void startTheServer() throws IOException {
         webServer = Main.startServer().await();
 
         webClient = WebClient.builder()

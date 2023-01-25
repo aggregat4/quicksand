@@ -1,4 +1,4 @@
-package net.aggregat4.quicksand.services;
+package net.aggregat4.quicksand.webservice;
 
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.ServerRequest;
@@ -8,7 +8,7 @@ import io.helidon.webserver.Service;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class AttachmentService implements Service {
+public class AttachmentWebService implements Service {
     @Override
     public void update(Routing.Rules rules) {
         rules.get("/{attachmentId}", this::emailAttachmentHandler);

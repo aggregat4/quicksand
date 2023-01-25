@@ -1,4 +1,4 @@
-package net.aggregat4.quicksand.services;
+package net.aggregat4.quicksand.webservice;
 
 import com.mitchellbosecke.pebble.template.PebbleTemplate;
 import io.helidon.common.http.MediaType;
@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class AccountService implements Service {
+public class AccountWebService implements Service {
     public static final int PAGE_SIZE = 100;
 
     private static final PebbleTemplate folderTemplate =

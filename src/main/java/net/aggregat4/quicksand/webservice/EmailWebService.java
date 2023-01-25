@@ -1,4 +1,4 @@
-package net.aggregat4.quicksand.services;
+package net.aggregat4.quicksand.webservice;
 
 import com.mitchellbosecke.pebble.template.PebbleTemplate;
 import io.helidon.common.http.FormParams;
@@ -11,7 +11,6 @@ import io.helidon.webserver.ServerResponse;
 import io.helidon.webserver.Service;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.Email;
-import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.HtmlSanitizer;
@@ -30,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class EmailService implements Service {
+public class EmailWebService implements Service {
 
     private static final PebbleTemplate emailViewerTemplate =
             PebbleConfig.getEngine().getTemplate("templates/emailviewer.peb");
