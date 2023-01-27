@@ -18,6 +18,7 @@ import net.aggregat4.quicksand.domain.Pagination;
 import net.aggregat4.quicksand.domain.Query;
 import net.aggregat4.quicksand.domain.SearchFolder;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
+import net.aggregat4.quicksand.repository.AccountRepository;
 
 import java.net.URI;
 import java.time.ZonedDateTime;
@@ -34,7 +35,9 @@ public class AccountWebService implements Service {
             PebbleConfig.getEngine().getTemplate("templates/folder.peb");
 
     private final List<NamedFolder> NAMED_FOLDERS = List.of(new NamedFolder(1, "INBOX"), new NamedFolder(2, "Archive"), new NamedFolder(3, "Sent"), new NamedFolder(4, "Junk"));
-    private final List<Account> ACCOUNTS = List.of(new Account(1, "foo@example.com"), new Account(2, "bar@example.org"));
+    private final List<Account> ACCOUNTS = List.of(
+            AccountRepository.ACCOUNT1,
+            AccountRepository.ACCOUNT2);
 
     @Override
     public void update(Routing.Rules rules) {
@@ -81,7 +84,7 @@ public class AccountWebService implements Service {
         Map<String, Object> context = new HashMap<>();
         context.put("accounts", ACCOUNTS);
         context.put("bodyclass", "folderpage");
-        context.put("currentAccount", new Account(accountId, "foo@example.com"));
+        context.put("currentAccount", AccountRepository.ACCOUNT1);
         context.put("currentFolder", folder);
         context.put("folders", NAMED_FOLDERS);
         if (query.isPresent()) {
@@ -134,22 +137,22 @@ public class AccountWebService implements Service {
             return List.of(
                     EmailGroup.createNoGroupEmailgroup(List.of(
                             new EmailHeader(1, MockEmailData.EMAIL1_SENDER, MockEmailData.EMAIL1_RECIPIENT, MockEmailData.EMAIL1_SUBJECT, MockEmailData.EMAIL1_RECEIVEDDATE, MockEmailData.EMAIL1_SENTDATE, "Hey you, this is me <mark>John</mark> sending you this somewhere what is this and this snippet just goes on", false, true, false),
-                            new EmailHeader(3, new Actor("izzi342@gmail.com", Optional.of("Eddie Izzard")), MockEmailData.EMAIL1_RECIPIENT, "This is the greatest <mark>john</mark>-like thing ever!", ZonedDateTime.now().minus(44, ChronoUnit.MINUTES), ZonedDateTime.now().minus(17, ChronoUnit.MINUTES),"Dear Mr. Michalson, Mr. <mark>John</mark> This is the winter of my discontent. And I hope you are fine.", false, false, true),
-                            new EmailHeader(4, new Actor("ceo@ibm.com", Optional.of("<mark>John</mark> Hockenberry von Hockenstein")), MockEmailData.EMAIL1_RECIPIENT, "Hocky my hockface", ZonedDateTime.now().minus(2, ChronoUnit.HOURS),  ZonedDateTime.now().minus(2, ChronoUnit.HOURS), "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, true),
-                            new EmailHeader(5, new Actor("<mark>john</mark>@waterman.org", Optional.of("<mark>John</mark> Doe")), MockEmailData.EMAIL1_RECIPIENT, "Hi", ZonedDateTime.now().minus(3, ChronoUnit.DAYS),  ZonedDateTime.now().minus(3, ChronoUnit.DAYS), "JKHGajkls glasjkdfgh djshfsdklj fhskdjlfh asdkljfh asdkljf qweuihawioeusdv bj", true, false, true)
+                            new EmailHeader(3, new Actor("izzi342@gmail.com", Optional.of("Eddie Izzard")), MockEmailData.EMAIL1_RECIPIENT, "This is the greatest <mark>john</mark>-like thing ever!", ZonedDateTime.now().minus(44, ChronoUnit.MINUTES), ZonedDateTime.now().minus(17, ChronoUnit.MINUTES), "Dear Mr. Michalson, Mr. <mark>John</mark> This is the winter of my discontent. And I hope you are fine.", false, false, true),
+                            new EmailHeader(4, new Actor("ceo@ibm.com", Optional.of("<mark>John</mark> Hockenberry von Hockenstein")), MockEmailData.EMAIL1_RECIPIENT, "Hocky my hockface", ZonedDateTime.now().minus(2, ChronoUnit.HOURS), ZonedDateTime.now().minus(2, ChronoUnit.HOURS), "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, true),
+                            new EmailHeader(5, new Actor("<mark>john</mark>@waterman.org", Optional.of("<mark>John</mark> Doe")), MockEmailData.EMAIL1_RECIPIENT, "Hi", ZonedDateTime.now().minus(3, ChronoUnit.DAYS), ZonedDateTime.now().minus(3, ChronoUnit.DAYS), "JKHGajkls glasjkdfgh djshfsdklj fhskdjlfh asdkljfh asdkljf qweuihawioeusdv bj", true, false, true)
                     ))
             );
         } else {
             return List.of(
                     new EmailGroup.TodayEmailGroup(List.of(
-                            new EmailHeader(1, MockEmailData.EMAIL1_SENDER, MockEmailData.EMAIL1_RECIPIENT, MockEmailData.EMAIL1_SUBJECT, MockEmailData.EMAIL1_RECEIVEDDATE, MockEmailData.EMAIL1_SENTDATE,  "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, false),
-                            new EmailHeader(2, MockEmailData.EMAIL2_SENDER, MockEmailData.EMAIL2_RECIPIENT, MockEmailData.EMAIL2_SUBJECT, MockEmailData.EMAIL2_RECEIVEDDATE, MockEmailData.EMAIL2_SENTDATE,"Asd askl; sdkljhs ldkjfhaslkdjfhalksdjfh aslkd  falskjd alskdfhqw qwe ", false, false, false))),
+                            new EmailHeader(1, MockEmailData.EMAIL1_SENDER, MockEmailData.EMAIL1_RECIPIENT, MockEmailData.EMAIL1_SUBJECT, MockEmailData.EMAIL1_RECEIVEDDATE, MockEmailData.EMAIL1_SENTDATE, "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, false),
+                            new EmailHeader(2, MockEmailData.EMAIL2_SENDER, MockEmailData.EMAIL2_RECIPIENT, MockEmailData.EMAIL2_SUBJECT, MockEmailData.EMAIL2_RECEIVEDDATE, MockEmailData.EMAIL2_SENTDATE, "Asd askl; sdkljhs ldkjfhaslkdjfhalksdjfh aslkd  falskjd alskdfhqw qwe ", false, false, false))),
                     new EmailGroup.ThisWeekEmailGroup(List.of(
                             new EmailHeader(3, new Actor("izzi342@gmail.com", Optional.of("Eddie Izzard")), MockEmailData.EMAIL1_RECIPIENT, "This is the greatest thing ever!", ZonedDateTime.now().minus(44, ChronoUnit.MINUTES), ZonedDateTime.now().minus(47, ChronoUnit.MINUTES), "Dear Mr. Michalson, This is the winter of my discontent. And I hope you are fine.", false, false, true))),
                     new EmailGroup.ThisMonthEmailGroup(List.of(
                             new EmailHeader(4, new Actor("ceo@ibm.com", Optional.of("John Hockenberry von Hockenstein")), MockEmailData.EMAIL1_RECIPIENT, "Hocky my hockface", ZonedDateTime.now().minus(2, ChronoUnit.HOURS), ZonedDateTime.now().minus(2, ChronoUnit.HOURS), "Hey you, this is me sending you this somewhere what is this and this snippet just goes on", false, true, true),
                             new EmailHeader(5, new Actor("john@waterman.org", Optional.of("John Doe")), MockEmailData.EMAIL1_RECIPIENT, "Hi", ZonedDateTime.now().minus(3, ChronoUnit.DAYS), ZonedDateTime.now().minus(3, ChronoUnit.DAYS), "JKHGajkls glasjkdfgh djshfsdklj fhskdjlfh asdkljfh asdkljf qweuihawioeusdv bj", true, false, true),
-                            new EmailHeader(6, new Actor("whatevs@mail.org", Optional.of("Evan Watts")), MockEmailData.EMAIL1_RECIPIENT, "Dude, wassup!", ZonedDateTime.now().minus(7, ChronoUnit.DAYS), ZonedDateTime.now().minus(7, ChronoUnit.DAYS),  "And now my dear there is a chance that we may meet again in fields", false, false, true)))
+                            new EmailHeader(6, new Actor("whatevs@mail.org", Optional.of("Evan Watts")), MockEmailData.EMAIL1_RECIPIENT, "Dude, wassup!", ZonedDateTime.now().minus(7, ChronoUnit.DAYS), ZonedDateTime.now().minus(7, ChronoUnit.DAYS), "And now my dear there is a chance that we may meet again in fields", false, false, true)))
             );
         }
     }
