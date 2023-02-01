@@ -13,6 +13,7 @@ import io.helidon.webserver.staticcontent.StaticContentSupport;
 import net.aggregat4.dblib.DbUtil;
 import net.aggregat4.dblib.SchemaMigrator;
 import net.aggregat4.quicksand.domain.Account;
+import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.migrations.QuicksandMigrations;
 import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.service.AccountService;
@@ -32,6 +33,8 @@ import java.util.stream.Collectors;
 
 public final class Main {
 
+    private static MailFetcher mailFetcher;
+
     public static void main(final String[] args) throws IOException {
         startServer();
     }
@@ -45,6 +48,10 @@ public final class Main {
         bootstrapAccounts(ds, config);
         AccountRepository accountRepository = new AccountRepository(ds);
         AccountService accountService = new AccountService(accountRepository);
+
+        // TODO: get delay period from config
+        mailFetcher = new MailFetcher(accountRepository, 15);
+        mailFetcher.start();
 
         Routing.Builder builder = Routing.builder()
                 .register("/css", StaticContentSupport.create("/static/css"))
@@ -86,23 +93,27 @@ public final class Main {
                 -1,
                 accountConfig.get("name").asString().get(),
                 accountConfig.get("imap_host").asString().get(),
+                accountConfig.get("imap_port").asInt().get(),
                 accountConfig.get("imap_username").asString().get(),
                 accountConfig.get("imap_password").asString().get(),
                 accountConfig.get("smtp_host").asString().get(),
+                accountConfig.get("smtp_port").asInt().get(),
                 accountConfig.get("smtp_username").asString().get(),
                 accountConfig.get("smtp_password").asString().get())).collect(Collectors.toList());
         System.out.println(accounts);
         for (Account account : accounts) {
             DbUtil.withPreparedStmtConsumer(ds, """
-                    INSERT OR IGNORE INTO accounts (name, imap_host, imap_username, imap_password, smtp_host, smtp_username, smtp_password) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR IGNORE INTO accounts (name, imap_host, imap_port, imap_username, imap_password, smtp_host, smtp_port, smtp_username, smtp_password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, stmt -> {
                 stmt.setString(1, account.name());
                 stmt.setString(2, account.imapHost());
-                stmt.setString(3, account.imapUsername());
-                stmt.setString(4, account.imapPassword());
-                stmt.setString(5, account.smtpHost());
-                stmt.setString(6, account.smtpUsername());
-                stmt.setString(7, account.smtpPassword());
+                stmt.setInt(3, account.imapPort());
+                stmt.setString(4, account.imapUsername());
+                stmt.setString(5, account.imapPassword());
+                stmt.setString(6, account.smtpHost());
+                stmt.setInt(7, account.smtpPort());
+                stmt.setString(8, account.smtpUsername());
+                stmt.setString(9, account.smtpPassword());
                 int affectedRows = stmt.executeUpdate();
                 if (affectedRows == 0) {
                     System.out.println("Account %s already existed".formatted(account));

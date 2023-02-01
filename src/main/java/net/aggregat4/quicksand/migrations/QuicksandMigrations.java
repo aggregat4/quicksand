@@ -17,9 +17,11 @@ public class QuicksandMigrations implements Migrations {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE,
                 imap_host TEXT,
+                imap_port INTEGER,
                 imap_username TEXT,
                 imap_password TEXT,
                 smtp_host TEXT,
+                smtp_port INTEGER,
                 smtp_username TEXT,
                 smtp_password TEXT)""");
         return 2;

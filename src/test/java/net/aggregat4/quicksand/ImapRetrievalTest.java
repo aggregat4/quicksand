@@ -23,7 +23,7 @@ public class ImapRetrievalTest {
         String password = System.getenv("IMAP_PASSWORD");
         Session session = Session.getInstance(props, null);
         Store store = session.getStore("imap");
-        store.connect(host, user, password);
+        store.connect(host, 3143, user, password);
         Folder defaultFolder = store.getFolder("INBOX");
         System.out.printf("Name: %s%n", defaultFolder.getName());
         System.out.printf("Full Name: %s%n", defaultFolder.getFullName());

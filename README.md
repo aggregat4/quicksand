@@ -79,3 +79,22 @@ mvn package -Pjlink-image -Djlink.image.addClassDataSharingArchive=false
 ```
 
 For more information on available configuration options see the helidon-maven-plugin documentation.
+
+## Starting a Test IMAP and SMTP Server
+
+We're going to use [Greenmail](https://greenmail-mail-test.github.io/greenmail/#deploy_docker_standalone) as a convenent docker based test server so we can easily test our application.
+
+First we get the new 2.0 image:
+```text
+docker pull greenmail/standalone:2.0.0-alpha-3
+```
+
+Then start it, do some port forwarding and set the user and password to some test values:
+
+```text
+docker run -t -i -p 3025:3025 -p 3110:3110 -p 3143:3143 \
+  -p 3465:3465 -p 3993:3993 -p 3995:3995 -p 8081:8080 \
+  -e JAVA_OPTS=-Dgreenmail.users=test1:pwd1 \
+  greenmail/standalone:2.0.0-alpha-3
+```
+
