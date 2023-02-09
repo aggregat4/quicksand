@@ -1,15 +1,23 @@
 package net.aggregat4.quicksand.jobs;
 
+import com.sun.mail.imap.IMAPFolder;
+import jakarta.mail.Folder;
+import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
 import jakarta.mail.NoSuchProviderException;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
+import jakarta.mail.UIDFolder;
 import net.aggregat4.quicksand.domain.Account;
+import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.repository.AccountRepository;
+import net.aggregat4.quicksand.repository.FolderRepository;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -21,12 +29,14 @@ public class MailFetcher {
     private final long fetchPeriodInSeconds;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final AccountRepository accountRepository;
+    private final FolderRepository folderRepository;
 
     private final ConcurrentHashMap<Account, Store> accountStores = new ConcurrentHashMap<>();
 
-    public MailFetcher(AccountRepository accountRepository, long fetchPeriodInSeconds) {
+    public MailFetcher(AccountRepository accountRepository, long fetchPeriodInSeconds, FolderRepository folderRepository) {
         this.accountRepository = accountRepository;
         this.fetchPeriodInSeconds = fetchPeriodInSeconds;
+        this.folderRepository = folderRepository;
     }
 
     public void start() {
@@ -66,6 +76,57 @@ public class MailFetcher {
 
             // See https://www.rfc-editor.org/rfc/rfc4549#section-3 for a recommendation on how to sync a disconnected IMAP client
             // we can skip the client actions for now and try the server to client sync first
+
+            syncImapFolders(account);
+
+        }
+    }
+
+    private void syncImapFolders(Account account) {
+        Store store = accountStores.get(account);
+        try {
+            // we filter by '*' as that seems to indicate that we want all folders not just toplevel folders
+            Folder[] folders = store.getDefaultFolder().list("*");
+            Set<NamedFolder> seenFolders = new HashSet<>();
+            List<NamedFolder> localFolders = folderRepository.getFolders(account);
+            for (Folder folder : folders) {
+                // This filter is from https://stackoverflow.com/a/4801728/1996
+                // unsure whether we will need it
+                if ((folder.getType() & Folder.HOLDS_MESSAGES) != 0) {
+                    NamedFolder localFolder = localFolders.stream()
+                            .filter(f -> f.name().equals(folder.getName()))
+                            .findFirst()
+                            .orElseGet(() -> folderRepository.createFolder(account, folder.getName()));
+                    seenFolders.add(localFolder);
+                    syncImapFolder(localFolder, folder);
+                }
+            }
+            // remove any folders that are not present on the server
+            localFolders.stream()
+                    .filter(f -> !seenFolders.contains(f))
+                    .forEach(folderRepository::deleteFolder);
+        } catch (MessagingException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void syncImapFolder(NamedFolder localFolder, Folder remoteFolder) throws MessagingException {
+        assert(remoteFolder instanceof IMAPFolder);
+        IMAPFolder imapFolder = (IMAPFolder) remoteFolder;
+        imapFolder.open(Folder.READ_ONLY);
+        try {
+            // TODO: purge deleted messages
+
+
+//            // get new messages
+//            Message[] messagesByUID = uidFolder.getMessagesByUID(localFolder.lastSeenUid(), UIDFolder.LASTUID);
+//            System.out.println("Found " + messagesByUID.length + " new messages");
+//            for (Message message : messagesByUID) {
+////                System.out.println("Message: " + message.getSubject());
+////                messageRepositor
+//            }
+        } finally {
+            imapFolder.close();
         }
     }
 

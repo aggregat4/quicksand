@@ -1,6 +1,7 @@
 package net.aggregat4.quicksand;
 
 import com.sun.mail.imap.IMAPFolder;
+import com.sun.mail.imap.IMAPStore;
 import com.sun.mail.imap.SortTerm;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
@@ -22,8 +23,11 @@ public class ImapRetrievalTest {
         String user = System.getenv("IMAP_USER");
         String password = System.getenv("IMAP_PASSWORD");
         Session session = Session.getInstance(props, null);
-        Store store = session.getStore("imap");
-        store.connect(host, 3143, user, password);
+        IMAPStore store = (IMAPStore) session.getStore("imap");
+        store.connect(host, Integer.parseInt(System.getenv("IMAP_PORT")), user, password);
+        System.out.println("Server has CONDSTORE? " + store.hasCapability("CONDSTORE"));
+        System.out.println("Server has QRESYNC? " + store.hasCapability("QRESYNC"));
+        System.out.println("Server has IDLE? " + store.hasCapability("IDLE"));
         Folder defaultFolder = store.getFolder("INBOX");
         System.out.printf("Name: %s%n", defaultFolder.getName());
         System.out.printf("Full Name: %s%n", defaultFolder.getFullName());

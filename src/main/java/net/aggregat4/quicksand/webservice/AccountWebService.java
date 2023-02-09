@@ -34,7 +34,7 @@ public class AccountWebService implements Service {
     private static final PebbleTemplate folderTemplate =
             PebbleConfig.getEngine().getTemplate("templates/folder.peb");
 
-    private final List<NamedFolder> NAMED_FOLDERS = List.of(new NamedFolder(1, "INBOX"), new NamedFolder(2, "Archive"), new NamedFolder(3, "Sent"), new NamedFolder(4, "Junk"));
+    private final List<NamedFolder> NAMED_FOLDERS = List.of(new NamedFolder(1, "INBOX", 0), new NamedFolder(2, "Archive", 0), new NamedFolder(3, "Sent", 0), new NamedFolder(4, "Junk", 0));
     private final List<Account> ACCOUNTS = List.of(
             AccountRepository.ACCOUNT1,
             AccountRepository.ACCOUNT2);

@@ -24,6 +24,13 @@ public class QuicksandMigrations implements Migrations {
                 smtp_port INTEGER,
                 smtp_username TEXT,
                 smtp_password TEXT)""");
+        executeUpdate(con, """
+                CREATE TABLE folders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER,
+                name TEXT UNIQUE,
+                last_seen_uid INTEGER,
+                FOREIGN KEY (account_id) REFERENCES accounts(id),)""");
         return 2;
     };
 

@@ -16,6 +16,7 @@ import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.migrations.QuicksandMigrations;
 import net.aggregat4.quicksand.repository.AccountRepository;
+import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.webservice.AccountWebService;
 import net.aggregat4.quicksand.webservice.AttachmentWebService;
@@ -48,9 +49,10 @@ public final class Main {
         bootstrapAccounts(ds, config);
         AccountRepository accountRepository = new AccountRepository(ds);
         AccountService accountService = new AccountService(accountRepository);
+        FolderRepository  folderRepository = new FolderRepository(ds);
 
         // TODO: get delay period from config
-        mailFetcher = new MailFetcher(accountRepository, 15);
+        mailFetcher = new MailFetcher(accountRepository, 15, folderRepository);
         mailFetcher.start();
 
         Routing.Builder builder = Routing.builder()
