@@ -1,23 +1,20 @@
 package net.aggregat4.quicksand.jobs;
 
+import com.sun.mail.imap.IMAPBodyPart;
 import com.sun.mail.imap.IMAPFolder;
+import com.sun.mail.imap.IMAPMessage;
+import jakarta.mail.*;
 import jakarta.mail.Folder;
-import jakarta.mail.Message;
-import jakarta.mail.MessagingException;
-import jakarta.mail.NoSuchProviderException;
-import jakarta.mail.Session;
-import jakarta.mail.Store;
-import jakarta.mail.UIDFolder;
-import net.aggregat4.quicksand.domain.Account;
-import net.aggregat4.quicksand.domain.NamedFolder;
+import jakarta.mail.internet.InternetAddress;
+import net.aggregat4.quicksand.domain.*;
 import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
+import net.aggregat4.quicksand.repository.MessageRepository;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -30,13 +27,15 @@ public class MailFetcher {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final AccountRepository accountRepository;
     private final FolderRepository folderRepository;
+    private final MessageRepository messageRepository;
 
     private final ConcurrentHashMap<Account, Store> accountStores = new ConcurrentHashMap<>();
 
-    public MailFetcher(AccountRepository accountRepository, long fetchPeriodInSeconds, FolderRepository folderRepository) {
+    public MailFetcher(AccountRepository accountRepository, long fetchPeriodInSeconds, FolderRepository folderRepository, MessageRepository messageRepository) {
         this.accountRepository = accountRepository;
         this.fetchPeriodInSeconds = fetchPeriodInSeconds;
         this.folderRepository = folderRepository;
+        this.messageRepository = messageRepository;
     }
 
     public void start() {
@@ -110,24 +109,97 @@ public class MailFetcher {
         }
     }
 
+    /**
+     * There are multiple ways to synchronize an imap folder:
+     * - The naive way is to get all message UIDs and flags from the server and then check which ones we need to locally remove, update the flags of and which ones to download
+     * - There are more efficient ways to sync using QRESYNC and CONDSTORE that we definitely need to implement
+     */
     private void syncImapFolder(NamedFolder localFolder, Folder remoteFolder) throws MessagingException {
         assert(remoteFolder instanceof IMAPFolder);
         IMAPFolder imapFolder = (IMAPFolder) remoteFolder;
         imapFolder.open(Folder.READ_ONLY);
-        try {
-            // TODO: purge deleted messages
+        naiveFolderSync(localFolder, imapFolder);
+//        try {
+//            // TODO: purge deleted messages
+//
+////            // get new messages
+////            Message[] messagesByUID = uidFolder.getMessagesByUID(localFolder.lastSeenUid(), UIDFolder.LASTUID);
+////            System.out.println("Found " + messagesByUID.length + " new messages");
+////            for (Message message : messagesByUID) {
+//////                System.out.println("Message: " + message.getSubject());
+//////                messageRepositor
+////            }
+//        } finally {
+//            imapFolder.close();
+//        }
+    }
 
-
-//            // get new messages
-//            Message[] messagesByUID = uidFolder.getMessagesByUID(localFolder.lastSeenUid(), UIDFolder.LASTUID);
-//            System.out.println("Found " + messagesByUID.length + " new messages");
-//            for (Message message : messagesByUID) {
-////                System.out.println("Message: " + message.getSubject());
-////                messageRepositor
-//            }
-        } finally {
-            imapFolder.close();
+    private void naiveFolderSync(NamedFolder localFolder, IMAPFolder imapFolder) throws MessagingException {
+        var remoteMessages = imapFolder.getMessages();
+        // TODO verify that all messages already have their UID set since we fetch that below
+        FetchProfile fp = new FetchProfile();
+        fp.add(FetchProfile.Item.FLAGS);
+        imapFolder.fetch(remoteMessages, fp);
+        Set<Long> remoteUids = new HashSet<>();
+        ArrayList<IMAPMessage> messagesToDownload = new ArrayList<>();
+        for (Message msg : remoteMessages) {
+            IMAPMessage imapMessage = (IMAPMessage) msg;
+            Flags flags = msg.getFlags();
+            long uid = imapFolder.getUID(imapMessage);
+            remoteUids.add(uid);
+            Optional<Email> existingMessage = messageRepository.findByMessageId(uid);
+            if (existingMessage.isPresent()) {
+                Email localMessage = existingMessage.get();
+                boolean imapMessageStarred = flags.contains(Flags.Flag.FLAGGED);
+                boolean imapMessageRead = flags.contains(Flags.Flag.SEEN);
+                // TODO: check if there are more things to sync for a message
+                boolean localMessageNeedsUpdate = (imapMessageRead != localMessage.header().read()) || (imapMessageStarred != localMessage.header().starred());
+                if (localMessageNeedsUpdate) {
+                    messageRepository.updateFlags(localMessage.header().id(), imapMessageStarred, imapMessageRead);
+                }
+            } else {
+                messagesToDownload.add(imapMessage);
+            }
         }
+        Set<Long> localUids = messageRepository.getAllMessageIds(localFolder.id());
+        localUids.removeAll(remoteUids);
+        messageRepository.removeAllByUid(localUids);
+        FetchProfile newMessageProfile = new FetchProfile();
+        newMessageProfile.add(FetchProfile.Item.ENVELOPE);
+        newMessageProfile.add(FetchProfile.Item.CONTENT_INFO);
+        IMAPMessage[] messageToDownloadArray = (IMAPMessage[]) messagesToDownload.toArray();
+        imapFolder.fetch(messageToDownloadArray, newMessageProfile);
+        for (IMAPMessage newMessage : messagesToDownload) {
+            InternetAddress sender = (InternetAddress) newMessage.getSender();
+            InternetAddress [] toRecipients = (InternetAddress[]) newMessage.getRecipients(Message.RecipientType.TO);
+            InternetAddress [] ccRecipients = (InternetAddress[]) newMessage.getRecipients(Message.RecipientType.CC);
+            InternetAddress [] bccRecipients = (InternetAddress[]) newMessage.getRecipients(Message.RecipientType.BCC);
+            Email newEmail = new Email(
+                    new EmailHeader(
+                            -1,
+                            imapFolder.getUID(newMessage),
+                            addressToActor(sender),
+                            Arrays.stream(toRecipients).map(MailFetcher::addressToActor).toList(),
+                            Arrays.stream(ccRecipients).map(MailFetcher::addressToActor).toList(),
+                            Arrays.stream(bccRecipients).map(MailFetcher::addressToActor).toList(),
+                            newMessage.getSubject(),
+                            ZonedDateTime.ofInstant(newMessage.getSentDate().toInstant(), ZoneId.systemDefault()),
+                            ZonedDateTime.ofInstant(newMessage.getReceivedDate().toInstant(), ZoneId.systemDefault()),
+                            null /* TODO Body handling */,
+                            newMessage.getFlags().contains(Flags.Flag.FLAGGED),
+                            false /* TODO attachment handling */,
+                            newMessage.getFlags().contains(Flags.Flag.SEEN)
+                    ),
+                    false /* TODO Body handling */,
+                    null /* TODO body handling */,
+                    Collections.emptyList() /* TODO attachment handling */
+            );
+            messageRepository.addMessage(localFolder.id(), newEmail);
+        }
+    }
+
+    private static Actor addressToActor(InternetAddress address) {
+        return new Actor(address.getAddress(), Optional.ofNullable(address.getPersonal()));
     }
 
     /**

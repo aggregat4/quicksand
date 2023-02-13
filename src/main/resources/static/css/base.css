@@ -101,6 +101,7 @@ p, h1, h2, h3, h4, h5, h6 {
 
 body {
     background-color: var(--muted-bgcolor);
+    font-family: sans-serif; /* do I even want to force sans-serif on the usr? do I want to get even more opinionated and even includea font? unsure */
 }
 
 h1 {

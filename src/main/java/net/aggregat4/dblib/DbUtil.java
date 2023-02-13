@@ -10,6 +10,10 @@ import java.util.Optional;
 
 public class DbUtil {
 
+    public static Boolean returnsRow(PreparedStatement stmt) {
+        return withResultSetFunction(stmt, ResultSet::next);
+    }
+
     public static class RuntimeSQLException extends RuntimeException {
         public RuntimeSQLException(Throwable t) {
             super(t);

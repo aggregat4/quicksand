@@ -17,6 +17,7 @@ import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.migrations.QuicksandMigrations;
 import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
+import net.aggregat4.quicksand.repository.MessageRepository;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.webservice.AccountWebService;
 import net.aggregat4.quicksand.webservice.AttachmentWebService;
@@ -32,7 +33,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public final class Main {
+public final class  Main {
 
     private static MailFetcher mailFetcher;
 
@@ -50,9 +51,10 @@ public final class Main {
         AccountRepository accountRepository = new AccountRepository(ds);
         AccountService accountService = new AccountService(accountRepository);
         FolderRepository  folderRepository = new FolderRepository(ds);
+        MessageRepository messageRepository = new MessageRepository(ds);
 
         // TODO: get delay period from config
-        mailFetcher = new MailFetcher(accountRepository, 15, folderRepository);
+        mailFetcher = new MailFetcher(accountRepository, 15, folderRepository, messageRepository);
         mailFetcher.start();
 
         Routing.Builder builder = Routing.builder()

@@ -3,11 +3,15 @@ package net.aggregat4.quicksand.domain;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
+import java.util.List;
 
 public record EmailHeader(
         int id,
+        long imapUid,
         Actor sender,
-        Actor recipient,
+        List<Actor> toRecipients,
+        List<Actor> ccRecipients,
+        List<Actor> bccRecipients,
         String subject,
         ZonedDateTime sentDateTime,
         ZonedDateTime receivedDateTime,
@@ -33,4 +37,5 @@ public record EmailHeader(
     public String longFormattedSentDate() {
         return longDateFormatter.format(sentDateTime.toLocalDateTime());
     }
+
 }
