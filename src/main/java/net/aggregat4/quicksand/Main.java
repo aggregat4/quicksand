@@ -17,6 +17,7 @@ import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.migrations.QuicksandMigrations;
 import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
+import net.aggregat4.quicksand.repository.DbMessageRepository;
 import net.aggregat4.quicksand.repository.MessageRepository;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.webservice.AccountWebService;
@@ -51,7 +52,7 @@ public final class  Main {
         AccountRepository accountRepository = new AccountRepository(ds);
         AccountService accountService = new AccountService(accountRepository);
         FolderRepository  folderRepository = new FolderRepository(ds);
-        MessageRepository messageRepository = new MessageRepository(ds);
+        MessageRepository messageRepository = new DbMessageRepository(ds);
 
         // TODO: get delay period from config
         mailFetcher = new MailFetcher(accountRepository, 15, folderRepository, messageRepository);

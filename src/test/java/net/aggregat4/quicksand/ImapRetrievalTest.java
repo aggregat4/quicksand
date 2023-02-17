@@ -7,7 +7,6 @@ import jakarta.mail.Folder;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
-import jakarta.mail.Store;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;

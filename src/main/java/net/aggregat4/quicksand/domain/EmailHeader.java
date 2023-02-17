@@ -8,10 +8,7 @@ import java.util.List;
 public record EmailHeader(
         int id,
         long imapUid,
-        Actor sender,
-        List<Actor> toRecipients,
-        List<Actor> ccRecipients,
-        List<Actor> bccRecipients,
+        List<Actor> actors,
         String subject,
         ZonedDateTime sentDateTime,
         ZonedDateTime receivedDateTime,

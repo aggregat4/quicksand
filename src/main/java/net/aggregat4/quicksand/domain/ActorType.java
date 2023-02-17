@@ -12,6 +12,15 @@ public enum ActorType {
         this.value = value;
     }
 
+    public static ActorType fromValue(int value) {
+        for (ActorType type : ActorType.values()) {
+            if (type.value == value) {
+                return type;
+            }
+        }
+        throw new IllegalArgumentException("Unknown value: " + value);
+    }
+
     public int getValue() {
         return value;
     }
