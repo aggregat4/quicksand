@@ -1,6 +1,7 @@
 package net.aggregat4.quicksand.webservice;
 
 import net.aggregat4.quicksand.domain.Actor;
+import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Attachment;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
@@ -15,14 +16,14 @@ import java.util.stream.Collectors;
 import io.helidon.common.http.MediaType;
 
 public class MockEmailData {
-    public static final Actor ACCOUNT1_OWNER = new Actor("me@example.com", Optional.of("me"));
-    public static final Actor EMAIL1_SENDER = new Actor("someone@somewhere.com", Optional.of("Someone"));
-    public static final Actor EMAIL1_RECIPIENT = new Actor("me@example.com", Optional.of("Me Doe"));
+    public static final Actor ACCOUNT1_OWNER = new Actor(ActorType.SENDER, "me@example.com", Optional.of("me"));
+    public static final Actor EMAIL1_SENDER = new Actor(ActorType.SENDER, "someone@somewhere.com", Optional.of("Someone"));
+    public static final Actor EMAIL1_RECIPIENT = new Actor(ActorType.TO, "me@example.com", Optional.of("Me Doe"));
     public static final String EMAIL1_SUBJECT = "Hey there how are you?";
     public static final ZonedDateTime EMAIL1_RECEIVEDDATE = ZonedDateTime.now();
     public static final ZonedDateTime EMAIL1_SENTDATE = ZonedDateTime.now().minus(5, ChronoUnit.MINUTES);
-    public static final Actor EMAIL2_SENDER = new Actor("foo@bar.net", Optional.empty());
-    public static final Actor EMAIL2_RECIPIENT = new Actor("me@example.org", Optional.of("Doe, Me"));
+    public static final Actor EMAIL2_SENDER = new Actor(ActorType.SENDER, "foo@bar.net", Optional.empty());
+    public static final Actor EMAIL2_RECIPIENT = new Actor(ActorType.TO, "me@example.org", Optional.of("Doe, Me"));
     public static final String EMAIL2_SUBJECT = "Foo du fafa";
     public static final ZonedDateTime EMAIL2_RECEIVEDDATE = ZonedDateTime.now().minus(3, ChronoUnit.MINUTES);
     public static final ZonedDateTime EMAIL2_SENTDATE = ZonedDateTime.now().minus(13, ChronoUnit.MINUTES);
@@ -31,8 +32,8 @@ public class MockEmailData {
     static final Email PLAINTEXT_EMAIL = new Email(
             new EmailHeader(
                     1,
-                    EMAIL1_SENDER,
-                    EMAIL1_RECIPIENT,
+                    1,
+                    List.of(EMAIL1_SENDER, EMAIL1_RECIPIENT),
                     EMAIL1_SUBJECT,
                     EMAIL1_RECEIVEDDATE,
                     EMAIL1_SENTDATE,
@@ -54,8 +55,8 @@ public class MockEmailData {
     static final Email HTML_EMAIL = new Email(
             new EmailHeader(
                     2,
-                    EMAIL2_SENDER,
-                    EMAIL2_RECIPIENT,
+                    2,
+                    List.of(EMAIL2_SENDER, EMAIL2_RECIPIENT),
                     EMAIL2_SUBJECT,
                     EMAIL2_RECEIVEDDATE,
                     EMAIL2_SENTDATE,
@@ -71,12 +72,12 @@ public class MockEmailData {
     static final Email NEW_EMAIL = new Email(
             new EmailHeader(
                     42,
-                    ACCOUNT1_OWNER,
+                    42,
+                    List.of(ACCOUNT1_OWNER),
                     null,
-                    "",
                     null,
                     null,
-                    "",
+                    null,
                     false,
                     false,
                     false
@@ -88,8 +89,10 @@ public class MockEmailData {
     static final Email REPLY_EMAIL = new Email(
             new EmailHeader(
                     100,
-                    ACCOUNT1_OWNER,
-                    PLAINTEXT_EMAIL.header().sender(),
+                    100,
+                    List.of(
+                            ACCOUNT1_OWNER,
+                            Actor.findActor(PLAINTEXT_EMAIL.header().actors(), ActorType.SENDER)),
                     "Re: " + PLAINTEXT_EMAIL.header().subject(),
                     null,
                     null,
@@ -116,8 +119,8 @@ public class MockEmailData {
     static final Email FORWARD_EMAIL = new Email(
             new EmailHeader(
                     200,
-                    ACCOUNT1_OWNER,
-                    null,
+                    200,
+                    List.of(ACCOUNT1_OWNER),
                     "Fwd: " + PLAINTEXT_EMAIL.header().subject(),
                     null,
                     null,
@@ -132,13 +135,14 @@ public class MockEmailData {
     );
 
     private static String createForwardEmailBody(Email originalEmail) {
+        List<Actor> actors = originalEmail.header().actors();
         return """
                 
-                -------- Original Message --------                               
+                -------- Original Message --------                              
                 """ +
-                "From: %s\n".formatted(originalEmail.header().sender().toString()) +
+                "From: %s\n".formatted(Actor.findActor(actors, ActorType.SENDER)) +
                 "Sent: %s\n".formatted(originalEmail.header().longFormattedSentDate()) +
-                "To: %s\n".formatted(originalEmail.header().recipient().toString()) +
+                "To: %s\n".formatted(Actor.findActor(actors, ActorType.TO)) +
                 "Subject: %s\n".formatted(originalEmail.header().subject()) +
                 "\n\n\n" +
                 originalEmail.body();

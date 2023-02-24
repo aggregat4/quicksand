@@ -1,69 +1,27 @@
 package net.aggregat4.quicksand.jobs;
 
-import net.aggregat4.quicksand.domain.Email;
-import net.aggregat4.quicksand.domain.EmailHeader;
-import net.aggregat4.quicksand.repository.MessageRepository;
+import com.icegreen.greenmail.junit5.GreenMailExtension;
+import com.icegreen.greenmail.user.GreenMailUser;
+import com.icegreen.greenmail.util.GreenMailUtil;
+import com.icegreen.greenmail.util.ServerSetupTest;
+import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ImapStoreSyncTest {
-
-
-    static class InMemoryMessageRepository implements MessageRepository {
-
-        private final Map<Integer, List<Email>> messages = new HashMap<>();
-
-        @Override
-        public Optional<Email> findByMessageId(long uid) {
-            for (List<Email> emails : messages.values()) {
-                for (Email email : emails) {
-                    if (email.header().imapUid() == uid) {
-                        return Optional.of(email);
-                    }
-                }
-            }
-            return Optional.empty();
-        }
-
-        @Override
-        public void updateFlags(int id, boolean messageStarred, boolean messageRead) {
-            // do nothing
-        }
-
-        @Override
-        public Set<Long> getAllMessageIds(int folderId) {
-            return messages.get(folderId).stream().map(Email::header).map(EmailHeader::imapUid).collect(Collectors.toSet());
-        }
-
-        @Override
-        public void removeAllByUid(Collection<Long> localMessageIds) {
-            for (List<Email> emails : messages.values()) {
-                emails.removeIf(email -> localMessageIds.contains(email.header().imapUid()));
-            }
-        }
-
-        @Override
-        public void removeBatchByUid(List<Long> batch) {
-            this.removeAllByUid(batch);
-        }
-
-        @Override
-        public int addMessage(int folderId, Email email) {
-            messages.computeIfAbsent(folderId, k -> new ArrayList<>()).add(email);
-            return -1;
-        }
-    }
+    @RegisterExtension
+    static GreenMailExtension greenMail = new GreenMailExtension(ServerSetupTest.ALL);
 
     @Test
     public void testNaiveFolderSyncAgainstEmptyDatabase() {
-
+        //Use random content to avoid potential residual lingering problems
+        final String subject = GreenMailUtil.random();
+        final String body = GreenMailUtil.random();
+        MimeMessage message = GreenMailUtil.createTextEmail("to@foo.bar", "from@foo.bar", subject, body, greenMail.getSmtp().getServerSetup()); // Construct message
+        GreenMailUser user = greenMail.setUser("wael@localhost", "waelc", "soooosecret");
+        user.deliver(message);
+        assertEquals(1, greenMail.getReceivedMessages().length);
     }
 }

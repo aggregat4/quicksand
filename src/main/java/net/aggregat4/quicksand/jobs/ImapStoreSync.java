@@ -11,6 +11,7 @@ import jakarta.mail.Store;
 import jakarta.mail.internet.InternetAddress;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Actor;
+import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.NamedFolder;
@@ -20,7 +21,6 @@ import net.aggregat4.quicksand.repository.MessageRepository;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -45,7 +45,7 @@ public class ImapStoreSync {
         try {
             // we filter by '*' as that seems to indicate that we want all folders not just toplevel folders
             Folder[] folders = store.getDefaultFolder().list("*");
-            Set<NamedFolder> seenFolders = new HashSet<NamedFolder>();
+            Set<NamedFolder> seenFolders = new HashSet<>();
             List<NamedFolder> localFolders = folderRepository.getFolders(account);
             for (Folder folder : folders) {
                 // This filter is from https://stackoverflow.com/a/4801728/1996
@@ -99,8 +99,8 @@ public class ImapStoreSync {
         FetchProfile fp = new FetchProfile();
         fp.add(FetchProfile.Item.FLAGS);
         imapFolder.fetch(remoteMessages, fp);
-        Set<Long> remoteUids = new HashSet<Long>();
-        ArrayList<IMAPMessage> messagesToDownload = new ArrayList<IMAPMessage>();
+        Set<Long> remoteUids = new HashSet<>();
+        ArrayList<IMAPMessage> messagesToDownload = new ArrayList<>();
         for (Message msg : remoteMessages) {
             IMAPMessage imapMessage = (IMAPMessage) msg;
             Flags flags = msg.getFlags();
@@ -130,17 +130,13 @@ public class ImapStoreSync {
         imapFolder.fetch(messageToDownloadArray, newMessageProfile);
         for (IMAPMessage newMessage : messagesToDownload) {
             InternetAddress sender = (InternetAddress) newMessage.getSender();
-            InternetAddress[] toRecipients = (InternetAddress[]) newMessage.getRecipients(Message.RecipientType.TO);
-            InternetAddress[] ccRecipients = (InternetAddress[]) newMessage.getRecipients(Message.RecipientType.CC);
-            InternetAddress[] bccRecipients = (InternetAddress[]) newMessage.getRecipients(Message.RecipientType.BCC);
+            List<Actor> actors = getActorsForImapMessage(newMessage);
+            actors.addAll(mapRecipientsToActors(new InternetAddress[]{sender}, ActorType.SENDER));
             Email newEmail = new Email(
                     new EmailHeader(
                             -1,
                             imapFolder.getUID(newMessage),
-                            addressToActor(sender),
-                            Arrays.stream(toRecipients).map(ImapStoreSync::addressToActor).toList(),
-                            Arrays.stream(ccRecipients).map(ImapStoreSync::addressToActor).toList(),
-                            Arrays.stream(bccRecipients).map(ImapStoreSync::addressToActor).toList(),
+                            actors,
                             newMessage.getSubject(),
                             ZonedDateTime.ofInstant(newMessage.getSentDate().toInstant(), ZoneId.systemDefault()),
                             ZonedDateTime.ofInstant(newMessage.getReceivedDate().toInstant(), ZoneId.systemDefault()),
@@ -157,7 +153,22 @@ public class ImapStoreSync {
         }
     }
 
-    static Actor addressToActor(InternetAddress address) {
-        return new Actor(address.getAddress(), Optional.ofNullable(address.getPersonal()));
+    static List<Actor> getActorsForImapMessage(IMAPMessage msg) throws MessagingException {
+        InternetAddress[] toRecipients = (InternetAddress[]) msg.getRecipients(Message.RecipientType.TO);
+        List<Actor> actors = new ArrayList<>(mapRecipientsToActors(toRecipients, ActorType.TO));
+        InternetAddress[] ccRecipients = (InternetAddress[]) msg.getRecipients(Message.RecipientType.CC);
+        actors.addAll(mapRecipientsToActors(ccRecipients, ActorType.CC));
+        InternetAddress[] bccRecipients = (InternetAddress[]) msg.getRecipients(Message.RecipientType.BCC);
+        actors.addAll(mapRecipientsToActors(bccRecipients, ActorType.BCC));
+        return actors;
     }
+
+    private static List<Actor> mapRecipientsToActors(InternetAddress[] recipients, ActorType type) {
+        List<Actor> actors = new ArrayList<>();
+        for (InternetAddress recipient : recipients) {
+            actors.add(new Actor(type, recipient.getAddress(), Optional.ofNullable(recipient.getPersonal())));
+        }
+        return actors;
+    }
+
 }
