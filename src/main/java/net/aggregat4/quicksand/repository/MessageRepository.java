@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.Set;
 
 public interface MessageRepository {
-    Optional<Email> findByMessageId(long uid);
+    Optional<Email> findByMessageUid(long uid);
 
     void updateFlags(int id, boolean messageStarred, boolean messageRead);
 

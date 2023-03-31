@@ -64,7 +64,8 @@ public class ImapStoreSync {
                     .filter(f -> !seenFolders.contains(f))
                     .forEach(folderRepository::deleteFolder);
         } catch (MessagingException e) {
-            e.printStackTrace();
+            // TODO: proper error handling
+            throw new RuntimeException(e);
         }
     }
 
@@ -94,35 +95,50 @@ public class ImapStoreSync {
     }
 
     private static void naiveFolderSync(NamedFolder localFolder, IMAPFolder imapFolder, MessageRepository messageRepository) throws MessagingException {
-        var remoteMessages = imapFolder.getMessages();
         // TODO verify that all messages already have their UID set since we use that below
+        Set<Long> remoteUids = new HashSet<>();
+        ArrayList<IMAPMessage> messagesToDownload = updateLocalMessages(imapFolder, messageRepository, remoteUids);
+        deleteExpungedMessages(localFolder, messageRepository, remoteUids);
+        downloadNewMessages(localFolder, imapFolder, messageRepository, messagesToDownload);
+    }
+
+    private static ArrayList<IMAPMessage> updateLocalMessages(IMAPFolder imapFolder, MessageRepository messageRepository, Set<Long> remoteUids) throws MessagingException {
+        var remoteMessages = imapFolder.getMessages();
         FetchProfile fp = new FetchProfile();
         fp.add(FetchProfile.Item.FLAGS);
         imapFolder.fetch(remoteMessages, fp);
-        Set<Long> remoteUids = new HashSet<>();
         ArrayList<IMAPMessage> messagesToDownload = new ArrayList<>();
         for (Message msg : remoteMessages) {
             IMAPMessage imapMessage = (IMAPMessage) msg;
             Flags flags = msg.getFlags();
             long uid = imapFolder.getUID(imapMessage);
             remoteUids.add(uid);
-            Optional<Email> existingMessage = messageRepository.findByMessageId(uid);
+            Optional<Email> existingMessage = messageRepository.findByMessageUid(uid);
             if (existingMessage.isPresent()) {
                 Email localMessage = existingMessage.get();
                 boolean imapMessageStarred = flags.contains(Flags.Flag.FLAGGED);
                 boolean imapMessageRead = flags.contains(Flags.Flag.SEEN);
+                // Update existing messages if any metadata was changed
                 // TODO: check if there are more things to sync for a message
                 boolean localMessageNeedsUpdate = (imapMessageRead != localMessage.header().read()) || (imapMessageStarred != localMessage.header().starred());
                 if (localMessageNeedsUpdate) {
                     messageRepository.updateFlags(localMessage.header().id(), imapMessageStarred, imapMessageRead);
                 }
             } else {
+                // Add new messages to our list of messages to download
                 messagesToDownload.add(imapMessage);
             }
         }
+        return messagesToDownload;
+    }
+
+    private static void deleteExpungedMessages(NamedFolder localFolder, MessageRepository messageRepository, Set<Long> remoteUids) {
         Set<Long> localUids = messageRepository.getAllMessageIds(localFolder.id());
         localUids.removeAll(remoteUids);
         messageRepository.removeAllByUid(localUids);
+    }
+
+    private static void downloadNewMessages(NamedFolder localFolder, IMAPFolder imapFolder, MessageRepository messageRepository, ArrayList<IMAPMessage> messagesToDownload) throws MessagingException {
         FetchProfile newMessageProfile = new FetchProfile();
         newMessageProfile.add(FetchProfile.Item.ENVELOPE);
         newMessageProfile.add(FetchProfile.Item.CONTENT_INFO);

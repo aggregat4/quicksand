@@ -23,7 +23,7 @@ public class DbMessageRepository implements MessageRepository {
     }
 
     @Override
-    public Optional<Email> findByMessageId(long uid) {
+    public Optional<Email> findByMessageUid(long uid) {
         return DbUtil.withPreparedStmtFunction(ds, "SELECT id, imap_uid, subject, sent_date, received_date, body_excerpt, starred, read FROM messages WHERE imap_uid = ?", stmt -> {
             stmt.setLong(1, uid);
             return DbUtil.withResultSetFunction(stmt, rs -> {

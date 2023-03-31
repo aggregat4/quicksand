@@ -19,7 +19,7 @@ class InMemoryMessageRepository implements MessageRepository {
     private final Map<Integer, List<Email>> messages = new HashMap<>();
 
     @Override
-    public Optional<Email> findByMessageId(long uid) {
+    public Optional<Email> findByMessageUid(long uid) {
         for (List<Email> emails : messages.values()) {
             for (Email email : emails) {
                 if (email.header().imapUid() == uid) {
@@ -32,7 +32,15 @@ class InMemoryMessageRepository implements MessageRepository {
 
     @Override
     public void updateFlags(int id, boolean messageStarred, boolean messageRead) {
-        // do nothing
+        for (List<Email> emails : messages.values()) {
+            for (Email email : emails) {
+                if (email.header().id() == id) {
+                    emails.remove(email);
+                    emails.add(new Email(new EmailHeader(email.header().id(), email.header().imapUid(), email.header().actors(), email.header().subject(), email.header().sentDateTime(), email.header().receivedDateTime(), email.header().bodyExcerpt(), messageStarred, email.header().attachment(), messageRead), email.plainText(), email.body(), email.attachments()));
+                    return;
+                }
+            }
+        }
     }
 
     @Override
