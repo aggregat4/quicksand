@@ -7,6 +7,7 @@ import net.aggregat4.quicksand.repository.MessageRepository;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,7 +37,11 @@ class InMemoryMessageRepository implements MessageRepository {
 
     @Override
     public Set<Long> getAllMessageIds(int folderId) {
-        return messages.get(folderId).stream().map(Email::header).map(EmailHeader::imapUid).collect(Collectors.toSet());
+        List<Email> emails = messages.get(folderId);
+        if (emails == null) {
+            return new HashSet<>();
+        }
+        return emails.stream().map(Email::header).map(EmailHeader::imapUid).collect(Collectors.toSet());
     }
 
     @Override

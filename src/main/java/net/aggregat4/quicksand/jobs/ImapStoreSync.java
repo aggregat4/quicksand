@@ -73,7 +73,7 @@ public class ImapStoreSync {
      * - The naive way is to get all message UIDs and flags from the server and then check which ones we need to locally remove, update the flags of and which ones to download
      * - There are more efficient ways to sync using QRESYNC and CONDSTORE that we definitely need to implement
      */
-    static void syncImapFolder(NamedFolder localFolder, Folder remoteFolder, MessageRepository messageRepository) throws MessagingException {
+    private static void syncImapFolder(NamedFolder localFolder, Folder remoteFolder, MessageRepository messageRepository) throws MessagingException {
         assert (remoteFolder instanceof IMAPFolder);
         IMAPFolder imapFolder = (IMAPFolder) remoteFolder;
         imapFolder.open(Folder.READ_ONLY);
@@ -93,7 +93,7 @@ public class ImapStoreSync {
 //        }
     }
 
-    static void naiveFolderSync(NamedFolder localFolder, IMAPFolder imapFolder, MessageRepository messageRepository) throws MessagingException {
+    private static void naiveFolderSync(NamedFolder localFolder, IMAPFolder imapFolder, MessageRepository messageRepository) throws MessagingException {
         var remoteMessages = imapFolder.getMessages();
         // TODO verify that all messages already have their UID set since we use that below
         FetchProfile fp = new FetchProfile();
@@ -153,13 +153,20 @@ public class ImapStoreSync {
         }
     }
 
-    static List<Actor> getActorsForImapMessage(IMAPMessage msg) throws MessagingException {
+    private static List<Actor> getActorsForImapMessage(IMAPMessage msg) throws MessagingException {
         InternetAddress[] toRecipients = (InternetAddress[]) msg.getRecipients(Message.RecipientType.TO);
+        // NOTE: this assumes that there is always at least one TO recipient, I am not sure that this is an invariant that
+        // the API guarantees
+        assert(toRecipients != null);
         List<Actor> actors = new ArrayList<>(mapRecipientsToActors(toRecipients, ActorType.TO));
         InternetAddress[] ccRecipients = (InternetAddress[]) msg.getRecipients(Message.RecipientType.CC);
-        actors.addAll(mapRecipientsToActors(ccRecipients, ActorType.CC));
+        if (ccRecipients != null) {
+            actors.addAll(mapRecipientsToActors(ccRecipients, ActorType.CC));
+        }
         InternetAddress[] bccRecipients = (InternetAddress[]) msg.getRecipients(Message.RecipientType.BCC);
-        actors.addAll(mapRecipientsToActors(bccRecipients, ActorType.BCC));
+        if (bccRecipients != null) {
+            actors.addAll(mapRecipientsToActors(bccRecipients, ActorType.BCC));
+        }
         return actors;
     }
 

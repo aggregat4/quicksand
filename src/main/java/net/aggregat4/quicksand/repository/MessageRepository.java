@@ -12,6 +12,9 @@ public interface MessageRepository {
 
     void updateFlags(int id, boolean messageStarred, boolean messageRead);
 
+    /**
+     * @return A mutable HashSet that can be modified by the client.
+     */
     Set<Long> getAllMessageIds(int folderId);
 
     void removeAllByUid(Collection<Long> localMessageIds);
