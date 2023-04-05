@@ -27,8 +27,19 @@ body {
 
     display: grid;
     grid-template-columns: 1fr min-content;
-    grid-template-rows: min-content min-content;
-    row-gap: var(--gap-m);
+    grid-template-rows: min-content min-content min-content min-content;
+
+/* I would really like to use row-gap here but it does not collapse if an
+   element is not present. Say that there are no BCC recipients but there are CC
+   recipients, then we don't add the BCC div, but there will be a double gap between
+   the To and CC recipients.
+   The workaround is to set a top margin to all child descendants in the next
+   selector. */
+    /*row-gap: var(--gap-m);*/
+}
+
+#emailmetadata > * {
+    margin: var(--gap-m) 0 0 0;
 }
 
 #emailmetadata #from {
@@ -36,13 +47,6 @@ body {
     grid-column-end: 2;
     grid-row-start: 1;
     grid-row-end: 2;
-}
-
-#emailmetadata #to {
-    grid-column-start: 1;
-    grid-column-end: 2;
-    grid-row-start: 2;
-    grid-row-end: 3;
 }
 
 #emailmetadata #receiveddate {
@@ -54,6 +58,27 @@ body {
 
     display: flex;
     justify-content: right;
+}
+
+#emailmetadata #to {
+    grid-column-start: 1;
+    grid-column-end: 2;
+    grid-row-start: 2;
+    grid-row-end: 3;
+}
+
+#emailmetadata #bcc {
+    grid-column-start: 1;
+    grid-column-end: 2;
+    grid-row-start: 3;
+    grid-row-end: 4;
+}
+
+#emailmetadata #cc {
+    grid-column-start: 1;
+    grid-column-end: 2;
+    grid-row-start: 4;
+    grid-row-end: 5;
 }
 
 #emailactions {

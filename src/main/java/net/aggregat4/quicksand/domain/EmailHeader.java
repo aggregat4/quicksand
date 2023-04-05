@@ -47,4 +47,28 @@ public record EmailHeader(
     public int hashCode() {
         return Objects.hash(id);
     }
+
+    private List<Actor> getActors(ActorType type) {
+        return actors.stream().filter(a -> a.type() == type).toList();
+    }
+
+    public Actor getSender() {
+        List<Actor> senders = getActors(ActorType.SENDER);
+        if (senders.isEmpty()) {
+            throw new IllegalStateException("We expect there to always be a sender for an email");
+        }
+        return senders.get(0);
+    }
+
+    public List<Actor> getRecipients() {
+        return getActors(ActorType.TO);
+    }
+
+    public List<Actor> getCCRecipients() {
+        return getActors(ActorType.CC);
+    }
+
+    public List<Actor> getBCCRecipients() {
+        return getActors(ActorType.BCC);
+    }
 }

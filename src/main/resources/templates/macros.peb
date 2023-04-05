@@ -37,3 +37,14 @@
             {% if icon != null %}{{ svgIcon(icon) | raw }}{% endif %}{{ showText ? label : '' }}
         </button>
     {% endmacro %}
+
+    {% macro actor(actor) %}
+        <span class="actor">{{ (actor.name.isPresent() ? actor.name.get() : '') }} &lt;{{ actor.emailAddress }}&gt;</span>
+    {% endmacro %}
+
+    {% macro actorList(actors) %}
+        {% for actor in actors %}
+            {{ actor(actor) }}
+            {% if not loop.last %}, {% endif %}
+        {% endfor %}
+    {% endmacro %}

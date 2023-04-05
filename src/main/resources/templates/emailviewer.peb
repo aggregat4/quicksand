@@ -15,7 +15,7 @@
         </div>
         <div id="emailmetadata">
             <div id="from">
-                From: {{  (email.header.sender.name.isPresent() ? email.header.sender.name.get() : '') }} &lt;{{ email.header.sender.emailAddress }}&gt;
+                From: {{  actor(email.header.getSender()) }}
             </div>
             <div id="receiveddate">
                 {% if (email.attachments != null) and (not email.attachments.isEmpty()) %}
@@ -26,8 +26,18 @@
                 {{ email.header.longFormattedReceivedDate() }}
             </div>
             <div id="to">
-                To: {{  (email.header.recipient.name.isPresent() ? email.header.recipient.name.get() : '') }} &lt;{{ email.header.recipient.emailAddress }}&gt;
+                To: {{  actorList(email.header.getRecipients()) }}
             </div>
+            {% if not email.header.getBCCRecipients().isEmpty() %}
+                <div id="bcc">
+                    BCC: {{  actorList(email.header.getBCCRecipients()) }}
+                </div>
+            {% endif %}
+            {% if not email.header.getCCRecipients().isEmpty() %}
+                <div id="cc">
+                    CC: {{  actorList(email.header.getCCRecipients()) }}
+                </div>
+            {% endif %}
         </div>
         <div id="emailactions">
             <div id="emailreplyforward">
@@ -45,11 +55,7 @@
         </div>
         {% if not email.plainText %}
             <a id="emailimages" href="/emails/{{ email.header.id }}/viewer?showImages={{ showImages ? 'false' : 'true' }}">
-                {% if showImages %}
-                    Disable Images
-                    {% else %}
-                    Enable Images
-                {% endif %}
+                {% if showImages %}Disable Images{% else %}Enable Images{% endif %}
             </a>
         {% endif %}
         <div id="emailbody">

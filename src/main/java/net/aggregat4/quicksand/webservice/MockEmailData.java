@@ -19,6 +19,8 @@ public class MockEmailData {
     public static final Actor ACCOUNT1_OWNER = new Actor(ActorType.SENDER, "me@example.com", Optional.of("me"));
     public static final Actor EMAIL1_SENDER = new Actor(ActorType.SENDER, "someone@somewhere.com", Optional.of("Someone"));
     public static final Actor EMAIL1_RECIPIENT = new Actor(ActorType.TO, "me@example.com", Optional.of("Me Doe"));
+    public static final Actor EMAIL1_CC1 = new Actor(ActorType.CC, "janecc@foobar.tld", Optional.of("Jane Carbon Copy"));
+    public static final Actor EMAIL1_CC2 = new Actor(ActorType.CC, "johnny234@gmail.com", Optional.empty());
     public static final String EMAIL1_SUBJECT = "Hey there how are you?";
     public static final ZonedDateTime EMAIL1_RECEIVEDDATE = ZonedDateTime.now();
     public static final ZonedDateTime EMAIL1_SENTDATE = ZonedDateTime.now().minus(5, ChronoUnit.MINUTES);
@@ -33,7 +35,7 @@ public class MockEmailData {
             new EmailHeader(
                     1,
                     1,
-                    List.of(EMAIL1_SENDER, EMAIL1_RECIPIENT),
+                    List.of(EMAIL1_SENDER, EMAIL1_RECIPIENT, EMAIL1_CC1, EMAIL1_CC2),
                     EMAIL1_SUBJECT,
                     EMAIL1_RECEIVEDDATE,
                     EMAIL1_SENTDATE,

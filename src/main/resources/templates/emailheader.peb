@@ -11,7 +11,7 @@
             <span hidden>Select E-Mail</span>
         </label>
     </div>
-    <div class="fromname">{{ emailHeader.sender().name().orElse(emailHeader.sender().emailAddress()) | raw}}</div>
+    <div class="fromname">{{ emailHeader.getSender().name().orElse(emailHeader.getSender().emailAddress()) | raw}}</div>
     <div class="date-and-actions">
         <span class="date">
             {% if emailHeader.attachment %}
