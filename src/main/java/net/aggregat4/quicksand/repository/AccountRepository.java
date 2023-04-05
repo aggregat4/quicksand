@@ -57,4 +57,27 @@ public class AccountRepository {
                     return accounts;
                 }));
     }
+
+    /**
+     * Only create the account if it does not already exist, otherwise just ignores it.
+     */
+    public void createAccountIfNew(Account account) {
+        DbUtil.withPreparedStmtConsumer(ds, """
+                    INSERT OR IGNORE INTO accounts (name, imap_host, imap_port, imap_username, imap_password, smtp_host, smtp_port, smtp_username, smtp_password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, stmt -> {
+            stmt.setString(1, account.name());
+            stmt.setString(2, account.imapHost());
+            stmt.setInt(3, account.imapPort());
+            stmt.setString(4, account.imapUsername());
+            stmt.setString(5, account.imapPassword());
+            stmt.setString(6, account.smtpHost());
+            stmt.setInt(7, account.smtpPort());
+            stmt.setString(8, account.smtpUsername());
+            stmt.setString(9, account.smtpPassword());
+            int affectedRows = stmt.executeUpdate();
+            if (affectedRows == 0) {
+                System.out.println("Account %s already existed".formatted(account));
+            }
+        });
+    }
 }

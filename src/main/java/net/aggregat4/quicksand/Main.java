@@ -10,7 +10,6 @@ import io.helidon.media.multipart.MultiPartSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.staticcontent.StaticContentSupport;
-import net.aggregat4.dblib.DbUtil;
 import net.aggregat4.dblib.SchemaMigrator;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.jobs.MailFetcher;
@@ -46,15 +45,16 @@ public final class  Main {
     static Single<WebServer> startServer() throws IOException {
         LogConfig.configureRuntime();
         Config config = Config.create();
-
+        // Dependency Injection and Initialisation
         DataSource ds = createDataSource(config.get("database"));
         migrateDb(ds);
-        bootstrapAccounts(ds, config);
         AccountRepository accountRepository = new AccountRepository(ds);
         AccountService accountService = new AccountService(accountRepository);
         FolderRepository  folderRepository = new DbFolderRepository(ds);
         MessageRepository messageRepository = new DbMessageRepository(ds);
-
+        // Init accounts
+        bootstrapAccounts(config, accountRepository);
+        // Start background mail sync
         // TODO: get delay period from config
         mailFetcher = new MailFetcher(accountRepository, 15, folderRepository, messageRepository);
         mailFetcher.start();
@@ -93,7 +93,7 @@ public final class  Main {
      * For all the accounts defined in the config, add them to the database if they are not
      * already in it.
      */
-    private static void bootstrapAccounts(DataSource ds, Config config) {
+    private static void bootstrapAccounts(Config config, AccountRepository accountRepository) {
         Config accountsConfig = config.get("accounts");
         List<Account> accounts = accountsConfig.asNodeList().get().stream().map(accountConfig -> new Account(
                 -1,
@@ -108,23 +108,7 @@ public final class  Main {
                 accountConfig.get("smtp_password").asString().get())).collect(Collectors.toList());
         System.out.println(accounts);
         for (Account account : accounts) {
-            DbUtil.withPreparedStmtConsumer(ds, """
-                    INSERT OR IGNORE INTO accounts (name, imap_host, imap_port, imap_username, imap_password, smtp_host, smtp_port, smtp_username, smtp_password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, stmt -> {
-                stmt.setString(1, account.name());
-                stmt.setString(2, account.imapHost());
-                stmt.setInt(3, account.imapPort());
-                stmt.setString(4, account.imapUsername());
-                stmt.setString(5, account.imapPassword());
-                stmt.setString(6, account.smtpHost());
-                stmt.setInt(7, account.smtpPort());
-                stmt.setString(8, account.smtpUsername());
-                stmt.setString(9, account.smtpPassword());
-                int affectedRows = stmt.executeUpdate();
-                if (affectedRows == 0) {
-                    System.out.println("Account %s already existed".formatted(account));
-                }
-            });
+            accountRepository.createAccountIfNew(account);
         }
     }
 
