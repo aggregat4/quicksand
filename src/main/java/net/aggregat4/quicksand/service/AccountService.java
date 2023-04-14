@@ -15,4 +15,8 @@ public class AccountService {
     public List<Account> getAccounts() {
         return accountRepository.getAccounts();
     }
+
+    public Object getAccount(int accountId) {
+        return accountRepository.getAccount(accountId);
+    }
 }

@@ -12,16 +12,16 @@ import java.util.Map;
 class InMemoryFolderRepository implements FolderRepository {
 
 
-    private Map<Account, List<NamedFolder>> foldersByAccount = new HashMap<>();
+    private final Map<Integer, List<NamedFolder>> foldersByAccount = new HashMap<>();
 
     @Override
-    public List<NamedFolder> getFolders(Account account) {
-        return foldersByAccount.computeIfAbsent(account, k -> new ArrayList<>());
+    public List<NamedFolder> getFolders(int accountId) {
+        return foldersByAccount.computeIfAbsent(accountId, k -> new ArrayList<>());
     }
 
     @Override
     public NamedFolder createFolder(Account account, String name) {
-        List<NamedFolder> folders = getFolders(account);
+        List<NamedFolder> folders = getFolders(account.id());
         NamedFolder folder = new NamedFolder(folders.size() + 1, name, -1);
         folders.add(folder);
         return folder;
@@ -32,5 +32,17 @@ class InMemoryFolderRepository implements FolderRepository {
         for (List<NamedFolder> folders : foldersByAccount.values()) {
             folders.remove(folder);
         }
+    }
+
+    @Override
+    public NamedFolder getFolder(int folderId) {
+        for (List<NamedFolder> folders : foldersByAccount.values()) {
+            for (NamedFolder folder : folders) {
+                if (folder.id() == folderId) {
+                    return folder;
+                }
+            }
+        }
+        throw new IllegalStateException("Folder not found: " + folderId);
     }
 }

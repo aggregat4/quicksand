@@ -20,6 +20,7 @@ import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.repository.DbMessageRepository;
 import net.aggregat4.quicksand.repository.MessageRepository;
 import net.aggregat4.quicksand.service.AccountService;
+import net.aggregat4.quicksand.service.FolderService;
 import net.aggregat4.quicksand.webservice.AccountWebService;
 import net.aggregat4.quicksand.webservice.AttachmentWebService;
 import net.aggregat4.quicksand.webservice.EmailWebService;
@@ -59,11 +60,13 @@ public final class  Main {
         mailFetcher = new MailFetcher(accountRepository, 15, folderRepository, messageRepository);
         mailFetcher.start();
 
+        FolderService folderService = new FolderService(folderRepository);
+
         Routing.Builder builder = Routing.builder()
                 .register("/css", StaticContentSupport.create("/static/css"))
                 .register("/js", StaticContentSupport.create("/static/js"))
                 .register("/images", StaticContentSupport.create("/static/images"))
-                .register("/accounts", new AccountWebService())
+                .register("/accounts", new AccountWebService(folderService, accountService))
                 .register("/emails", new EmailWebService())
                 .register("/attachments", new AttachmentWebService())
                 .register("/", new HomeWebService(accountService));

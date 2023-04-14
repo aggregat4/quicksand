@@ -37,11 +37,11 @@ public class ImapStoreSyncTest {
         Account account = new Account(1, "test", "localhost", 1234, USERNAME, PASSWORD, "localhost", 25, USERNAME, PASSWORD);
         InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
         InMemoryMessageRepository messageRepository = new InMemoryMessageRepository();
-        assertEquals(0, folderRepository.getFolders(account).size());
+        assertEquals(0, folderRepository.getFolders(account.id()).size());
         // Sync the imap store and verify that we now have one message in the inbox locally
         ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
-        assertEquals(1, folderRepository.getFolders(account).size());
-        NamedFolder inbox = folderRepository.getFolders(account).get(0);
+        assertEquals(1, folderRepository.getFolders(account.id()).size());
+        NamedFolder inbox = folderRepository.getFolders(account.id()).get(0);
         assertEquals("INBOX", inbox.name());
         assertEquals(1, messageRepository.getAllMessageIds(inbox.id()).size());
         Email email = messageRepository.findByMessageUid(messageRepository.getAllMessageIds(inbox.id()).iterator().next()).orElseThrow();
@@ -64,7 +64,7 @@ public class ImapStoreSyncTest {
         assertEquals(1, imapFolder.getMessageCount());
         ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
         // the INBOX folder can not be deleted
-        assertEquals(1, folderRepository.getFolders(account).size());
+        assertEquals(1, folderRepository.getFolders(account.id()).size());
         // but the messages should all be gone
         assertEquals(1, messageRepository.getAllMessageIds(inbox.id()).size());
         email = messageRepository.findByMessageUid(messageRepository.getAllMessageIds(inbox.id()).iterator().next()).orElseThrow();
@@ -76,7 +76,7 @@ public class ImapStoreSyncTest {
         assertEquals(0, imapFolder.getMessageCount());
         ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
         // the INBOX folder can not be deleted
-        assertEquals(1, folderRepository.getFolders(account).size());
+        assertEquals(1, folderRepository.getFolders(account.id()).size());
         // but the messages should all be gone
         assertEquals(0, messageRepository.getAllMessageIds(inbox.id()).size());
     }

@@ -20,6 +20,8 @@ import net.aggregat4.quicksand.domain.Query;
 import net.aggregat4.quicksand.domain.SearchFolder;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import net.aggregat4.quicksand.repository.AccountRepository;
+import net.aggregat4.quicksand.service.AccountService;
+import net.aggregat4.quicksand.service.FolderService;
 
 import java.net.URI;
 import java.time.ZonedDateTime;
@@ -34,11 +36,13 @@ public class AccountWebService implements Service {
 
     private static final PebbleTemplate folderTemplate =
             PebbleConfig.getEngine().getTemplate("templates/folder.peb");
+    private FolderService folderService;
+    private AccountService accountService;
 
-    private final List<NamedFolder> NAMED_FOLDERS = List.of(new NamedFolder(1, "INBOX", 0), new NamedFolder(2, "Archive", 0), new NamedFolder(3, "Sent", 0), new NamedFolder(4, "Junk", 0));
-    private final List<Account> ACCOUNTS = List.of(
-            AccountRepository.ACCOUNT1,
-            AccountRepository.ACCOUNT2);
+    public AccountWebService(FolderService folderService, AccountService accountService) {
+        this.folderService = folderService;
+        this.accountService = accountService;
+    }
 
     @Override
     public void update(Routing.Rules rules) {
@@ -50,9 +54,14 @@ public class AccountWebService implements Service {
 
     private void getAccountHandler(ServerRequest request, ServerResponse response) {
         int accountId = RequestUtils.intPathParam(request, "accountId");
-        var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
-        Folder folder = findFolder(1);
-        handleFolder(request, response, accountId, folder, 1, selectedEmailId, Optional.empty());
+//        int folderId = RequestUtils.intPathParam(request, "folderId");
+//        var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
+        List<NamedFolder> folders = folderService.getFolders(accountId);
+        Optional<NamedFolder> firstFolder = Optional.empty();
+        if (! folders.isEmpty()) {
+            firstFolder = Optional.of(folders.get(0));
+        }
+        handleFolder(request, response, accountId, firstFolder, 1, Optional.empty(), Optional.empty());
     }
 
     private void getFolderHandler(ServerRequest request, ServerResponse response) {
@@ -83,11 +92,11 @@ public class AccountWebService implements Service {
         }
         List<EmailGroup> emailGroups = getMockEmailGroups(query.isPresent());
         Map<String, Object> context = new HashMap<>();
-        context.put("accounts", ACCOUNTS);
+        context.put("accounts", accountService.getAccounts());
         context.put("bodyclass", "folderpage");
-        context.put("currentAccount", AccountRepository.ACCOUNT1);
+        context.put("currentAccount", accountService.getAccount(accountId));
         context.put("currentFolder", folder);
-        context.put("folders", NAMED_FOLDERS);
+        context.put("folders", folderService.getFolders(accountId));
         if (query.isPresent()) {
             context.put("pagination", new Pagination(from, from + PAGE_SIZE, Optional.empty(), PAGE_SIZE));
         } else {
@@ -123,10 +132,11 @@ public class AccountWebService implements Service {
     }
 
     private NamedFolder findFolder(int folderId) {
-        return NAMED_FOLDERS.stream()
-                .filter(f -> f.id() == folderId)
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException(String.format("Folderid %s is unknown", folderId)));
+        return folderService.getFolder(folderId);
+//        return NAMED_FOLDERS.stream()
+//                .filter(f -> f.id() == folderId)
+//                .findFirst()
+//                .orElseThrow(() -> new IllegalArgumentException(String.format("Folderid %s is unknown", folderId)));
     }
 
     private static List<EmailGroup> getMockEmailGroups(boolean returnSearchResults) {

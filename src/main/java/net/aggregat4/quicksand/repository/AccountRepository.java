@@ -9,26 +9,6 @@ import java.util.List;
 
 public class AccountRepository {
 
-    public static final Account ACCOUNT1 = new Account(
-            1,
-            "foo@example.com",
-            "imap-host",
-            143,
-            "imap-username",
-            "imap-password",
-            "smtp-host",
-            25,
-            "smtp-username",
-            "smtp-password");
-    public final static Account ACCOUNT2 = new Account(2, "bar@example.org",
-            "imap-host",
-            143,
-            "imap-username",
-            "imap-password",
-            "smtp-host",
-            25,
-            "smtp-username",
-            "smtp-password");
     private final DataSource ds;
 
     public AccountRepository(DataSource ds) {
@@ -79,5 +59,30 @@ public class AccountRepository {
                 System.out.println("Account %s already existed".formatted(account));
             }
         });
+    }
+
+    public Object getAccount(int accountId) {
+        return DbUtil.withPreparedStmtFunction(
+                ds,
+                "SELECT * FROM accounts WHERE id = ?",
+                stmt -> {
+                    stmt.setInt(1, accountId);
+                    return DbUtil.withResultSetFunction(stmt, rs -> {
+                        if (rs.next()) {
+                            return new Account(
+                                    rs.getInt(1),
+                                    rs.getString(2),
+                                    rs.getString(3),
+                                    rs.getInt(4),
+                                    rs.getString(5),
+                                    rs.getString(6),
+                                    rs.getString(7),
+                                    rs.getInt(8),
+                                    rs.getString(9),
+                                    rs.getString(10));
+                        }
+                        throw new IllegalStateException("No account with id %d".formatted(accountId));
+                    });
+                });
     }
 }

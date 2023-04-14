@@ -46,7 +46,7 @@ public class ImapStoreSync {
             // we filter by '*' as that seems to indicate that we want all folders not just toplevel folders
             Folder[] folders = store.getDefaultFolder().list("*");
             Set<NamedFolder> seenFolders = new HashSet<>();
-            List<NamedFolder> localFolders = folderRepository.getFolders(account);
+            List<NamedFolder> localFolders = folderRepository.getFolders(account.id());
             for (Folder folder : folders) {
                 // This filter is from https://stackoverflow.com/a/4801728/1996
                 // unsure whether we will need it
