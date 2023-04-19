@@ -306,3 +306,9 @@ header #apptitle {
     color: darkblue;
     background-color: lightblue;
 }
+
+.emptycollection {
+    padding: var(--gap-m);
+    text-align: center;
+    color: var(--muted-text-color);
+}

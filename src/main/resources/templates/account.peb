@@ -3,7 +3,7 @@
 {% block pageTitle %} {{ currentFolder.name }} of {{ currentAccount.name }} {% endblock %}
 
 {% block additionalHeader %}
-<link rel="stylesheet" href="/css/folder.css">
+<link rel="stylesheet" href="/css/account.css">
 {% endblock %}
 
 {% block content %}
@@ -63,9 +63,13 @@
             </div>
         </div>
         <div id="folderlist">
-            {% for folder in folders %}
+            {% if folders.isEmpty() %}
+                <div class="emptycollection">No folders found</div>
+            {% else %}
+                {% for folder in folders %}
                 {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + folder.id, folder.name, 'folder', selected = (currentFolder != null ? currentFolder.id == folder.id : false)) }}
-            {% endfor %}
+                {% endfor %}
+            {% endif %}
         </div>
         {# need to declare emailActive here since otherwise it won't be in scope for the dialog below #}
         {% set emailActive = false %}

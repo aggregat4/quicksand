@@ -8,7 +8,6 @@ import io.helidon.webserver.ServerRequest;
 import io.helidon.webserver.ServerResponse;
 import io.helidon.webserver.Service;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
-import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Actor;
 import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.EmailGroup;
@@ -19,7 +18,6 @@ import net.aggregat4.quicksand.domain.Pagination;
 import net.aggregat4.quicksand.domain.Query;
 import net.aggregat4.quicksand.domain.SearchFolder;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
-import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.FolderService;
 
@@ -35,7 +33,7 @@ public class AccountWebService implements Service {
     public static final int PAGE_SIZE = 100;
 
     private static final PebbleTemplate folderTemplate =
-            PebbleConfig.getEngine().getTemplate("templates/folder.peb");
+            PebbleConfig.getEngine().getTemplate("templates/account.peb");
     private FolderService folderService;
     private AccountService accountService;
 
@@ -57,11 +55,11 @@ public class AccountWebService implements Service {
 //        int folderId = RequestUtils.intPathParam(request, "folderId");
 //        var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
         List<NamedFolder> folders = folderService.getFolders(accountId);
-        Optional<NamedFolder> firstFolder = Optional.empty();
+        Optional<Folder> firstFolder = Optional.empty();
         if (! folders.isEmpty()) {
             firstFolder = Optional.of(folders.get(0));
         }
-        handleFolder(request, response, accountId, firstFolder, 1, Optional.empty(), Optional.empty());
+        renderAccount(request, response, accountId, firstFolder, 1, Optional.empty(), Optional.empty());
     }
 
     private void getFolderHandler(ServerRequest request, ServerResponse response) {
@@ -70,7 +68,7 @@ public class AccountWebService implements Service {
         int from = request.queryParams().first("from").map(Integer::parseInt).orElse(1);
         var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
         Folder folder = findFolder(folderId);
-        handleFolder(request, response, accountId, folder, from, selectedEmailId, Optional.empty());
+        renderAccount(request, response, accountId, Optional.of(folder), from, selectedEmailId, Optional.empty());
     }
 
     private void getSearchHandler(ServerRequest request, ServerResponse response) {
@@ -82,10 +80,10 @@ public class AccountWebService implements Service {
             throw new BadRequestException("Search URL must contain 'query' parameter");
         }
         SearchFolder searchFolder = new SearchFolder(new Query(query.get()));
-        handleFolder(request, response, accountId, searchFolder, from, selectedEmailId, query);
+        renderAccount(request, response, accountId, Optional.of(searchFolder), from, selectedEmailId, query);
     }
 
-    private void handleFolder(ServerRequest request, ServerResponse response, int accountId, Folder folder, int from, Optional<Integer> selectedEmailId, Optional<String> query) {
+    private void renderAccount(ServerRequest request, ServerResponse response, int accountId, Optional<Folder> folder, int from, Optional<Integer> selectedEmailId, Optional<String> query) {
         int total = 2526;
         if (from > total || from < 1) {
             throw new IllegalArgumentException("Accounts page called with invalid pagination offset");
@@ -95,7 +93,9 @@ public class AccountWebService implements Service {
         context.put("accounts", accountService.getAccounts());
         context.put("bodyclass", "folderpage");
         context.put("currentAccount", accountService.getAccount(accountId));
-        context.put("currentFolder", folder);
+        if (folder.isPresent()) {
+            context.put("currentFolder", folder.get());
+        }
         context.put("folders", folderService.getFolders(accountId));
         if (query.isPresent()) {
             context.put("pagination", new Pagination(from, from + PAGE_SIZE, Optional.empty(), PAGE_SIZE));
