@@ -52,8 +52,6 @@ public class AccountWebService implements Service {
 
     private void getAccountHandler(ServerRequest request, ServerResponse response) {
         int accountId = RequestUtils.intPathParam(request, "accountId");
-//        int folderId = RequestUtils.intPathParam(request, "folderId");
-//        var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
         List<NamedFolder> folders = folderService.getFolders(accountId);
         Optional<Folder> firstFolder = Optional.empty();
         if (! folders.isEmpty()) {
@@ -90,8 +88,8 @@ public class AccountWebService implements Service {
         }
         List<EmailGroup> emailGroups = getMockEmailGroups(query.isPresent());
         Map<String, Object> context = new HashMap<>();
+        context.put("bodyclass", "accountpage");
         context.put("accounts", accountService.getAccounts());
-        context.put("bodyclass", "folderpage");
         context.put("currentAccount", accountService.getAccount(accountId));
         if (folder.isPresent()) {
             context.put("currentFolder", folder.get());
