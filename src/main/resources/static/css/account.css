@@ -1,13 +1,13 @@
 /* account page ---------- */
-.folderpage h1 {
+h1 {
     font-size: 18px;
 }
 
-.folderpage h2 {
+h2 {
     font-size: 20px;
 }
 
-.folderpage main {
+main {
     display: grid;
     grid-template-columns: min-content minmax(min-content, 1fr) min-content;
     grid-template-rows: min-content 1fr;

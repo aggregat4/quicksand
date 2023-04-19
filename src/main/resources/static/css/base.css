@@ -218,14 +218,14 @@ form.dialogcloser {
 /* Main Layout --------  */
 
 /* The header takes the space at the top and the main content expands to fill the rest vertically */
-body.folderpage,
+body.accountpage,
 body.homepage {
     display: flex;
     flex-direction: column;
     color: var(--text-color);
 }
 
-body.folderpage main,
+body.accountpage main,
 body.homepage main {
     /*Make it fill the entire space*/
     flex: 2;
