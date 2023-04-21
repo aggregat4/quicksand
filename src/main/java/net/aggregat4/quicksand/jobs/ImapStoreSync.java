@@ -16,7 +16,7 @@ import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.repository.FolderRepository;
-import net.aggregat4.quicksand.repository.MessageRepository;
+import net.aggregat4.quicksand.repository.EmailRepository;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -41,7 +41,7 @@ import java.util.Set;
 // See https://www.rfc-editor.org/rfc/rfc4549#section-3 for a recommendation on how to sync a disconnected IMAP client
 // we can skip the client actions for now and try the server to client sync first
 public class ImapStoreSync {
-    static void syncImapFolders(Account account, Store store, FolderRepository folderRepository, MessageRepository messageRepository) {
+    static void syncImapFolders(Account account, Store store, FolderRepository folderRepository, EmailRepository messageRepository) {
         try {
             // we filter by '*' as that seems to indicate that we want all folders not just toplevel folders
             Folder[] folders = store.getDefaultFolder().list("*");
@@ -74,7 +74,7 @@ public class ImapStoreSync {
      * - The naive way is to get all message UIDs and flags from the server and then check which ones we need to locally remove, update the flags of and which ones to download
      * - There are more efficient ways to sync using QRESYNC and CONDSTORE that we definitely need to implement
      */
-    private static void syncImapFolder(NamedFolder localFolder, Folder remoteFolder, MessageRepository messageRepository) throws MessagingException {
+    private static void syncImapFolder(NamedFolder localFolder, Folder remoteFolder, EmailRepository messageRepository) throws MessagingException {
         assert (remoteFolder instanceof IMAPFolder);
         IMAPFolder imapFolder = (IMAPFolder) remoteFolder;
         imapFolder.open(Folder.READ_ONLY);
@@ -94,7 +94,7 @@ public class ImapStoreSync {
 //        }
     }
 
-    private static void naiveFolderSync(NamedFolder localFolder, IMAPFolder imapFolder, MessageRepository messageRepository) throws MessagingException {
+    private static void naiveFolderSync(NamedFolder localFolder, IMAPFolder imapFolder, EmailRepository messageRepository) throws MessagingException {
         // TODO verify that all messages already have their UID set since we use that below
         Set<Long> remoteUids = new HashSet<>();
         ArrayList<IMAPMessage> messagesToDownload = updateLocalMessages(imapFolder, messageRepository, remoteUids);
@@ -102,7 +102,7 @@ public class ImapStoreSync {
         downloadNewMessages(localFolder, imapFolder, messageRepository, messagesToDownload);
     }
 
-    private static ArrayList<IMAPMessage> updateLocalMessages(IMAPFolder imapFolder, MessageRepository messageRepository, Set<Long> remoteUids) throws MessagingException {
+    private static ArrayList<IMAPMessage> updateLocalMessages(IMAPFolder imapFolder, EmailRepository messageRepository, Set<Long> remoteUids) throws MessagingException {
         var remoteMessages = imapFolder.getMessages();
         FetchProfile fp = new FetchProfile();
         fp.add(FetchProfile.Item.FLAGS);
@@ -132,13 +132,13 @@ public class ImapStoreSync {
         return messagesToDownload;
     }
 
-    private static void deleteExpungedMessages(NamedFolder localFolder, MessageRepository messageRepository, Set<Long> remoteUids) {
-        Set<Long> localUids = messageRepository.getAllMessageIds(localFolder.id());
+    private static void deleteExpungedMessages(NamedFolder localFolder, EmailRepository emailRepository, Set<Long> remoteUids) {
+        Set<Long> localUids = emailRepository.getAllMessageIds(localFolder.id());
         localUids.removeAll(remoteUids);
-        messageRepository.removeAllByUid(localUids);
+        emailRepository.removeAllByUid(localUids);
     }
 
-    private static void downloadNewMessages(NamedFolder localFolder, IMAPFolder imapFolder, MessageRepository messageRepository, ArrayList<IMAPMessage> messagesToDownload) throws MessagingException {
+    private static void downloadNewMessages(NamedFolder localFolder, IMAPFolder imapFolder, EmailRepository emailRepository, ArrayList<IMAPMessage> messagesToDownload) throws MessagingException {
         FetchProfile newMessageProfile = new FetchProfile();
         newMessageProfile.add(FetchProfile.Item.ENVELOPE);
         newMessageProfile.add(FetchProfile.Item.CONTENT_INFO);
@@ -148,14 +148,18 @@ public class ImapStoreSync {
             InternetAddress sender = (InternetAddress) newMessage.getSender();
             List<Actor> actors = getActorsForImapMessage(newMessage);
             actors.addAll(mapRecipientsToActors(new InternetAddress[]{sender}, ActorType.SENDER));
+            ZonedDateTime sentDateTime = ZonedDateTime.ofInstant(newMessage.getSentDate().toInstant(), ZoneId.systemDefault());
+            ZonedDateTime receivedDateTime = ZonedDateTime.ofInstant(newMessage.getReceivedDate().toInstant(), ZoneId.systemDefault());
             Email newEmail = new Email(
                     new EmailHeader(
                             -1,
                             imapFolder.getUID(newMessage),
                             actors,
                             newMessage.getSubject(),
-                            ZonedDateTime.ofInstant(newMessage.getSentDate().toInstant(), ZoneId.systemDefault()),
-                            ZonedDateTime.ofInstant(newMessage.getReceivedDate().toInstant(), ZoneId.systemDefault()),
+                            sentDateTime,
+                            sentDateTime.toEpochSecond(),
+                            receivedDateTime,
+                            receivedDateTime.toEpochSecond(),
                             null /* TODO Body handling */,
                             newMessage.getFlags().contains(Flags.Flag.FLAGGED),
                             false /* TODO attachment handling */,
@@ -165,7 +169,7 @@ public class ImapStoreSync {
                     null /* TODO body handling */,
                     Collections.emptyList() /* TODO attachment handling */
             );
-            messageRepository.addMessage(localFolder.id(), newEmail);
+            emailRepository.addMessage(localFolder.id(), newEmail);
         }
     }
 

@@ -36,7 +36,7 @@ public class ImapStoreSyncTest {
 
         Account account = new Account(1, "test", "localhost", 1234, USERNAME, PASSWORD, "localhost", 25, USERNAME, PASSWORD);
         InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
-        InMemoryMessageRepository messageRepository = new InMemoryMessageRepository();
+        InMemoryEmailRepository messageRepository = new InMemoryEmailRepository();
         assertEquals(0, folderRepository.getFolders(account.id()).size());
         // Sync the imap store and verify that we now have one message in the inbox locally
         ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);

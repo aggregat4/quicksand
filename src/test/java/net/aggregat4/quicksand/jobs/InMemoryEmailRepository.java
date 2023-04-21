@@ -2,7 +2,10 @@ package net.aggregat4.quicksand.jobs;
 
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
-import net.aggregat4.quicksand.repository.MessageRepository;
+import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.repository.EmailRepository;
+import net.aggregat4.quicksand.domain.PageDirection;
+import net.aggregat4.quicksand.domain.SortOrder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -14,7 +17,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-class InMemoryMessageRepository implements MessageRepository {
+class InMemoryEmailRepository implements EmailRepository {
 
     private final Map<Integer, List<Email>> messages = new HashMap<>();
 
@@ -68,5 +71,10 @@ class InMemoryMessageRepository implements MessageRepository {
     public int addMessage(int folderId, Email email) {
         messages.computeIfAbsent(folderId, k -> new ArrayList<>()).add(email);
         return -1;
+    }
+
+    @Override
+    public EmailPage getMessages(int folderId, int pageSize, long dateTimeOffsetEpochSeconds, PageDirection direction, SortOrder order) {
+        throw new UnsupportedOperationException("getMessages not implemented");
     }
 }

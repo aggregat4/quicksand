@@ -131,10 +131,6 @@ public class AccountWebService implements Service {
 
     private NamedFolder findFolder(int folderId) {
         return folderService.getFolder(folderId);
-//        return NAMED_FOLDERS.stream()
-//                .filter(f -> f.id() == folderId)
-//                .findFirst()
-//                .orElseThrow(() -> new IllegalArgumentException(String.format("Folderid %s is unknown", folderId)));
     }
 
     private static List<EmailGroup> getMockEmailGroups(boolean returnSearchResults) {

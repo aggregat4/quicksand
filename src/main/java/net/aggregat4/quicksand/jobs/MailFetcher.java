@@ -4,7 +4,7 @@ import jakarta.mail.*;
 import net.aggregat4.quicksand.domain.*;
 import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
-import net.aggregat4.quicksand.repository.MessageRepository;
+import net.aggregat4.quicksand.repository.EmailRepository;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,15 +19,15 @@ public class MailFetcher {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final AccountRepository accountRepository;
     private final FolderRepository folderRepository;
-    private final MessageRepository messageRepository;
+    private final EmailRepository messageRepository;
 
     private final ConcurrentHashMap<Account, Store> accountStores = new ConcurrentHashMap<>();
 
-    public MailFetcher(AccountRepository accountRepository, long fetchPeriodInSeconds, FolderRepository folderRepository, MessageRepository messageRepository) {
+    public MailFetcher(AccountRepository accountRepository, long fetchPeriodInSeconds, FolderRepository folderRepository, EmailRepository emailRepository) {
         this.accountRepository = accountRepository;
         this.fetchPeriodInSeconds = fetchPeriodInSeconds;
         this.folderRepository = folderRepository;
-        this.messageRepository = messageRepository;
+        this.messageRepository = emailRepository;
     }
 
     public void start() {

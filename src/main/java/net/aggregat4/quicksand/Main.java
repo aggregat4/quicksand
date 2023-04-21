@@ -17,8 +17,8 @@ import net.aggregat4.quicksand.migrations.QuicksandMigrations;
 import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.DbFolderRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
-import net.aggregat4.quicksand.repository.DbMessageRepository;
-import net.aggregat4.quicksand.repository.MessageRepository;
+import net.aggregat4.quicksand.repository.DbEmailRepository;
+import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.FolderService;
 import net.aggregat4.quicksand.webservice.AccountWebService;
@@ -52,7 +52,7 @@ public final class  Main {
         AccountRepository accountRepository = new AccountRepository(ds);
         AccountService accountService = new AccountService(accountRepository);
         FolderRepository  folderRepository = new DbFolderRepository(ds);
-        MessageRepository messageRepository = new DbMessageRepository(ds);
+        EmailRepository messageRepository = new DbEmailRepository(ds);
         // Init accounts
         bootstrapAccounts(config, accountRepository);
         // Start background mail sync

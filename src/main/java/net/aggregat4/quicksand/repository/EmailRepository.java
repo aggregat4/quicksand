@@ -1,13 +1,16 @@
 package net.aggregat4.quicksand.repository;
 
 import net.aggregat4.quicksand.domain.Email;
+import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.PageDirection;
+import net.aggregat4.quicksand.domain.SortOrder;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-public interface MessageRepository {
+public interface EmailRepository {
     Optional<Email> findByMessageUid(long uid);
 
     void updateFlags(int id, boolean messageStarred, boolean messageRead);
@@ -22,4 +25,6 @@ public interface MessageRepository {
     void removeBatchByUid(List<Long> batch);
 
     int addMessage(int folderId, Email email);
+
+    EmailPage getMessages(int folderId, int pageSize, long dateTimeOffsetEpochSeconds, PageDirection direction, SortOrder order);
 }
