@@ -7,11 +7,11 @@ import javax.sql.DataSource;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AccountRepository {
+public class DbAccountRepository {
 
     private final DataSource ds;
 
-    public AccountRepository(DataSource ds) {
+    public DbAccountRepository(DataSource ds) {
         this.ds = ds;
     }
 
@@ -56,6 +56,7 @@ public class AccountRepository {
             stmt.setString(9, account.smtpPassword());
             int affectedRows = stmt.executeUpdate();
             if (affectedRows == 0) {
+                // TODO: DEBUG/INFO logging
                 System.out.println("Account %s already existed".formatted(account));
             }
         });

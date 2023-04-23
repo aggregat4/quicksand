@@ -20,9 +20,11 @@ import java.util.stream.Collectors;
 public class DbEmailRepository implements EmailRepository {
     private static final int IN_BATCH_SIZE = 100;
     private final DataSource ds;
+    private final DbActorRepository actorRepository;
 
-    public DbEmailRepository(DataSource ds) {
+    public DbEmailRepository(DataSource ds, DbActorRepository actorRepository) {
         this.ds = ds;
+        this.actorRepository = actorRepository;
     }
 
     @Override
@@ -51,7 +53,7 @@ public class DbEmailRepository implements EmailRepository {
                         fromISOString(rs.getString(4)),
                         rs.getLong(5),
                         fromISOString(rs.getString(6)),
-                        rs.getLong(6),
+                        rs.getLong(7),
                         rs.getString(8),
                         rs.getInt(9) == 1,
                         false, /* TODO attachment handling */
@@ -67,7 +69,7 @@ public class DbEmailRepository implements EmailRepository {
             return DbUtil.withResultSetFunction(stmt, rs -> {
                 List<Actor> actors = new ArrayList<>();
                 while (rs.next()) {
-                    actors.add(new Actor(ActorType.fromValue(rs.getInt(1)), rs.getString(2), Optional.ofNullable(rs.getString(3))));
+                    actors.add(new Actor(ActorType.fromValue(rs.getInt(1)), rs.getString(3), Optional.ofNullable(rs.getString(2))));
                 }
                 return actors;
             });
@@ -115,7 +117,7 @@ public class DbEmailRepository implements EmailRepository {
     public int addMessage(int folderId, Email email) {
         return DbUtil.withPreparedStmtFunction(ds, """
                 INSERT INTO messages (folder_id, imap_uid, subject, sent_date, sent_date_epoch_s, received_date, received_date_epoch_s, body_excerpt, starred, read)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, stmt -> {
             stmt.setInt(1, folderId);
             stmt.setLong(2, email.header().imapUid());
@@ -123,7 +125,7 @@ public class DbEmailRepository implements EmailRepository {
             stmt.setString(4, toISOString(email.header().sentDateTime()));
             stmt.setLong(5, email.header().sentDateTimeEpochSeconds());
             stmt.setString(6, toISOString(email.header().receivedDateTime()));
-            stmt.setLong(5, email.header().receivedDateTimeEpochSeconds());
+            stmt.setLong(7, email.header().receivedDateTimeEpochSeconds());
             stmt.setString(8, email.header().bodyExcerpt());
             stmt.setInt(9, email.header().starred() ? 1 : 0);
             stmt.setInt(10, email.header().read() ? 1 : 0);
@@ -132,7 +134,11 @@ public class DbEmailRepository implements EmailRepository {
                 if (!keyRs.next()) {
                     throw new IllegalStateException("We are expecting to get the generated keys when inserting a new message");
                 }
-                return keyRs.getInt(1);
+                int messageId = keyRs.getInt(1);
+                for (Actor actor : email.header().actors()) {
+                    actorRepository.saveActor(messageId, actor);
+                }
+                return messageId;
             }
         });
     }

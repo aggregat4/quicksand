@@ -58,11 +58,10 @@ public class QuicksandMigrations implements Migrations {
                 CREATE TABLE actors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 message_id INTEGER,
-                type INTEGER,
+                type INTEGER NOT NULL,
                 name TEXT,
-                email_address TEXT,
+                email_address TEXT NOT NULL,
                 FOREIGN KEY (message_id) REFERENCES messages(id))""");
-
 
         return 2;
     };

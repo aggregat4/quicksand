@@ -41,7 +41,7 @@ import java.util.Set;
 // See https://www.rfc-editor.org/rfc/rfc4549#section-3 for a recommendation on how to sync a disconnected IMAP client
 // we can skip the client actions for now and try the server to client sync first
 public class ImapStoreSync {
-    static void syncImapFolders(Account account, Store store, FolderRepository folderRepository, EmailRepository messageRepository) {
+    public static void syncImapFolders(Account account, Store store, FolderRepository folderRepository, EmailRepository messageRepository) {
         try {
             // we filter by '*' as that seems to indicate that we want all folders not just toplevel folders
             Folder[] folders = store.getDefaultFolder().list("*");

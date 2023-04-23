@@ -37,7 +37,7 @@ public class DbFolderRepository implements FolderRepository {
     public NamedFolder createFolder(Account account, String name) {
         return DbUtil.withPreparedStmtFunction(
                 ds,
-                "INSERT INTO folders (account_id, name) VALUES (?, ?)",
+                "INSERT INTO folders (account_id, name, last_seen_uid) VALUES (?, ?, ?)",
                 stmt -> {
                     stmt.setInt(1, account.id());
                     stmt.setString(2, name);

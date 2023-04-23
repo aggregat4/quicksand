@@ -1,16 +1,14 @@
 package net.aggregat4.quicksand.jobs;
 
 import com.icegreen.greenmail.junit5.GreenMailExtension;
-import com.icegreen.greenmail.user.GreenMailUser;
 import com.icegreen.greenmail.util.GreenMailUtil;
 import com.icegreen.greenmail.util.ServerSetupTest;
 import jakarta.mail.Flags;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
-import jakarta.mail.Session;
 import jakarta.mail.Store;
-import jakarta.mail.internet.MimeMessage;
+import net.aggregat4.quicksand.GreenmailTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.NamedFolder;
@@ -21,22 +19,21 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class ImapStoreSyncTest {
 
-    public static final String USERNAME = "waelc";
-    public static final String PASSWORD = "somepassword";
-    public static final String EMAIL = "wael@localhost";
     @RegisterExtension
     static GreenMailExtension greenMail = new GreenMailExtension(ServerSetupTest.ALL);
+
 
     @Test
     public void naiveFolderSyncAgainstEmptyDatabase() throws MessagingException {
         String subject = GreenMailUtil.random();
         String body = GreenMailUtil.random();
-        deliverOneMessage(subject, body);
-        Store store = getImapStore();
+        GreenmailTestUtils.deliverOneMessage(greenMail, subject, body, "from@foo.bar", "to@foo.bar");
+        Store store = GreenmailTestUtils.getImapStore(greenMail);
 
-        Account account = new Account(1, "test", "localhost", 1234, USERNAME, PASSWORD, "localhost", 25, USERNAME, PASSWORD);
         InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
         InMemoryEmailRepository messageRepository = new InMemoryEmailRepository();
+
+        Account account = GreenmailTestUtils.getAccount();
         assertEquals(0, folderRepository.getFolders(account.id()).size());
         // Sync the imap store and verify that we now have one message in the inbox locally
         ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
@@ -79,20 +76,6 @@ public class ImapStoreSyncTest {
         assertEquals(1, folderRepository.getFolders(account.id()).size());
         // but the messages should all be gone
         assertEquals(0, messageRepository.getAllMessageIds(inbox.id()).size());
-    }
-
-    private static Store getImapStore() throws MessagingException {
-        Session imapSession = greenMail.getImap().createSession();
-        Store store = imapSession.getStore("imap");
-        store.connect(USERNAME, PASSWORD);
-        return store;
-    }
-
-    private static void deliverOneMessage(String subject, String body) {
-        MimeMessage message = GreenMailUtil.createTextEmail("to@foo.bar", "from@foo.bar", subject, body, greenMail.getSmtp().getServerSetup()); // Construct message
-        GreenMailUser user = greenMail.setUser(EMAIL, USERNAME, PASSWORD);
-        user.deliver(message);
-        assertEquals(1, greenMail.getReceivedMessages().length);
     }
 
 }

@@ -10,11 +10,11 @@ import io.helidon.media.multipart.MultiPartSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.staticcontent.StaticContentSupport;
-import net.aggregat4.dblib.SchemaMigrator;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.jobs.MailFetcher;
-import net.aggregat4.quicksand.migrations.QuicksandMigrations;
-import net.aggregat4.quicksand.repository.AccountRepository;
+import net.aggregat4.quicksand.repository.DbAccountRepository;
+import net.aggregat4.quicksand.repository.DatabaseMaintenance;
+import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbFolderRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,11 +47,12 @@ public final class  Main {
         Config config = Config.create();
         // Dependency Injection and Initialisation
         DataSource ds = createDataSource(config.get("database"));
-        migrateDb(ds);
-        AccountRepository accountRepository = new AccountRepository(ds);
+        DatabaseMaintenance.migrateDb(ds);
+        DbAccountRepository accountRepository = new DbAccountRepository(ds);
         AccountService accountService = new AccountService(accountRepository);
         FolderRepository  folderRepository = new DbFolderRepository(ds);
-        EmailRepository messageRepository = new DbEmailRepository(ds);
+        DbActorRepository actorRepository = new DbActorRepository(ds);
+        EmailRepository messageRepository = new DbEmailRepository(ds, actorRepository);
         // Init accounts
         bootstrapAccounts(config, accountRepository);
         // Start background mail sync
@@ -96,7 +96,7 @@ public final class  Main {
      * For all the accounts defined in the config, add them to the database if they are not
      * already in it.
      */
-    private static void bootstrapAccounts(Config config, AccountRepository accountRepository) {
+    private static void bootstrapAccounts(Config config, DbAccountRepository accountRepository) {
         Config accountsConfig = config.get("accounts");
         List<Account> accounts = accountsConfig.asNodeList().get().stream().map(accountConfig -> new Account(
                 -1,
@@ -112,14 +112,6 @@ public final class  Main {
         System.out.println(accounts);
         for (Account account : accounts) {
             accountRepository.createAccountIfNew(account);
-        }
-    }
-
-    private static void migrateDb(DataSource ds) {
-        try (var con = ds.getConnection()) {
-            SchemaMigrator.migrate(con, new QuicksandMigrations());
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
         }
     }
 

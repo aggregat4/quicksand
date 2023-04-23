@@ -2,7 +2,7 @@ package net.aggregat4.quicksand.jobs;
 
 import jakarta.mail.*;
 import net.aggregat4.quicksand.domain.*;
-import net.aggregat4.quicksand.repository.AccountRepository;
+import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 
@@ -17,13 +17,13 @@ public class MailFetcher {
     private static final long INITIAL_DELAY_SECONDS = 0;
     private final long fetchPeriodInSeconds;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private final AccountRepository accountRepository;
+    private final DbAccountRepository accountRepository;
     private final FolderRepository folderRepository;
     private final EmailRepository messageRepository;
 
     private final ConcurrentHashMap<Account, Store> accountStores = new ConcurrentHashMap<>();
 
-    public MailFetcher(AccountRepository accountRepository, long fetchPeriodInSeconds, FolderRepository folderRepository, EmailRepository emailRepository) {
+    public MailFetcher(DbAccountRepository accountRepository, long fetchPeriodInSeconds, FolderRepository folderRepository, EmailRepository emailRepository) {
         this.accountRepository = accountRepository;
         this.fetchPeriodInSeconds = fetchPeriodInSeconds;
         this.folderRepository = folderRepository;

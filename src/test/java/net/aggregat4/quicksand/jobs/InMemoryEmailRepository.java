@@ -39,7 +39,7 @@ class InMemoryEmailRepository implements EmailRepository {
             for (Email email : emails) {
                 if (email.header().id() == id) {
                     emails.remove(email);
-                    emails.add(new Email(new EmailHeader(email.header().id(), email.header().imapUid(), email.header().actors(), email.header().subject(), email.header().sentDateTime(), email.header().receivedDateTime(), email.header().bodyExcerpt(), messageStarred, email.header().attachment(), messageRead), email.plainText(), email.body(), email.attachments()));
+                    emails.add(new Email(new EmailHeader(email.header().id(), email.header().imapUid(), email.header().actors(), email.header().subject(), email.header().sentDateTime(), email.header().sentDateTimeEpochSeconds(), email.header().receivedDateTime(), email.header().receivedDateTimeEpochSeconds(), email.header().bodyExcerpt(), messageStarred, email.header().attachment(), messageRead), email.plainText(), email.body(), email.attachments()));
                     return;
                 }
             }
