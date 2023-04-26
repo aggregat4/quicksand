@@ -13,7 +13,7 @@ public class EmailService {
         this.emailRepository = emailRepository;
     }
 
-    public EmailPage getMessages(int folderId, int pageSize, long dateTimeOffsetEpochSeconds, PageDirection direction, SortOrder order) {
-        return emailRepository.getMessages(folderId, pageSize, dateTimeOffsetEpochSeconds, direction, order);
+    public EmailPage getMessages(int folderId, int pageSize, long dateTimeOffsetEpochSeconds, int offsetMessageId, PageDirection direction, SortOrder order) {
+        return emailRepository.getMessages(folderId, pageSize, dateTimeOffsetEpochSeconds, offsetMessageId, direction, order);
     }
 }

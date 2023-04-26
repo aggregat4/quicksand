@@ -26,10 +26,16 @@ public class GreenmailTestUtils {
     }
 
     public static void deliverOneMessage(GreenMailExtension greenMail, String subject, String body, String from, String to) {
+        deliverMessages(greenMail, subject, body, from, to, 1);
+    }
+
+    public static void deliverMessages(GreenMailExtension greenMail, String subject, String body, String from, String to, int count) {
         MimeMessage message = GreenMailUtil.createTextEmail(to, from, subject, body, greenMail.getSmtp().getServerSetup()); // Construct message
         GreenMailUser user = greenMail.setUser(EMAIL, USERNAME, PASSWORD);
-        user.deliver(message);
-        assertEquals(1, greenMail.getReceivedMessages().length);
+        for (int i = 0; i < count; i++) {
+            user.deliver(message);
+        }
+        assertEquals(count, greenMail.getReceivedMessages().length);
     }
 
     public static Account getAccount() {

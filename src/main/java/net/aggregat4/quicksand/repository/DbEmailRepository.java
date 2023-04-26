@@ -144,7 +144,7 @@ public class DbEmailRepository implements EmailRepository {
     }
 
     @Override
-    public EmailPage getMessages(int folderId, int pageSize, long dateTimeOffsetEpochSeconds, PageDirection direction, SortOrder order) {
+    public EmailPage getMessages(int folderId, int pageSize, long dateTimeOffsetEpochSeconds, int offsetMessageId, PageDirection direction, SortOrder order) {
         String orderByString;
         String operatorString;
         if (order == SortOrder.DESCENDING) {
@@ -154,14 +154,17 @@ public class DbEmailRepository implements EmailRepository {
             orderByString = direction == PageDirection.RIGHT ? "ASC" : "DESC";
             operatorString = direction == PageDirection.RIGHT ? ">" : "<";
         }
+        // We do offset based paging. In order for this to work our sorting attribute needs to be unique, so we add the message id as a second discriminator
+        // if we would not do this, we would skip over all messages that have the same received date which is not unlikely as the precision is only seconds
         return DbUtil.withPreparedStmtFunction(ds, """
                 SELECT id, imap_uid, subject, sent_date, sent_date_epoch_s, received_date, received_date_epoch_s, body_excerpt, starred, read
                 FROM messages
-                WHERE folder_id = ? AND sent_date_epoch_s %s ? ORDER BY received_date_epoch_s %s LIMIT ?
+                WHERE folder_id = ? AND (received_date_epoch_s, id) %s (?, ?) ORDER BY received_date_epoch_s, id %s LIMIT ?
                 """.formatted(operatorString, orderByString), stmt -> {
             stmt.setInt(1, folderId);
             stmt.setLong(2, dateTimeOffsetEpochSeconds);
-            stmt.setInt(3, pageSize + 1);
+            stmt.setInt(3, offsetMessageId);
+            stmt.setInt(4, pageSize + 1);
             return DbUtil.withResultSetFunction(stmt, rs -> {
                 List<Email> messages = new ArrayList<>();
                 while (rs.next()) {
