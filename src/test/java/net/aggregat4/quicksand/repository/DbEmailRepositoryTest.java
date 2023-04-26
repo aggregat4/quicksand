@@ -2,7 +2,6 @@ package net.aggregat4.quicksand.repository;
 
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.util.GreenMailUtil;
-import com.icegreen.greenmail.util.ServerSetupTest;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Store;
 import net.aggregat4.quicksand.DbTestUtils;
@@ -26,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class DbEmailRepositoryTest {
 
     @RegisterExtension
-    static GreenMailExtension greenMail = new GreenMailExtension(ServerSetupTest.ALL);
+    static GreenMailExtension greenMail = GreenmailTestUtils.configureTestGreenMailExtension();
 
     @Test
     public void emailQueryForDeliveredEmail() throws MessagingException, SQLException, IOException {
@@ -49,6 +48,7 @@ public class DbEmailRepositoryTest {
         assertEquals(0, folderRepository.getFolders(account.id()).size());
         ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
         assertEquals(1, folderRepository.getFolders(account.id()).size());
+        assertEquals("INBOX", folderRepository.getFolders(account.id()).get(0).name());
 
         int pageSize = 5;
         // We retrieve the first page of messages and verify that it is as expected

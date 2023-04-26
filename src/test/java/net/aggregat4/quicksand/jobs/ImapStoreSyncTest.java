@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class ImapStoreSyncTest {
 
     @RegisterExtension
-    static GreenMailExtension greenMail = new GreenMailExtension(ServerSetupTest.ALL);
+    static GreenMailExtension greenMail = GreenmailTestUtils.configureTestGreenMailExtension();
 
 
     @Test

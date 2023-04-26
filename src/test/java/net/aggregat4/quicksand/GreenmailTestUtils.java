@@ -3,6 +3,7 @@ package net.aggregat4.quicksand;
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.user.GreenMailUser;
 import com.icegreen.greenmail.util.GreenMailUtil;
+import com.icegreen.greenmail.util.ServerSetup;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
@@ -40,5 +41,11 @@ public class GreenmailTestUtils {
 
     public static Account getAccount() {
         return account;
+    }
+
+    public static GreenMailExtension configureTestGreenMailExtension() {
+        return new GreenMailExtension(new ServerSetup[]{
+                new ServerSetup(25 + 4000, null, ServerSetup.PROTOCOL_SMTP),
+                new ServerSetup(143 + 4000, null, ServerSetup.PROTOCOL_IMAP)});
     }
 }
