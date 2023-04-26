@@ -20,7 +20,7 @@ public class DbFolderRepository implements FolderRepository {
     public List<NamedFolder> getFolders(int accountId) {
         return DbUtil.withPreparedStmtFunction(
                 ds,
-                "SELECT * FROM folders WHERE account_id = ?",
+                "SELECT id, name, last_seen_uid FROM folders WHERE account_id = ?",
                 stmt -> {
                     stmt.setInt(1, accountId);
                     return DbUtil.withResultSetFunction(stmt, rs -> {
