@@ -52,9 +52,9 @@ public class ImapStoreSync {
                 // unsure whether we will need it
                 if ((folder.getType() & Folder.HOLDS_MESSAGES) != 0) {
                     NamedFolder localFolder = localFolders.stream()
-                            .filter(f -> f.name().equals(folder.getName()))
+                            .filter(f -> f.name().equals(folder.getFullName()))
                             .findFirst()
-                            .orElseGet(() -> folderRepository.createFolder(account, folder.getName()));
+                            .orElseGet(() -> folderRepository.createFolder(account, folder.getFullName()));
                     seenFolders.add(localFolder);
                     syncImapFolder(localFolder, folder, messageRepository);
                 }
