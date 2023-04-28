@@ -1,132 +1,60 @@
 package net.aggregat4.quicksand.domain;
 
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.TemporalAdjusters;
-import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
-public interface EmailGroup {
+public record EmailGroup(List<EmailHeader> headers, GroupedPeriod period) {
 
-    Optional<String> name();
 
-    List<EmailHeader> headers();
-
-    static EmailGroup createNoGroupEmailgroup(List<EmailHeader> emailHeaders) {
-        return new EmailGroup() {
+    public static List<EmailGroup> createNoGroupEmailgroup(List<EmailHeader> emailHeaders) {
+        return List.of(new EmailGroup(emailHeaders, new GroupedPeriod() {
             @Override
-            public Optional<String> name() {
+            public Optional<String> displayName() {
                 return Optional.empty();
             }
 
             @Override
-            public List<EmailHeader> headers() {
-                return emailHeaders;
+            public ZonedDateTime startOfPeriod() {
+                return null;
             }
-        };
+
+            @Override
+            public ZonedDateTime startOfNextPeriod() {
+                return null;
+            }
+        }));
     }
 
-    abstract class AbstractEmailgroup implements EmailGroup {
-        private final List<EmailHeader> headers = new ArrayList<>();
-
-        private final ZonedDateTime startOfPeriod;
-        private final ZonedDateTime startOfNextPeriod;
-
-        public AbstractEmailgroup(List<EmailHeader> emailHeaders, ZonedDateTime startOfPeriod, ZonedDateTime startOfNextPeriod) {
-            this.headers.addAll(emailHeaders);
-            this.startOfPeriod = startOfPeriod;
-            this.startOfNextPeriod = startOfNextPeriod;
+    /**
+     * Assumes that all headers are sorted in descending chronological order.
+     */
+    public static List<EmailGroup> createEmailGroups(List<EmailHeader> emailHeaders) {
+        List<EmailGroup> groups = new ArrayList<>();
+        GroupedPeriods[] groupedPeriods = GroupedPeriods.values();
+        int currentPeriodIndex = 0;
+        GroupedPeriod currentGroupedPeriod = groupedPeriods[currentPeriodIndex];
+        List<EmailHeader> currentGroupHeaders = new ArrayList<>();
+        for (EmailHeader emailHeader: emailHeaders) {
+            while (true) {
+                if (currentGroupedPeriod.matches(emailHeader)) {
+                    currentGroupHeaders.add(emailHeader);
+                    break;
+                } else {
+                    if (currentPeriodIndex == groupedPeriods.length - 1) {
+                        throw new IllegalStateException("We have reached the end of the available grouped periods but no groups matches this particular email, this should never happen. EmailHeader: %s".formatted(emailHeader));
+                    }
+                    if (!currentGroupHeaders.isEmpty()) {
+                        groups.add(new EmailGroup(currentGroupHeaders, currentGroupedPeriod));
+                    }
+                    currentPeriodIndex++;
+                    currentGroupedPeriod = groupedPeriods[currentPeriodIndex];
+                    currentGroupHeaders = new ArrayList<>();
+                }
+            }
         }
-
-        public static LocalDate getBeginningOfWeek() {
-            return LocalDate.now()
-                    // now change this date to the beginning of the week (that's the "1") and do this in a locale dependent way (US starts on Sunday, rest of the world on Monday)
-                    .with(WeekFields.of(Locale.getDefault()).dayOfWeek(), 1);
-        }
-
-        public static LocalDate getBeginningOfMonth() {
-            return LocalDate.now()
-                    // now change this date to the beginning of the week (that's the "1") and do this in a locale dependent way (US starts on Sunday, rest of the world on Monday)
-                    .with(TemporalAdjusters.firstDayOfMonth());
-        }
-
-        public void add(EmailHeader emailHeader) {
-            this.headers.add(emailHeader);
-        }
-
-        @Override
-        public List<EmailHeader> headers() {
-            return this.headers;
-        }
-
-        public boolean matches(EmailHeader emailHeader) {
-            return !emailHeader.receivedDateTime().isBefore(startOfPeriod) &&
-                    emailHeader.receivedDateTime().isBefore(startOfNextPeriod);
-        }
-    }
-
-    class TodayEmailGroup extends AbstractEmailgroup {
-        public TodayEmailGroup(List<EmailHeader> headers) {
-            super(
-                    headers,
-                    LocalDate.now().atStartOfDay(ZoneId.systemDefault()),
-                    LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()));
-        }
-
-        @Override
-        public Optional<String> name() {
-            return Optional.of("Today");
-        }
-    }
-
-    class ThisWeekEmailGroup extends AbstractEmailgroup {
-        public ThisWeekEmailGroup(List<EmailHeader> headers) {
-            super(
-                    headers,
-                    getBeginningOfWeek().atStartOfDay(ZoneId.systemDefault()),
-                    getBeginningOfWeek()
-                            // jump ahead one week since we want to check against the start of the next week
-                            .plusWeeks(1)
-                            .atStartOfDay(ZoneId.systemDefault())
-            );
-        }
-
-        @Override
-        public Optional<String> name() {
-            return Optional.of("This Week");
-        }
-    }
-
-    class LastWeekEmailGroup extends AbstractEmailgroup {
-        public LastWeekEmailGroup(List<EmailHeader> headers) {
-            super(
-                    headers,
-                    getBeginningOfWeek().minusWeeks(1).atStartOfDay(ZoneId.systemDefault()),
-                    getBeginningOfWeek().atStartOfDay(ZoneId.systemDefault()));
-        }
-
-        @Override
-        public Optional<String> name() {
-            return Optional.of("Last Week");
-        }
-    }
-
-    class ThisMonthEmailGroup extends AbstractEmailgroup {
-        public ThisMonthEmailGroup(List<EmailHeader> headers) {
-            super(
-                    headers,
-                    getBeginningOfMonth().atStartOfDay(ZoneId.systemDefault()),
-                    getBeginningOfMonth().plusMonths(1).atStartOfDay(ZoneId.systemDefault()));
-        }
-
-        @Override
-        public Optional<String> name() {
-            return Optional.of("This Month");
-        }
+        return groups;
     }
 
 }

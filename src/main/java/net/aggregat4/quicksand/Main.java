@@ -20,6 +20,7 @@ import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.service.AccountService;
+import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 import net.aggregat4.quicksand.webservice.AccountWebService;
 import net.aggregat4.quicksand.webservice.AttachmentWebService;
@@ -53,6 +54,7 @@ public final class  Main {
         FolderRepository  folderRepository = new DbFolderRepository(ds);
         DbActorRepository actorRepository = new DbActorRepository(ds);
         EmailRepository messageRepository = new DbEmailRepository(ds, actorRepository);
+        EmailService emailService = new EmailService(messageRepository);
         // Init accounts
         bootstrapAccounts(config, accountRepository);
         // Start background mail sync
@@ -66,7 +68,7 @@ public final class  Main {
                 .register("/css", StaticContentSupport.create("/static/css"))
                 .register("/js", StaticContentSupport.create("/static/js"))
                 .register("/images", StaticContentSupport.create("/static/images"))
-                .register("/accounts", new AccountWebService(folderService, accountService))
+                .register("/accounts", new AccountWebService(folderService, accountService, emailService))
                 .register("/emails", new EmailWebService())
                 .register("/attachments", new AttachmentWebService())
                 .register("/", new HomeWebService(accountService));

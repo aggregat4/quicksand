@@ -6,6 +6,7 @@ import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.PageParams;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 
@@ -191,7 +192,7 @@ public class DbEmailRepository implements EmailRepository {
                             || (order == SortOrder.DESCENDING && dateTimeOffsetEpochSeconds == 0));
                     case RIGHT -> hasMoreResults;
                 };
-                return new EmailPage(messages, hasLeft, hasRight);
+                return new EmailPage(messages, hasLeft, hasRight, new PageParams(direction, order));
             });
         });
     }
