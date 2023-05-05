@@ -1,4 +1,11 @@
 package net.aggregat4.quicksand.domain;
 
-public record Pagination(long receivedDateOffsetInSeconds, PageParams pageParams, int pageSize) {
+import java.util.Optional;
+
+public record Pagination(
+        Optional<Long> receivedDateOffsetInSeconds,
+        Optional<Integer> messageIdOffset,
+        PageParams pageParams,
+        int pageSize,
+        Optional<Integer> totalMessageCount) {
 }

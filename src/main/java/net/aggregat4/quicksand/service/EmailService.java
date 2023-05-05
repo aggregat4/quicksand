@@ -16,4 +16,8 @@ public class EmailService {
     public EmailPage getMessages(int folderId, int pageSize, long dateTimeOffsetEpochSeconds, int offsetMessageId, PageDirection direction, SortOrder order) {
         return emailRepository.getMessages(folderId, pageSize, dateTimeOffsetEpochSeconds, offsetMessageId, direction, order);
     }
+
+    public int getMessageCount(int accountId, int folderId) {
+        return emailRepository.getMessageCount(accountId, folderId);
+    }
 }

@@ -77,4 +77,9 @@ class InMemoryEmailRepository implements EmailRepository {
     public EmailPage getMessages(int folderId, int pageSize, long dateTimeOffsetEpochSeconds, int offsetMessageId, PageDirection direction, SortOrder order) {
         throw new UnsupportedOperationException("getMessages not implemented");
     }
+
+    @Override
+    public int getMessageCount(int accountId, int folderId) {
+        return 1234;
+    }
 }

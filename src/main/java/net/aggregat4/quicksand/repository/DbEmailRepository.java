@@ -198,6 +198,19 @@ public class DbEmailRepository implements EmailRepository {
     }
 
     @Override
+    public int getMessageCount(int accountId, int folderId) {
+        return DbUtil.withPreparedStmtFunction(ds, "SELECT COUNT(*) FROM messages WHERE folder_id = ?", stmt -> {
+            stmt.setInt(1, folderId);
+            return DbUtil.withResultSetFunction(stmt, rs -> {
+                if (!rs.next()) {
+                    throw new IllegalStateException("We are expecting to get a result when counting messages");
+                }
+                return rs.getInt(1);
+            });
+        });
+    }
+
+    @Override
     public void removeBatchByUid(List<Long> batch) {
         if (batch.size() > DbEmailRepository.IN_BATCH_SIZE) {
             throw new IllegalStateException("Only allowed to delete batches of maximally %s messages".formatted(DbEmailRepository.IN_BATCH_SIZE));

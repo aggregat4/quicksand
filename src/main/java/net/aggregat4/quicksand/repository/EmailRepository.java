@@ -27,4 +27,6 @@ public interface EmailRepository {
     int addMessage(int folderId, Email email);
 
     EmailPage getMessages(int folderId, int pageSize, long dateTimeOffsetEpochSeconds, int offsetMessageId, PageDirection direction, SortOrder order);
+
+    int getMessageCount(int accountId, int folderId);
 }

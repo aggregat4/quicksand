@@ -34,7 +34,7 @@ import java.util.Optional;
 public class AccountWebService implements Service {
     public static final int PAGE_SIZE = 100;
 
-    private static final PebbleTemplate folderTemplate =
+    private static final PebbleTemplate accountTemplate =
             PebbleConfig.getEngine().getTemplate("templates/account.peb");
     private final FolderService folderService;
     private final AccountService accountService;
@@ -61,7 +61,8 @@ public class AccountWebService implements Service {
         PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
         if (! folders.isEmpty()) {
             EmailPage emailPage = emailService.getMessages(accountId, folders.get(0).id(), Long.MAX_VALUE, Integer.MAX_VALUE, pageParams.pageDirection(), pageParams.sortOrder());
-            Pagination pagination = new Pagination(Long.MAX_VALUE, pageParams, PAGE_SIZE);
+            int messageCount = emailService.getMessageCount(accountId, folders.get(0).id());
+            Pagination pagination = new Pagination(Optional.empty(), Optional.empty(), pageParams, PAGE_SIZE, Optional.of(messageCount));
             renderAccount(request, response, accountId, Optional.of(folders.get(0)), Optional.of(emailPage), Optional.of(pagination), Optional.empty(), Optional.empty());
         } else {
             renderAccount(request, response, accountId, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
@@ -71,13 +72,14 @@ public class AccountWebService implements Service {
     private void getFolderHandler(ServerRequest request, ServerResponse response) {
         int accountId = RequestUtils.intPathParam(request, "accountId");
         int folderId = RequestUtils.intPathParam(request, "folderId");
-        long offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
-        int offsetMessageId = parseOffsetMessageid(request);
+        Optional<Long> offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
+        Optional<Integer> offsetMessageId = parseOffsetMessageid(request);
         PageParams pageParams = parseEmailPageParams(request);
         var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
         NamedFolder folder = findFolder(folderId);
-        EmailPage emailPage = emailService.getMessages(folder.id(), PAGE_SIZE, offsetReceivedTimestamp, offsetMessageId, pageParams.pageDirection(), pageParams.sortOrder());
-        Pagination pagination = new Pagination(offsetReceivedTimestamp, pageParams, PAGE_SIZE);
+        EmailPage emailPage = emailService.getMessages(folder.id(), PAGE_SIZE, offsetReceivedTimestamp.orElse(Long.MAX_VALUE), offsetMessageId.orElse(Integer.MAX_VALUE), pageParams.pageDirection(), pageParams.sortOrder());
+        int messageCount = emailService.getMessageCount(accountId, folder.id());
+        Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, PAGE_SIZE, Optional.of(messageCount));
         renderAccount(request, response, accountId, Optional.of(folder), Optional.of(emailPage), Optional.of(pagination), selectedEmailId, Optional.empty());
     }
 
@@ -87,18 +89,18 @@ public class AccountWebService implements Service {
                 request.queryParams().first("sortOrder").map(SortOrder::valueOf).orElse(SortOrder.DESCENDING));
     }
 
-    private static Integer parseOffsetMessageid(ServerRequest request) {
-        return request.queryParams().first("offsetMessageId").map(Integer::parseInt).orElse(Integer.MAX_VALUE);
+    private static Optional<Integer> parseOffsetMessageid(ServerRequest request) {
+        return request.queryParams().first("offsetMessageId").map(Integer::parseInt);
     }
 
-    private static Long parseOffsetReceivedTimestamp(ServerRequest request) {
-        return request.queryParams().first("offsetReceivedTimestamp").map(Long::parseLong).orElse(Long.MAX_VALUE);
+    private static Optional<Long> parseOffsetReceivedTimestamp(ServerRequest request) {
+        return request.queryParams().first("offsetReceivedTimestamp").map(Long::parseLong);
     }
 
     private void getSearchHandler(ServerRequest request, ServerResponse response) {
         int accountId = RequestUtils.intPathParam(request, "accountId");
-        long offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
-        int offsetMessageId = parseOffsetMessageid(request);
+        Optional<Long> offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
+        Optional<Integer> offsetMessageId = parseOffsetMessageid(request);
         PageParams pageParams = parseEmailPageParams(request);
         var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
         Optional<String> query = request.queryParams().first("query");
@@ -107,7 +109,7 @@ public class AccountWebService implements Service {
         }
         SearchFolder searchFolder = new SearchFolder(new Query(query.get()));
         // TODO: implement search with paging
-        Pagination pagination = new Pagination(offsetReceivedTimestamp, pageParams, PAGE_SIZE);
+        Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, PAGE_SIZE, Optional.empty());
         renderAccount(request, response, accountId, Optional.of(searchFolder), Optional.empty(), Optional.of(pagination), selectedEmailId, query);
     }
 
@@ -133,7 +135,7 @@ public class AccountWebService implements Service {
             context.put("selectedEmailId", selectedEmailId.get());
         }
         response.headers().contentType(MediaType.TEXT_HTML);
-        response.send(PebbleRenderer.renderTemplate(context, folderTemplate));
+        response.send(PebbleRenderer.renderTemplate(context, accountTemplate));
     }
 
     private void emailCreationHandler(ServerRequest request, ServerResponse response) {
