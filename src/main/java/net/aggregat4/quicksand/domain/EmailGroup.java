@@ -57,4 +57,8 @@ public record EmailGroup(List<EmailHeader> headers, GroupedPeriod period) {
         return groups;
     }
 
+    public int getNofMessages() {
+        return headers.size();
+    }
+
 }

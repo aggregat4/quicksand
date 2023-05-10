@@ -7,5 +7,7 @@ public record Pagination(
         Optional<Integer> messageIdOffset,
         PageParams pageParams,
         int pageSize,
-        Optional<Integer> totalMessageCount) {
+        Optional<Integer> totalMessageCount,
+        boolean hasLeft,
+        boolean hasRight) {
 }

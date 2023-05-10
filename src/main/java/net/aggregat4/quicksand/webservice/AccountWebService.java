@@ -10,6 +10,7 @@ import io.helidon.webserver.Service;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailGroup;
+import net.aggregat4.quicksand.domain.EmailGroupPage;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.Folder;
@@ -26,6 +27,7 @@ import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 
 import java.net.URI;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,10 +64,10 @@ public class AccountWebService implements Service {
         if (! folders.isEmpty()) {
             EmailPage emailPage = emailService.getMessages(accountId, folders.get(0).id(), Long.MAX_VALUE, Integer.MAX_VALUE, pageParams.pageDirection(), pageParams.sortOrder());
             int messageCount = emailService.getMessageCount(accountId, folders.get(0).id());
-            Pagination pagination = new Pagination(Optional.empty(), Optional.empty(), pageParams, PAGE_SIZE, Optional.of(messageCount));
-            renderAccount(request, response, accountId, Optional.of(folders.get(0)), Optional.of(emailPage), Optional.of(pagination), Optional.empty(), Optional.empty());
+            Pagination pagination = new Pagination(Optional.empty(), Optional.empty(), pageParams, PAGE_SIZE, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
+            renderAccount(request, response, accountId, folders.get(0), emailPage, pagination, Optional.empty(), Optional.empty());
         } else {
-            renderAccount(request, response, accountId, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+            renderNoFoldersAccount(request, response, accountId);
         }
     }
 
@@ -79,8 +81,8 @@ public class AccountWebService implements Service {
         NamedFolder folder = findFolder(folderId);
         EmailPage emailPage = emailService.getMessages(folder.id(), PAGE_SIZE, offsetReceivedTimestamp.orElse(Long.MAX_VALUE), offsetMessageId.orElse(Integer.MAX_VALUE), pageParams.pageDirection(), pageParams.sortOrder());
         int messageCount = emailService.getMessageCount(accountId, folder.id());
-        Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, PAGE_SIZE, Optional.of(messageCount));
-        renderAccount(request, response, accountId, Optional.of(folder), Optional.of(emailPage), Optional.of(pagination), selectedEmailId, Optional.empty());
+        Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, PAGE_SIZE, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
+        renderAccount(request, response, accountId, folder, emailPage, pagination, selectedEmailId, Optional.empty());
     }
 
     private static PageParams parseEmailPageParams(ServerRequest request) {
@@ -109,34 +111,35 @@ public class AccountWebService implements Service {
         }
         SearchFolder searchFolder = new SearchFolder(new Query(query.get()));
         // TODO: implement search with paging
-        Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, PAGE_SIZE, Optional.empty());
-        renderAccount(request, response, accountId, Optional.of(searchFolder), Optional.empty(), Optional.of(pagination), selectedEmailId, query);
+        Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, PAGE_SIZE, Optional.empty(), false, false);
+        renderAccount(request, response, accountId, searchFolder, new EmailPage(Collections.emptyList(), false, false, new PageParams(PageDirection.RIGHT, SortOrder.ASCENDING)), pagination, selectedEmailId, query);
     }
 
-    private void renderAccount(ServerRequest request, ServerResponse response, int accountId, Optional<Folder> folder, Optional<EmailPage> emailPage, Optional<Pagination> pagination, Optional<Integer> selectedEmailId, Optional<String> query) {
-        List<EmailHeader> emailHeaders = emailPage.map(EmailPage::emails).orElse(List.of()).stream().map(Email::header).toList();
+    private void renderAccount(ServerRequest request, ServerResponse response, int accountId, Folder folder, EmailPage emailPage, Pagination pagination, Optional<Integer> selectedEmailId, Optional<String> query) {
+        List<EmailHeader> emailHeaders = emailPage.emails().stream().map(Email::header).toList();
         List<EmailGroup> emailGroups = query.isPresent() ? EmailGroup.createNoGroupEmailgroup(emailHeaders) : EmailGroup.createEmailGroups(emailHeaders);
+        EmailGroupPage emailGroupPage = new EmailGroupPage(emailGroups, pagination);
         Map<String, Object> context = new HashMap<>();
         context.put("bodyclass", "accountpage");
         context.put("currentAccount", accountService.getAccount(accountId));
         context.put("accounts", accountService.getAccounts());
         context.put("folders", folderService.getFolders(accountId));
-        context.put("emailGroups", emailGroups);
-        if (folder.isPresent()) {
-            context.put("currentFolder", folder.get());
-        }
-        if (pagination.isPresent()) {
-            context.put("pagination", pagination.get());
+        context.put("emailGroupPage", emailGroupPage);
+        context.put("currentFolder", folder);
+        if (selectedEmailId.isPresent()) {
+            context.put("selectedEmailId", selectedEmailId.get());
         }
         if (query.isPresent()) {
             context.put("currentQuery", query.get());
         }
-        if (selectedEmailId.isPresent()) {
-            context.put("selectedEmailId", selectedEmailId.get());
-        }
         response.headers().contentType(MediaType.TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, accountTemplate));
     }
+
+    private void renderNoFoldersAccount(ServerRequest request, ServerResponse response, int accountId) {
+        // TODO: implement
+    }
+
 
     private void emailCreationHandler(ServerRequest request, ServerResponse response) {
         // TODO: We create a new draft email and redirect to the composer

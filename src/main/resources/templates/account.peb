@@ -41,32 +41,13 @@
                 </dialog>
                 <div id="email-paging-controls">
                     <div id="pagination-status">
-{#                        TODO: show real pagesize once the emailgroups is its own object that can return number of messages #}
-                        {% if not pagination.receivedDateOffsetInSeconds.isPresent() %}
-                            {% if pagination.pageParams().sortOrder().ordinal() == 1 %}
-                                Newest
-                            {% else %}
-                                Oldest
-                            {% endif %}
+                        {{ emailGroupPage.pagination().pageParams().isAscending() ? 'Oldest' : 'Newest' }}
+                        {{ emailGroupPage.getNofMessages() }} messages
+                        {% if emailGroupPage.pagination().receivedDateOffsetInSeconds.isPresent() %}
+                            {{  emailGroupPage.pagination().pageParams().getOffsetComparator() }} than {{ emailGroupPage.pagination().receivedDateOffsetInSeconds.get() }}
                         {% endif %}
-                        {{ pagination.pageSize() }} messages
-                        {%if pagination.receivedDateOffsetInSeconds.isPresent() %}
-                          {% if pagination.pageParams().sortOrder().ordinal() == 1 and pagination.pageParams().pageDirection().ordinal() == 0 %}
-                            older
-                          {% endif %}
-                          {% if pagination.pageParams().sortOrder().ordinal() == 0 and pagination.pageParams().pageDirection().ordinal() == 1 %}
-                             newer
-                          {% endif %}
-                          {% if pagination.pageParams().sortOrder().ordinal() == 1 and pagination.pageParams().pageDirection().ordinal() == 0 %}
-                            newer
-                          {% endif %}
-                          {% if pagination.pageParams().sortOrder().ordinal() == 0 and pagination.pageParams().pageDirection().ordinal() == 1 %}
-                            older
-                          {% endif %}
-                          than {{ pagination.receivedDateOffsetInSeconds.get() }}
-                        {% endif %}
-                        {% if pagination.totalMessageCount().isPresent() %}
-                          of {{ pagination.totalMessageCount().get() }}
+                        {% if emailGroupPage.pagination().totalMessageCount().isPresent() %}
+                          of {{ emailGroupPage.pagination().totalMessageCount().get() }}
                         {% endif %}
                     </div>
                     <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
@@ -79,26 +60,21 @@
                         {% endif %}
                         <ul>
                             {# FIRST PAGE #}
-                            {% if pagination.pageParams().sortOrder().ordinal() == 0 %}{#  ASCENDING  #}
-                                <li>{{ iconlink(baseLink + 'pageDirection=RIGHT&sortOrder=ASCENDING', 'Beginning', 'beginning', disabled = false, showLabel = false) }}</li>
-                            {% else %}{#  DESCENDING  #}
-                                <li>{{ iconlink(baseLink + 'pageDirection=RIGHT&sortOrder=DESCENDING', 'Beginning', 'beginning', disabled = false, showLabel = false) }}</li>
-                            {% endif %}
+                            <li>{{ iconlink(baseLink + 'pageDirection=RIGHT&sortOrder=' + emailGroupPage.pagination().pageParams().getSortString(), 'Beginning', 'beginning', disabled = false, showLabel = false) }}</li>
                             {#  PREVIOUS PAGE #}
-{#                            TODO: for deciding whether to offer going to the previous or not we need helper methods to get us the first message offset in the current page  (timestamp and message id) #}
-                            {% if pagination.receivedDateOffsetInSeconds().isEmpty() %}
+                            {% if emailGroupPage.getFirstEmailHeader().isEmpty() %}
                                 <li>{{ iconlink(baseLink, 'Previous', 'previous', disabled = true, showLabel = false) }}</li>
                             {% else %}
-                                {% if pagination.pageParams().sortOrder().ordinal() == 0 %}{#  ASCENDING  #}
-                                    <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder=ASCENDING&offsetReceivedTimestamp=' + pagination.receivedDateOffsetInSeconds(), 'Previous', 'previous', disabled = false, showLabel = false) }}</li>
-                                    {% else %}{#  DESCENDING  #}
-                                    <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder=DESCENDING&offsetReceivedTimestamp=' + pagination.receivedDateOffsetInSeconds(), 'Previous', 'previous', disabled = false, showLabel = false) }}</li>
-                                {% endif %}
+                                <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getFirstEmailHeader().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getFirstEmailHeader().id(), 'Previous', 'previous', disabled = false, showLabel = false) }}</li>
                             {% endif %}
                             {# NEXT PAGE #}
-{#                            TODO: for deciding whether to offer going to the next page or not we need helper methods to get us the last message offset in the current page #}
+                            {% if emailGroupPage.pagination().hasRight() and not emailGroupPage.getLastEmailHeader().isEmpty() %}
+                                <li>{{ iconlink(baseLink  + 'pageDirection=RIGHT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getLastEmailHeader().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getLastEmailHeader().id(), 'Next', 'next', disabled = true, showLabel = false) }}</li>
+                            {% else %}
+                                <li>{{ iconlink(baseLink, 'Next', 'next', disabled = true, showLabel = false) }}</li>
+                            {% endif %}
                             {#  LAST PAGE #}
-                            {% if pagination.pageParams().sortOrder().ordinal() == 0 %}{#  ASCENDING  #}
+                            {% if emailGroupPage.pagination().pageParams().isAscending() %}{#  ASCENDING  #}
                                 <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder=ASCENDING&offsetReceivedTimestamp=' + Long.MAX_VALUE, 'End', 'end', disabled = false, showLabel = false) }}</li>
                             {% else %}{#  DESCENDING  #}
                                 <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder=DESCENDING&offsetReceivedTimestamp=0', 'End', 'end', disabled = false, showLabel = false) }}</li>
@@ -120,7 +96,7 @@
         {# need to declare emailActive here since otherwise it won't be in scope for the dialog below #}
         {% set emailActive = false %}
         <div id="messagelist">
-            {% for group in emailGroups %}
+            {% for group in emailGroupPage.groups() %}
                 {% if group.name().isPresent() %}
                     <div class="emailgroup">
                         {{ group.name().get() }}
