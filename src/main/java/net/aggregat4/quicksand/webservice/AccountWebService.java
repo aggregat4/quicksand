@@ -38,6 +38,8 @@ public class AccountWebService implements Service {
 
     private static final PebbleTemplate accountTemplate =
             PebbleConfig.getEngine().getTemplate("templates/account.peb");
+    private static final PebbleTemplate accountWithoutFoldersTemplate =
+            PebbleConfig.getEngine().getTemplate("templates/account-nofolders.peb");
     private final FolderService folderService;
     private final AccountService accountService;
 
@@ -65,9 +67,9 @@ public class AccountWebService implements Service {
             EmailPage emailPage = emailService.getMessages(accountId, folders.get(0).id(), Long.MAX_VALUE, Integer.MAX_VALUE, pageParams.pageDirection(), pageParams.sortOrder());
             int messageCount = emailService.getMessageCount(accountId, folders.get(0).id());
             Pagination pagination = new Pagination(Optional.empty(), Optional.empty(), pageParams, PAGE_SIZE, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
-            renderAccount(request, response, accountId, folders.get(0), emailPage, pagination, Optional.empty(), Optional.empty());
+            renderAccount(response, accountId, folders.get(0), emailPage, pagination, Optional.empty(), Optional.empty());
         } else {
-            renderNoFoldersAccount(request, response, accountId);
+            renderAccountWithoutFolders(response, accountId);
         }
     }
 
@@ -82,7 +84,7 @@ public class AccountWebService implements Service {
         EmailPage emailPage = emailService.getMessages(folder.id(), PAGE_SIZE, offsetReceivedTimestamp.orElse(Long.MAX_VALUE), offsetMessageId.orElse(Integer.MAX_VALUE), pageParams.pageDirection(), pageParams.sortOrder());
         int messageCount = emailService.getMessageCount(accountId, folder.id());
         Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, PAGE_SIZE, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
-        renderAccount(request, response, accountId, folder, emailPage, pagination, selectedEmailId, Optional.empty());
+        renderAccount(response, accountId, folder, emailPage, pagination, selectedEmailId, Optional.empty());
     }
 
     private static PageParams parseEmailPageParams(ServerRequest request) {
@@ -112,10 +114,10 @@ public class AccountWebService implements Service {
         SearchFolder searchFolder = new SearchFolder(new Query(query.get()));
         // TODO: implement search with paging
         Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, PAGE_SIZE, Optional.empty(), false, false);
-        renderAccount(request, response, accountId, searchFolder, new EmailPage(Collections.emptyList(), false, false, new PageParams(PageDirection.RIGHT, SortOrder.ASCENDING)), pagination, selectedEmailId, query);
+        renderAccount(response, accountId, searchFolder, new EmailPage(Collections.emptyList(), false, false, new PageParams(PageDirection.RIGHT, SortOrder.ASCENDING)), pagination, selectedEmailId, query);
     }
 
-    private void renderAccount(ServerRequest request, ServerResponse response, int accountId, Folder folder, EmailPage emailPage, Pagination pagination, Optional<Integer> selectedEmailId, Optional<String> query) {
+    private void renderAccount(ServerResponse response, int accountId, Folder folder, EmailPage emailPage, Pagination pagination, Optional<Integer> selectedEmailId, Optional<String> query) {
         List<EmailHeader> emailHeaders = emailPage.emails().stream().map(Email::header).toList();
         List<EmailGroup> emailGroups = query.isPresent() ? EmailGroup.createNoGroupEmailgroup(emailHeaders) : EmailGroup.createEmailGroups(emailHeaders);
         EmailGroupPage emailGroupPage = new EmailGroupPage(emailGroups, pagination);
@@ -136,10 +138,14 @@ public class AccountWebService implements Service {
         response.send(PebbleRenderer.renderTemplate(context, accountTemplate));
     }
 
-    private void renderNoFoldersAccount(ServerRequest request, ServerResponse response, int accountId) {
-        // TODO: implement
+    private void renderAccountWithoutFolders(ServerResponse response, int accountId) {
+        Map<String, Object> context = new HashMap<>();
+        context.put("bodyclass", "accountpage");
+        context.put("currentAccount", accountService.getAccount(accountId));
+        context.put("accounts", accountService.getAccounts());
+        response.headers().contentType(MediaType.TEXT_HTML);
+        response.send(PebbleRenderer.renderTemplate(context, accountWithoutFoldersTemplate));
     }
-
 
     private void emailCreationHandler(ServerRequest request, ServerResponse response) {
         // TODO: We create a new draft email and redirect to the composer

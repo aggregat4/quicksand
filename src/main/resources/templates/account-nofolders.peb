@@ -1,0 +1,13 @@
+{% extends "templates/base.peb" %}
+
+{% block pageTitle %} {{ currentFolder.name }} of {{ currentAccount.name }} {% endblock %}
+
+{% block additionalHeader %}
+<link rel="stylesheet" href="/css/account.css">
+{% endblock %}
+
+{% block content %}
+    <main>
+        This account has no folders.
+    </main>
+{% endblock %}
