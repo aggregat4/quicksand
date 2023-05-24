@@ -2,13 +2,13 @@ package net.aggregat4.quicksand.jobs;
 
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.util.GreenMailUtil;
-import com.icegreen.greenmail.util.ServerSetupTest;
 import jakarta.mail.Flags;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Store;
 import net.aggregat4.quicksand.GreenmailTestUtils;
+import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.NamedFolder;
@@ -27,13 +27,13 @@ public class ImapStoreSyncTest {
     public void naiveFolderSyncAgainstEmptyDatabase() throws MessagingException {
         String subject = GreenMailUtil.random();
         String body = GreenMailUtil.random();
-        GreenmailTestUtils.deliverOneMessage(greenMail, subject, body, "from@foo.bar", "to@foo.bar");
-        Store store = GreenmailTestUtils.getImapStore(greenMail);
+        GreenmailUtils.deliverOneMessage(greenMail, subject, body, "from@foo.bar", "to@foo.bar");
+        Store store = GreenmailUtils.getImapStore(greenMail);
 
         InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
         InMemoryEmailRepository messageRepository = new InMemoryEmailRepository();
 
-        Account account = GreenmailTestUtils.getAccount();
+        Account account = GreenmailUtils.getAccount();
         assertEquals(0, folderRepository.getFolders(account.id()).size());
         // Sync the imap store and verify that we now have one message in the inbox locally
         ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);

@@ -118,6 +118,7 @@ public class AccountWebService implements Service {
     }
 
     private void renderAccount(ServerResponse response, int accountId, Folder folder, EmailPage emailPage, Pagination pagination, Optional<Integer> selectedEmailId, Optional<String> query) {
+        // TODO: figure out
         List<EmailHeader> emailHeaders = emailPage.emails().stream().map(Email::header).toList();
         List<EmailGroup> emailGroups = query.isPresent() ? EmailGroup.createNoGroupEmailgroup(emailHeaders) : EmailGroup.createEmailGroups(emailHeaders);
         EmailGroupPage emailGroupPage = new EmailGroupPage(emailGroups, pagination);

@@ -6,6 +6,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.Store;
 import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.GreenmailTestUtils;
+import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailPage;
@@ -35,8 +36,8 @@ public class DbEmailRepositoryTest {
         String body = GreenMailUtil.random();
         String from = "from@foo.bar";
         String to = "to@foo.bar";
-        GreenmailTestUtils.deliverMessages(greenMail, subject, body, from, to, 13);
-        Store store = GreenmailTestUtils.getImapStore(greenMail);
+        GreenmailUtils.deliverMessages(greenMail, subject, body, from, to, 13);
+        Store store = GreenmailUtils.getImapStore(greenMail);
 
         DataSource ds = DbTestUtils.getTempSqlite();
         migrateDb(ds);
@@ -44,7 +45,7 @@ public class DbEmailRepositoryTest {
         DbActorRepository actorRepository = new DbActorRepository(ds);
         DbEmailRepository emailRepository = new DbEmailRepository(ds, actorRepository);
 
-        Account account = GreenmailTestUtils.getAccount();
+        Account account = GreenmailUtils.getAccount();
         assertEquals(0, folderRepository.getFolders(account.id()).size());
         ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
         assertEquals(1, folderRepository.getFolders(account.id()).size());
