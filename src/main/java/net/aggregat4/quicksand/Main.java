@@ -7,7 +7,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import io.helidon.config.Config;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.http.HttpRouting;
-import io.helidon.webserver.staticcontent.StaticContentService;
+import io.helidon.webserver.staticcontent.StaticContentFeature;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.MailFetcher;
@@ -30,13 +30,13 @@ import org.sqlite.SQLiteOpenMode;
 
 import javax.sql.DataSource;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.stream.Collectors;
 
-public final class  Main {
+public final class Main {
 
     private static MailFetcher mailFetcher;
     private static GreenMail greenMail;
@@ -47,9 +47,10 @@ public final class  Main {
 
     static WebServer startServer() throws IOException {
         Config config = Config.create();
+        boolean demoEnabled = config.get("demo.enabled").asBoolean().orElse(false);
 
-        if (config.get("greenmail.enabled").asBoolean().orElse(false)) {
-            greenMail = startTestEmailServer(config.get("greenmail"));
+        if (demoEnabled) {
+            greenMail = startDemoMailServer(config.get("demo"));
         }
 
         // Dependency Injection and Initialisation
@@ -61,20 +62,21 @@ public final class  Main {
         DbActorRepository actorRepository = new DbActorRepository(ds);
         EmailRepository messageRepository = new DbEmailRepository(ds, actorRepository);
         EmailService emailService = new EmailService(messageRepository);
-        // Init accounts
-        bootstrapAccounts(config, accountRepository);
-        if (config.get("mail_fetcher.enabled").asBoolean().orElse(true)) {
+        List<Account> accounts = loadAccounts(config, demoEnabled);
+        bootstrapAccounts(accounts, accountRepository);
+
+        boolean mailFetcherEnabled = config.get("mail_fetcher.enabled").asBoolean().orElse(demoEnabled);
+        if (mailFetcherEnabled && !accounts.isEmpty()) {
             long fetchPeriodInSeconds = config.get("mail_fetcher.period_seconds").asLong().orElse(15L);
             mailFetcher = new MailFetcher(accountRepository, fetchPeriodInSeconds, folderRepository, messageRepository);
             mailFetcher.start();
+        } else if (mailFetcherEnabled) {
+            System.out.println("Mail fetcher was enabled, but no accounts are configured. Skipping startup.");
         }
 
         FolderService folderService = new FolderService(folderRepository);
 
         HttpRouting.Builder routing = HttpRouting.builder()
-                .register("/css", StaticContentService.create("/static/css"))
-                .register("/js", StaticContentService.create("/static/js"))
-                .register("/images", StaticContentService.create("/static/images"))
                 .register("/accounts", new AccountWebService(folderService, accountService, emailService))
                 .register("/emails", new EmailWebService())
                 .register("/attachments", new AttachmentWebService())
@@ -83,6 +85,11 @@ public final class  Main {
         WebServer server = WebServer.builder()
                 .config(config.get("server"))
                 .routing(routing)
+                .addFeature(StaticContentFeature.create(feature -> feature
+                        .name("static-assets")
+                        .addClasspath(cp -> cp.location("/static/css").context("/css"))
+                        .addClasspath(cp -> cp.location("/static/js").context("/js"))
+                        .addClasspath(cp -> cp.location("/static/images").context("/images"))))
                 .build();
 
         WebServer webServer = server.start();
@@ -91,7 +98,7 @@ public final class  Main {
         return webServer;
     }
 
-    private static GreenMail startTestEmailServer(Config config) {
+    private static GreenMail startDemoMailServer(Config config) {
         int smtpPort = config.get("smtp_port").asInt().orElse(25 + 4000);
         int imapPort = config.get("imap_port").asInt().orElse(143 + 4000);
         int seedCount = config.get("seed_count").asInt().orElse(200);
@@ -107,9 +114,25 @@ public final class  Main {
      * For all the accounts defined in the config, add them to the database if they are not
      * already in it.
      */
-    private static void bootstrapAccounts(Config config, DbAccountRepository accountRepository) {
-        Config accountsConfig = config.get("accounts");
-        List<Account> accounts = accountsConfig.asNodeList().get().stream().map(accountConfig -> new Account(
+    private static void bootstrapAccounts(List<Account> accounts, DbAccountRepository accountRepository) {
+        System.out.println(accounts);
+        for (Account account : accounts) {
+            accountRepository.createAccountIfNew(account);
+        }
+    }
+
+    private static List<Account> loadAccounts(Config config, boolean demoEnabled) {
+        List<Account> accounts = new ArrayList<>(config.get("accounts").asNodeList().get().stream()
+                .map(Main::toAccount)
+                .toList());
+        if (demoEnabled) {
+            accounts.add(toAccount(config.get("demo.account")));
+        }
+        return accounts;
+    }
+
+    private static Account toAccount(Config accountConfig) {
+        return new Account(
                 -1,
                 accountConfig.get("name").asString().get(),
                 accountConfig.get("imap_host").asString().get(),
@@ -119,11 +142,7 @@ public final class  Main {
                 accountConfig.get("smtp_host").asString().get(),
                 accountConfig.get("smtp_port").asInt().get(),
                 accountConfig.get("smtp_username").asString().get(),
-                accountConfig.get("smtp_password").asString().get())).collect(Collectors.toList());
-        System.out.println(accounts);
-        for (Account account : accounts) {
-            accountRepository.createAccountIfNew(account);
-        }
+                accountConfig.get("smtp_password").asString().get());
     }
 
     private static DataSource createDataSource(Config config) throws IOException {

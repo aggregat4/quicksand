@@ -17,6 +17,18 @@ mvn package
 java -jar target/quicksand.jar
 ```
 
+That default runtime is intentionally plain:
+
+- no embedded GreenMail
+- no demo account
+- no background mail fetcher unless you configure accounts and enable it
+
+To start the demo mode with embedded GreenMail and the seeded demo account:
+
+```bash
+java -Ddemo.enabled=true -Dmail_fetcher.enabled=true -jar target/quicksand.jar
+```
+
 ## Docker Image
 
 Build the standard JVM image:

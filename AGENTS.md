@@ -173,6 +173,7 @@ What is already present:
 - dialog + iframe based message preview and composer flows
 - server-side sanitization for HTML email bodies
 - attachment download endpoint shape
+- opt-in demo mode for embedded GreenMail and seeded local experimentation
 
 What is still clearly prototype or stub territory:
 
@@ -183,7 +184,6 @@ What is still clearly prototype or stub territory:
 - attachments are mock-backed, not persisted end-to-end
 - message body and excerpt storage are incomplete
 - account bootstrap currently reads credentials directly from config
-- `Main.startServer()` starts an embedded GreenMail test server unconditionally, which is prototype behavior rather than production behavior
 - several tests are stale or environment-coupled
 
 Treat the existing code as a strong UI and architecture prototype with partial backend completion.
