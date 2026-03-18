@@ -36,12 +36,12 @@ public class GreenmailUtils {
     }
 
     public static void deliverMessages(GreenMailOperations greenMail, int count) {
-        String subject = GreenMailUtil.random();
-        String body = GreenMailUtil.random();
-        String from = GreenMailUtil.random() + "@example.com";
         String to = "foo@bar.com";
         GreenMailUser user = greenMail.setUser(EMAIL, USERNAME, PASSWORD);
         for (int i = 0; i < count; i++) {
+            String subject = GreenMailUtil.random(20);
+            String body = GreenMailUtil.random(50);
+            String from = GreenMailUtil.random(10) + "@example.com";
             MimeMessage message = GreenMailUtil.createTextEmail(to, from, subject, body, greenMail.getSmtp().getServerSetup()); // Construct message
             user.deliver(message);
         }

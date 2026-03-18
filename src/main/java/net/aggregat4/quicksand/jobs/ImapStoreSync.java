@@ -1,7 +1,7 @@
 package net.aggregat4.quicksand.jobs;
 
-import com.sun.mail.imap.IMAPFolder;
-import com.sun.mail.imap.IMAPMessage;
+import org.eclipse.angus.mail.imap.IMAPFolder;
+import org.eclipse.angus.mail.imap.IMAPMessage;
 import jakarta.mail.FetchProfile;
 import jakarta.mail.Flags;
 import jakarta.mail.Folder;
@@ -95,7 +95,7 @@ public class ImapStoreSync {
     }
 
     private static void naiveFolderSync(NamedFolder localFolder, IMAPFolder imapFolder, EmailRepository messageRepository) throws MessagingException {
-        // TODO verify that all messages already have their UID set since we use that below
+        // TODO: verify that all messages already have their UID set since we use that below
         Set<Long> remoteUids = new HashSet<>();
         ArrayList<IMAPMessage> messagesToDownload = updateLocalMessages(imapFolder, messageRepository, remoteUids);
         deleteExpungedMessages(localFolder, messageRepository, remoteUids);

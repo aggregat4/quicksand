@@ -1,6 +1,6 @@
 package net.aggregat4.quicksand.configuration;
 
-import com.mitchellbosecke.pebble.PebbleEngine;
+import io.pebbletemplates.pebble.PebbleEngine;
 import net.aggregat4.quicksand.pebble.PebbleExtension;
 
 public class PebbleConfig {

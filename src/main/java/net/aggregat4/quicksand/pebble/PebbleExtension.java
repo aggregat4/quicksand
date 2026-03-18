@@ -1,7 +1,7 @@
 package net.aggregat4.quicksand.pebble;
 
-import com.mitchellbosecke.pebble.extension.AbstractExtension;
-import com.mitchellbosecke.pebble.extension.Function;
+import io.pebbletemplates.pebble.extension.AbstractExtension;
+import io.pebbletemplates.pebble.extension.Function;
 
 import java.util.Map;
 

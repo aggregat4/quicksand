@@ -99,6 +99,10 @@ public class DbUtil {
         withStmtConsumer(con, (stmt) -> stmt.executeUpdate(sql));
     }
 
+    public static void executeQuery(Connection con, String sql) {
+        withStmtConsumer(con, (stmt) -> stmt.executeQuery(sql));
+    }
+
     /**
      * Warning: there could be a table with the same name in another schema, I think, and therefore return
      * false positives.

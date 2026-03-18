@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.util.Map;
 import java.util.function.Function;
 
+import static net.aggregat4.dblib.DbUtil.executeQuery;
 import static net.aggregat4.dblib.DbUtil.executeUpdate;
 
 public class QuicksandMigrations implements Migrations {
@@ -62,7 +63,9 @@ public class QuicksandMigrations implements Migrations {
                 name TEXT,
                 email_address TEXT NOT NULL,
                 FOREIGN KEY (message_id) REFERENCES messages(id))""");
-
+        // Enable WAL mode on the database to allow for concurrent reads and writes
+        executeQuery(con, """
+                PRAGMA journal_mode=WAL;""");
         return 2;
     };
 

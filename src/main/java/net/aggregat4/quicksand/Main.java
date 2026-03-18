@@ -1,8 +1,6 @@
 package net.aggregat4.quicksand;
 
-import com.icegreen.greenmail.user.GreenMailUser;
 import com.icegreen.greenmail.util.GreenMail;
-import com.icegreen.greenmail.util.GreenMailUtil;
 import com.icegreen.greenmail.util.ServerSetup;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -14,17 +12,16 @@ import io.helidon.media.multipart.MultiPartSupport;
 import io.helidon.webserver.Routing;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.staticcontent.StaticContentSupport;
-import jakarta.mail.internet.MimeMessage;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.MailFetcher;
-import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DatabaseMaintenance;
+import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
-import net.aggregat4.quicksand.repository.DbFolderRepository;
-import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
+import net.aggregat4.quicksand.repository.DbFolderRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
+import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
@@ -33,7 +30,6 @@ import net.aggregat4.quicksand.webservice.AttachmentWebService;
 import net.aggregat4.quicksand.webservice.EmailWebService;
 import net.aggregat4.quicksand.webservice.HomeWebService;
 import org.sqlite.SQLiteConfig;
-import org.sqlite.SQLiteDataSource;
 import org.sqlite.SQLiteOpenMode;
 
 import javax.sql.DataSource;
@@ -141,23 +137,12 @@ public final class  Main {
         // TODO: doing a direct sqlitedatasource since there are indications that sqlite doesn't like connection pooling
         // need to test this further and then document it
         SQLiteConfig sqliteConfig = new SQLiteConfig();
+        sqliteConfig.setJournalMode(SQLiteConfig.JournalMode.WAL);
         sqliteConfig.setOpenMode(SQLiteOpenMode.READWRITE);
         sqliteConfig.setOpenMode(SQLiteOpenMode.CREATE);
         sqliteConfig.setOpenMode(SQLiteOpenMode.NOMUTEX);
-
-        String path = config.get("path").asString().orElseThrow(() -> {
-            throw new IllegalStateException("Require a path to the quicksand database to start");
-        });
-        Path dbPath = Paths.get(path).toAbsolutePath();
-        Files.createDirectories(dbPath.getParent());
-        if (!Files.exists(dbPath)) {
-            Files.createFile(dbPath);
-        }
-        SQLiteDataSource ds = new SQLiteDataSource(sqliteConfig);
-        ds.setUrl("jdbc:sqlite:%s".formatted(dbPath.toString()));
-        return ds;
-
-//        HikariConfig hkConfig = new HikariConfig();
+        sqliteConfig.enforceForeignKeys(true);
+//
 //        String path = config.get("path").asString().orElseThrow(() -> {
 //            throw new IllegalStateException("Require a path to the quicksand database to start");
 //        });
@@ -166,11 +151,24 @@ public final class  Main {
 //        if (!Files.exists(dbPath)) {
 //            Files.createFile(dbPath);
 //        }
-//
-//        hkConfig.setJdbcUrl("jdbc:sqlite:%s".formatted(dbPath.toString()));
-//        hkConfig.setDataSourceProperties(sqliteConfig.toProperties());
-////        hkConfig.setMaximumPoolSize(1);
-//        return new HikariDataSource(hkConfig);
+//        SQLiteDataSource ds = new SQLiteDataSource(sqliteConfig);
+//        ds.setUrl("jdbc:sqlite:%s".formatted(dbPath.toString()));
+//        return ds;
+
+        HikariConfig hkConfig = new HikariConfig();
+        String path = config.get("path").asString().orElseThrow(() -> {
+            throw new IllegalStateException("Require a path to the quicksand database to start");
+        });
+        Path dbPath = Paths.get(path).toAbsolutePath();
+        Files.createDirectories(dbPath.getParent());
+        if (!Files.exists(dbPath)) {
+            Files.createFile(dbPath);
+        }
+
+        hkConfig.setJdbcUrl("jdbc:sqlite:%s".formatted(dbPath.toString()));
+        hkConfig.setDataSourceProperties(sqliteConfig.toProperties());
+//        hkConfig.setMaximumPoolSize(1);
+        return new HikariDataSource(hkConfig);
     }
 
 }

@@ -1,6 +1,6 @@
 package net.aggregat4.quicksand.pebble;
 
-import com.mitchellbosecke.pebble.template.PebbleTemplate;
+import io.pebbletemplates.pebble.template.PebbleTemplate;
 
 import java.io.IOException;
 import java.io.StringWriter;

@@ -54,6 +54,9 @@ public record EmailGroup(List<EmailHeader> headers, GroupedPeriod period) {
                 }
             }
         }
+        if (! currentGroupHeaders.isEmpty()) {
+            groups.add(new EmailGroup(currentGroupHeaders, currentGroupedPeriod));
+        }
         return groups;
     }
 
