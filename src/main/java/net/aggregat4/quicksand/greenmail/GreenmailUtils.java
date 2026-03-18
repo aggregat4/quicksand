@@ -13,7 +13,7 @@ public class GreenmailUtils {
 
     private static final String USERNAME = "testuser";
     private static final String PASSWORD = "testpassword";
-    private static final Account account = new Account(1, "test", "localhost", 1234, USERNAME, PASSWORD, "localhost", 25, USERNAME, PASSWORD);
+    private static final Account account = new Account(1, "test", "localhost", 4143, USERNAME, PASSWORD, "localhost", 4025, USERNAME, PASSWORD);
     private static final String EMAIL = "testuser@localhost";
 
     public static Store getImapStore(GreenMailOperations greenMail) throws MessagingException {
@@ -24,7 +24,7 @@ public class GreenmailUtils {
     }
 
     public static void deliverOneMessage(GreenMailOperations greenMail, String subject, String body, String from, String to) {
-        deliverMessages(greenMail, subject, body, from, to, 200);
+        deliverMessages(greenMail, subject, body, from, to, 1);
     }
 
     public static void deliverMessages(GreenMailOperations greenMail, String subject, String body, String from, String to, int count) {

@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 public final class  Main {
 
     private static MailFetcher mailFetcher;
+    private static GreenMail greenMail;
 
     public static void main(final String[] args) throws IOException {
         startServer();
@@ -52,7 +53,9 @@ public final class  Main {
         LogConfig.configureRuntime();
         Config config = Config.create();
 
-        startTestEmailServer();
+        if (config.get("greenmail.enabled").asBoolean().orElse(false)) {
+            greenMail = startTestEmailServer(config.get("greenmail"));
+        }
 
         // Dependency Injection and Initialisation
         DataSource ds = createDataSource(config.get("database"));
@@ -65,10 +68,11 @@ public final class  Main {
         EmailService emailService = new EmailService(messageRepository);
         // Init accounts
         bootstrapAccounts(config, accountRepository);
-        // Start background mail sync
-        // TODO: get delay period from config
-        mailFetcher = new MailFetcher(accountRepository, 15, folderRepository, messageRepository);
-        mailFetcher.start();
+        if (config.get("mail_fetcher.enabled").asBoolean().orElse(true)) {
+            long fetchPeriodInSeconds = config.get("mail_fetcher.period_seconds").asLong().orElse(15L);
+            mailFetcher = new MailFetcher(accountRepository, fetchPeriodInSeconds, folderRepository, messageRepository);
+            mailFetcher.start();
+        }
 
         FolderService folderService = new FolderService(folderRepository);
 
@@ -92,7 +96,17 @@ public final class  Main {
         webserver
                 .thenAccept(ws -> {
                     System.out.println("WEB server is up! http://localhost:" + ws.port() + "/");
-                    ws.whenShutdown().thenRun(() -> System.out.println("WEB server is DOWN. Good bye!"));
+                    ws.whenShutdown().thenRun(() -> {
+                        if (mailFetcher != null) {
+                            mailFetcher.stop();
+                            mailFetcher = null;
+                        }
+                        if (greenMail != null) {
+                            greenMail.stop();
+                            greenMail = null;
+                        }
+                        System.out.println("WEB server is DOWN. Good bye!");
+                    });
                 })
                 .exceptionallyAccept(t -> {
                     System.err.println("Startup failed: " + t.getMessage());
@@ -102,12 +116,16 @@ public final class  Main {
         return webserver;
     }
 
-    private static void startTestEmailServer() {
+    private static GreenMail startTestEmailServer(Config config) {
+        int smtpPort = config.get("smtp_port").asInt().orElse(25 + 4000);
+        int imapPort = config.get("imap_port").asInt().orElse(143 + 4000);
+        int seedCount = config.get("seed_count").asInt().orElse(200);
         GreenMail greenMail = new GreenMail(new ServerSetup[]{
-                new ServerSetup(25 + 4000, null, ServerSetup.PROTOCOL_SMTP),
-                new ServerSetup(143 + 4000, null, ServerSetup.PROTOCOL_IMAP)});
+                new ServerSetup(smtpPort, null, ServerSetup.PROTOCOL_SMTP),
+                new ServerSetup(imapPort, null, ServerSetup.PROTOCOL_IMAP)});
         greenMail.start();
-        GreenmailUtils.deliverMessages(greenMail, 200);
+        GreenmailUtils.deliverMessages(greenMail, seedCount);
+        return greenMail;
     }
 
     /**
