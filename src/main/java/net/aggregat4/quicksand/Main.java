@@ -4,14 +4,10 @@ import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import io.helidon.common.LogConfig;
-import io.helidon.common.reactive.Single;
 import io.helidon.config.Config;
-import io.helidon.media.jsonp.JsonpSupport;
-import io.helidon.media.multipart.MultiPartSupport;
-import io.helidon.webserver.Routing;
 import io.helidon.webserver.WebServer;
-import io.helidon.webserver.staticcontent.StaticContentSupport;
+import io.helidon.webserver.http.HttpRouting;
+import io.helidon.webserver.staticcontent.StaticContentService;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.MailFetcher;
@@ -49,8 +45,7 @@ public final class  Main {
         startServer();
     }
 
-    static Single<WebServer> startServer() throws IOException {
-        LogConfig.configureRuntime();
+    static WebServer startServer() throws IOException {
         Config config = Config.create();
 
         if (config.get("greenmail.enabled").asBoolean().orElse(false)) {
@@ -76,44 +71,24 @@ public final class  Main {
 
         FolderService folderService = new FolderService(folderRepository);
 
-        Routing.Builder builder = Routing.builder()
-                .register("/css", StaticContentSupport.create("/static/css"))
-                .register("/js", StaticContentSupport.create("/static/js"))
-                .register("/images", StaticContentSupport.create("/static/images"))
+        HttpRouting.Builder routing = HttpRouting.builder()
+                .register("/css", StaticContentService.create("/static/css"))
+                .register("/js", StaticContentService.create("/static/js"))
+                .register("/images", StaticContentService.create("/static/images"))
                 .register("/accounts", new AccountWebService(folderService, accountService, emailService))
                 .register("/emails", new EmailWebService())
                 .register("/attachments", new AttachmentWebService())
                 .register("/", new HomeWebService(accountService));
 
-        WebServer server = WebServer.builder(builder.build())
+        WebServer server = WebServer.builder()
                 .config(config.get("server"))
-                .addMediaSupport(JsonpSupport.create())
-                .addMediaSupport(MultiPartSupport.create())
+                .routing(routing)
                 .build();
 
-        Single<WebServer> webserver = server.start();
+        WebServer webServer = server.start();
+        System.out.println("WEB server is up! http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME) + "/");
 
-        webserver
-                .thenAccept(ws -> {
-                    System.out.println("WEB server is up! http://localhost:" + ws.port() + "/");
-                    ws.whenShutdown().thenRun(() -> {
-                        if (mailFetcher != null) {
-                            mailFetcher.stop();
-                            mailFetcher = null;
-                        }
-                        if (greenMail != null) {
-                            greenMail.stop();
-                            greenMail = null;
-                        }
-                        System.out.println("WEB server is DOWN. Good bye!");
-                    });
-                })
-                .exceptionallyAccept(t -> {
-                    System.err.println("Startup failed: " + t.getMessage());
-                    t.printStackTrace(System.err);
-                });
-
-        return webserver;
+        return webServer;
     }
 
     private static GreenMail startTestEmailServer(Config config) {

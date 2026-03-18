@@ -1,9 +1,5 @@
 # quicksand
 
-## TODO
-
-- [ ] Decide whether the `jlink` image should remain a supported packaging target or whether the plain JAR path is enough.
-
 ## Java Baseline
 
 Quicksand is a pure JVM application.
@@ -33,28 +29,6 @@ Run it:
 
 ```text
 docker run --rm -p 8080:8080 quicksand:latest
-```
-
-## Optional jlink Runtime Image
-
-If you want a smaller Java-only runtime image, the `jlink` build is still available:
-
-```text
-mvn package -Pjlink-image
-```
-
-This uses the Helidon Maven plugin to generate a custom runtime image. The result is written to `target/quicksand-jri`.
-
-Start it with:
-
-```text
-./target/quicksand-jri/bin/start
-```
-
-To skip the CDS archive and reduce image size further:
-
-```text
-mvn package -Pjlink-image -Djlink.image.addClassDataSharingArchive=false
 ```
 
 ## Starting a Test IMAP and SMTP Server

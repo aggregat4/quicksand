@@ -1,16 +1,17 @@
 package net.aggregat4.quicksand.webservice;
 
-import io.helidon.webserver.Routing;
-import io.helidon.webserver.ServerRequest;
-import io.helidon.webserver.ServerResponse;
-import io.helidon.webserver.Service;
+import io.helidon.http.HeaderNames;
+import io.helidon.webserver.http.HttpRules;
+import io.helidon.webserver.http.HttpService;
+import io.helidon.webserver.http.ServerRequest;
+import io.helidon.webserver.http.ServerResponse;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class AttachmentWebService implements Service {
+public class AttachmentWebService implements HttpService {
     @Override
-    public void update(Routing.Rules rules) {
+    public void routing(HttpRules rules) {
         rules.get("/{attachmentId}", this::emailAttachmentHandler);
     }
 
@@ -20,7 +21,7 @@ public class AttachmentWebService implements Service {
             var attachment = MockEmailData.ATTACHMENT1;
             response.headers().contentType(attachment.mediaType());
             if (attachment.name() != null) {
-                response.headers().add("Content-Disposition", "attachment; filename=\"%s\"".formatted(ResponseUtils.encodeContentDispositionFilename(attachment.name(), StandardCharsets.UTF_8)));
+                response.headers().add(HeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"%s\"".formatted(ResponseUtils.encodeContentDispositionFilename(attachment.name(), StandardCharsets.UTF_8)));
             }
             ResponseUtils.setCacheControlImmutable(response);
             try {

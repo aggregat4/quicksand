@@ -1,6 +1,6 @@
 package net.aggregat4.quicksand.domain;
 
-import io.helidon.common.http.MediaType;
+import io.helidon.http.HttpMediaType;
 
-public record Attachment(int id, String name, long sizeInBytes, MediaType mediaType) {
+public record Attachment(int id, String name, long sizeInBytes, HttpMediaType mediaType) {
 }

@@ -1,12 +1,12 @@
 package net.aggregat4.quicksand.webservice;
 
+import io.helidon.http.BadRequestException;
+import io.helidon.http.HttpMediaType;
 import io.pebbletemplates.pebble.template.PebbleTemplate;
-import io.helidon.common.http.MediaType;
-import io.helidon.webserver.BadRequestException;
-import io.helidon.webserver.Routing;
-import io.helidon.webserver.ServerRequest;
-import io.helidon.webserver.ServerResponse;
-import io.helidon.webserver.Service;
+import io.helidon.webserver.http.HttpRules;
+import io.helidon.webserver.http.HttpService;
+import io.helidon.webserver.http.ServerRequest;
+import io.helidon.webserver.http.ServerResponse;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailGroup;
@@ -33,8 +33,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class AccountWebService implements Service {
+public class AccountWebService implements HttpService {
     public static final int PAGE_SIZE = 100;
+    private static final HttpMediaType TEXT_HTML = HttpMediaType.create("text/html; charset=UTF-8");
 
     private static final PebbleTemplate accountTemplate =
             PebbleConfig.getEngine().getTemplate("templates/account.peb");
@@ -52,7 +53,7 @@ public class AccountWebService implements Service {
     }
 
     @Override
-    public void update(Routing.Rules rules) {
+    public void routing(HttpRules rules) {
         rules.get("/{accountId}", this::getAccountHandler);
         rules.get("/{accountId}/folders/{folderId}", this::getFolderHandler);
         rules.get("/{accountId}/search", this::getSearchHandler);
@@ -79,7 +80,7 @@ public class AccountWebService implements Service {
         Optional<Long> offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
         Optional<Integer> offsetMessageId = parseOffsetMessageid(request);
         PageParams pageParams = parseEmailPageParams(request);
-        var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
+        var selectedEmailId = request.query().first("selectedEmailId").map(Integer::parseInt);
         NamedFolder folder = findFolder(folderId);
         EmailPage emailPage = emailService.getMessages(folder.id(), PAGE_SIZE, offsetReceivedTimestamp.orElse(Long.MAX_VALUE), offsetMessageId.orElse(Integer.MAX_VALUE), pageParams.pageDirection(), pageParams.sortOrder());
         int messageCount = emailService.getMessageCount(accountId, folder.id());
@@ -89,16 +90,16 @@ public class AccountWebService implements Service {
 
     private static PageParams parseEmailPageParams(ServerRequest request) {
         return new PageParams(
-                request.queryParams().first("pageDirection").map(PageDirection::valueOf).orElse(PageDirection.RIGHT),
-                request.queryParams().first("sortOrder").map(SortOrder::valueOf).orElse(SortOrder.DESCENDING));
+                request.query().first("pageDirection").map(PageDirection::valueOf).orElse(PageDirection.RIGHT),
+                request.query().first("sortOrder").map(SortOrder::valueOf).orElse(SortOrder.DESCENDING));
     }
 
     private static Optional<Integer> parseOffsetMessageid(ServerRequest request) {
-        return request.queryParams().first("offsetMessageId").map(Integer::parseInt);
+        return request.query().first("offsetMessageId").map(Integer::parseInt);
     }
 
     private static Optional<Long> parseOffsetReceivedTimestamp(ServerRequest request) {
-        return request.queryParams().first("offsetReceivedTimestamp").map(Long::parseLong);
+        return request.query().first("offsetReceivedTimestamp").map(Long::parseLong);
     }
 
     private void getSearchHandler(ServerRequest request, ServerResponse response) {
@@ -106,8 +107,8 @@ public class AccountWebService implements Service {
         Optional<Long> offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
         Optional<Integer> offsetMessageId = parseOffsetMessageid(request);
         PageParams pageParams = parseEmailPageParams(request);
-        var selectedEmailId = request.queryParams().first("selectedEmailId").map(Integer::parseInt);
-        Optional<String> query = request.queryParams().first("query");
+        var selectedEmailId = request.query().first("selectedEmailId").map(Integer::parseInt);
+        Optional<String> query = request.query().first("query").map(s -> s);
         if (query.isEmpty()) {
             throw new BadRequestException("Search URL must contain 'query' parameter");
         }
@@ -135,7 +136,7 @@ public class AccountWebService implements Service {
         if (query.isPresent()) {
             context.put("currentQuery", query.get());
         }
-        response.headers().contentType(MediaType.TEXT_HTML);
+        response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, accountTemplate));
     }
 
@@ -144,15 +145,15 @@ public class AccountWebService implements Service {
         context.put("bodyclass", "accountpage");
         context.put("currentAccount", accountService.getAccount(accountId));
         context.put("accounts", accountService.getAccounts());
-        response.headers().contentType(MediaType.TEXT_HTML);
+        response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, accountWithoutFoldersTemplate));
     }
 
     private void emailCreationHandler(ServerRequest request, ServerResponse response) {
         // TODO: We create a new draft email and redirect to the composer
-        boolean redirect = Boolean.parseBoolean(request.queryParams().first("redirect").orElse("true"));
-        Optional<Integer> replyEmailId = request.queryParams().first("replyEmail").map(Integer::valueOf);
-        Optional<Integer> forwardEmailId = request.queryParams().first("forwardEmail").map(Integer::valueOf);
+        boolean redirect = Boolean.parseBoolean(request.query().first("redirect").orElse("true"));
+        Optional<Integer> replyEmailId = request.query().first("replyEmail").map(Integer::valueOf);
+        Optional<Integer> forwardEmailId = request.query().first("forwardEmail").map(Integer::valueOf);
         int newEmailId = replyEmailId.isPresent() ? 100 : forwardEmailId.isPresent() ? 200 : 42;
         // a client can post a request for a new email with or without a redirect. In the latter case we return the
         // composer location as the result and the client has to take care of going there himself

@@ -1,61 +1,58 @@
 package net.aggregat4.quicksand;
 
-import io.helidon.webclient.WebClient;
 import io.helidon.webserver.WebServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MainTest {
 
     private static WebServer webServer;
-    private static WebClient webClient;
+    private static HttpClient httpClient;
 
     @BeforeAll
     static void startTheServer() throws IOException {
         Files.deleteIfExists(Path.of("target/test-db/quicksand.sqlite"));
-        webServer = Main.startServer().await();
+        webServer = Main.startServer();
 
-        webClient = WebClient.builder()
-                .baseUri("http://localhost:" + webServer.port())
-                .build();
+        httpClient = HttpClient.newHttpClient();
     }
 
     @AfterAll
-    static void stopServer() throws ExecutionException, InterruptedException, TimeoutException {
+    static void stopServer() {
         if (webServer != null) {
-            webServer.shutdown()
-                    .toCompletableFuture()
-                    .get(10, TimeUnit.SECONDS);
+            webServer.stop();
         }
     }
 
     @Test
-    void homePageRenders() {
-        String response = webClient.get()
-                .path("/")
-                .request(String.class)
-                .await();
+    void homePageRenders() throws IOException, InterruptedException {
+        String response = get("/");
         assertTrue(response.contains("Quicksand E-Mail Home"));
         assertTrue(response.contains("Hello World!"));
     }
 
     @Test
-    void accountPageRendersWithoutFoldersWhenSyncIsDisabled() {
-        String response = webClient.get()
-                .path("/accounts/1")
-                .request(String.class)
-                .await();
+    void accountPageRendersWithoutFoldersWhenSyncIsDisabled() throws IOException, InterruptedException {
+        String response = get("/accounts/1");
         assertTrue(response.contains("Greenmail Test Account"));
         assertTrue(response.contains("This account has no folders."));
+    }
+
+    private static String get(String path) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME) + path))
+                .GET()
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
     }
 }

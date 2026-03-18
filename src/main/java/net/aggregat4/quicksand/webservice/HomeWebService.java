@@ -1,11 +1,11 @@
 package net.aggregat4.quicksand.webservice;
 
+import io.helidon.http.HttpMediaType;
 import io.pebbletemplates.pebble.template.PebbleTemplate;
-import io.helidon.common.http.MediaType;
-import io.helidon.webserver.Routing;
-import io.helidon.webserver.ServerRequest;
-import io.helidon.webserver.ServerResponse;
-import io.helidon.webserver.Service;
+import io.helidon.webserver.http.HttpRules;
+import io.helidon.webserver.http.HttpService;
+import io.helidon.webserver.http.ServerRequest;
+import io.helidon.webserver.http.ServerResponse;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import net.aggregat4.quicksand.service.AccountService;
@@ -13,7 +13,8 @@ import net.aggregat4.quicksand.service.AccountService;
 import java.util.HashMap;
 import java.util.Map;
 
-public class HomeWebService implements Service {
+public class HomeWebService implements HttpService {
+    private static final HttpMediaType TEXT_HTML = HttpMediaType.create("text/html; charset=UTF-8");
 
     private static final PebbleTemplate homeTemplate = PebbleConfig.getEngine().getTemplate("templates/home.peb");
 
@@ -24,7 +25,7 @@ public class HomeWebService implements Service {
     }
 
     @Override
-    public void update(Routing.Rules rules) {
+    public void routing(HttpRules rules) {
         rules.get("/", this::getHomeHandler);
     }
 
@@ -32,7 +33,7 @@ public class HomeWebService implements Service {
         Map<String, Object> context = new HashMap<>();
         context.put("bodyclass", "homepage");
         context.put("accounts", accountService.getAccounts());
-        response.headers().contentType(MediaType.TEXT_HTML);
+        response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, homeTemplate));
     }
 

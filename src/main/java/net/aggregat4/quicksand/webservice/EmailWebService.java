@@ -1,14 +1,14 @@
 package net.aggregat4.quicksand.webservice;
 
+import io.helidon.http.BadRequestException;
+import io.helidon.http.HttpMediaType;
+import io.helidon.http.media.multipart.MultiPart;
+import io.helidon.http.media.multipart.ReadablePart;
 import io.pebbletemplates.pebble.template.PebbleTemplate;
-import io.helidon.common.http.FormParams;
-import io.helidon.common.http.MediaType;
-import io.helidon.media.multipart.ReadableBodyPart;
-import io.helidon.webserver.BadRequestException;
-import io.helidon.webserver.Routing;
-import io.helidon.webserver.ServerRequest;
-import io.helidon.webserver.ServerResponse;
-import io.helidon.webserver.Service;
+import io.helidon.webserver.http.HttpRules;
+import io.helidon.webserver.http.HttpService;
+import io.helidon.webserver.http.ServerRequest;
+import io.helidon.webserver.http.ServerResponse;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
@@ -29,7 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class EmailWebService implements Service {
+public class EmailWebService implements HttpService {
+    private static final HttpMediaType TEXT_HTML = HttpMediaType.create("text/html; charset=UTF-8");
 
     private static final PebbleTemplate emailViewerTemplate =
             PebbleConfig.getEngine().getTemplate("templates/emailviewer.peb");
@@ -59,7 +60,7 @@ public class EmailWebService implements Service {
             .toFactory();
 
     @Override
-    public void update(Routing.Rules rules) {
+    public void routing(HttpRules rules) {
         // NOTE: using a subresource to distinguish between a viewer and a composer view type. This should theoretically
         // be something like an accept header but I couldn't be bothered
         rules.get("/{emailId}/viewer", this::emailHandler);
@@ -81,7 +82,7 @@ public class EmailWebService implements Service {
             context.put("email", MockEmailData.HTML_EMAIL);
         }
         // TODO: we should if-last modified here so we can instruct the browser to use the cached version as long we did not restart the program
-        response.headers().contentType(MediaType.TEXT_HTML);
+        response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, emailViewerTemplate));
     }
 
@@ -106,30 +107,29 @@ public class EmailWebService implements Service {
         } else {
             HtmlSanitizer.sanitize(MockEmailData.HTML_EMAIL_BODY, NO_IMAGES_POLICY.apply(renderer));
         }
-        response.headers().contentType(MediaType.TEXT_HTML);
+        response.headers().contentType(TEXT_HTML);
         ResponseUtils.setCacheControlImmutable(response);
         response.send(sw.toString());
     }
 
     private static boolean getShowImagesParam(ServerRequest request) {
-        return Boolean.parseBoolean(request.queryParams().computeSingleIfAbsent("showImages", (key) -> "false").iterator().next());
+        return Boolean.parseBoolean(request.query().first("showImages").orElse("false"));
     }
 
     private void emailActionHandler(ServerRequest request, ServerResponse response) {
-        request.content().as(FormParams.class).thenAccept(fp -> {
-            var action = "undefined";
-            for (Map.Entry<String, List<String>> param : fp.toMap().entrySet()) {
-                if (param.getKey().startsWith("email_action_")) {
-                    action = param.getKey();
-                }
+        Map<String, List<String>> formParams = request.content().as(new io.helidon.common.GenericType<Map<String, List<String>>>() {});
+        var action = "undefined";
+        for (Map.Entry<String, List<String>> param : formParams.entrySet()) {
+            if (param.getKey().startsWith("email_action_")) {
+                action = param.getKey();
             }
-            List<String> selectionIds = fp.all("email_select");
-            System.out.printf("Selection action %s for emails %s%n", action, selectionIds.toString());
-            // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local applications
-            // it is no problem
-            URI location = request.headers().referer().orElse(URI.create("/"));
-            ResponseUtils.redirectAfterPost(response, location);
-        });
+        }
+        List<String> selectionIds = formParams.getOrDefault("email_select", Collections.emptyList());
+        System.out.printf("Selection action %s for emails %s%n", action, selectionIds.toString());
+        // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local applications
+        // it is no problem
+        URI location = request.headers().referer().orElse(URI.create("/"));
+        ResponseUtils.redirectAfterPost(response, location);
     }
 
     private void emailComposerHandler(ServerRequest request, ServerResponse response) {
@@ -137,11 +137,11 @@ public class EmailWebService implements Service {
         Email email = loadEmail(emailId);
         Map<String, Object> context = new HashMap<>();
         context.put("email", email);
-        Optional<String> validationErrors = request.queryParams().first("validationErrors");
+        Optional<String> validationErrors = request.query().first("validationErrors").map(s -> s);
         if (validationErrors.isPresent()) {
             context.put("validationErrors", validationErrors.get());
         }
-        response.headers().contentType(MediaType.TEXT_HTML);
+        response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, emailComposerTemplate));
     }
 
@@ -159,48 +159,47 @@ public class EmailWebService implements Service {
     private void emailSendOrDeleteHandler(ServerRequest request, ServerResponse response) {
         int emailId = RequestUtils.intPathParam(request, "emailId");
         Map<String, String> params = new HashMap<>();
-        request.content().asStream(ReadableBodyPart.class).forEach(part -> {
+        MultiPart multiPart = request.content().as(MultiPart.GENERIC_TYPE);
+        while (multiPart.hasNext()) {
+            ReadablePart part = multiPart.next();
             if (part.name().equals("uploaded-file")) {
                 // TODO: save actual files somewhere and track that list here
-                params.put("uploaded-file", params.get("uploaded-file") + ", " + part.filename());
-                // When not consuming parts, we need to drain them
-                part.drain();
+                params.merge(
+                        "uploaded-file",
+                        part.fileName().orElse(""),
+                        (current, next) -> current == null || current.isBlank() ? next : current + ", " + next);
+                part.consume();
             } else {
-                part.content().as(String.class).thenAccept(s -> {
-                    params.put(part.name(), s);
-                });
+                params.put(part.name(), part.as(String.class));
             }
-        }).onError(throwable -> {
-            // error handling
-        }).onComplete(() -> {
-            // send response
-            var shouldSendEmail = params.containsKey("email-action-send");
-            var shouldDeleteEmail = params.containsKey("email-action-delete");
-            if ((!shouldDeleteEmail && !shouldSendEmail) || (shouldDeleteEmail && shouldSendEmail)) {
-                throw new BadRequestException("Posting to a concrete email requires either the delete or send action");
-            }
-            System.out.printf("Action '%s' for email %s%n", shouldDeleteEmail ? "delete" : "send", emailId);
-            // validate
-            List<String> validationErrors = new ArrayList<>();
-            if (isEmpty(params.get("email-to"))) {
-                validationErrors.add("Missing 'To' field");
-            }
-            if (isEmpty(params.get("email-subject")) && isEmpty(params.get("email-body"))) {
-                validationErrors.add("Require at least a 'Subject' or a 'Body'");
-            }
-            System.out.println("The following files were uploaded: " + params.get("uploaded-file"));
-            if (! validationErrors.isEmpty()) {
-                redirectWithValidationErrors(emailId, String.join(" ", validationErrors), response);
-            } else {
-                // queue email for sending and signal frontend that we were successfull
-                ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/queued".formatted(emailId)));
-            }
-        }).ignoreElement();
+        }
+
+        var shouldSendEmail = params.containsKey("email-action-send");
+        var shouldDeleteEmail = params.containsKey("email-action-delete");
+        if ((!shouldDeleteEmail && !shouldSendEmail) || (shouldDeleteEmail && shouldSendEmail)) {
+            throw new BadRequestException("Posting to a concrete email requires either the delete or send action");
+        }
+        System.out.printf("Action '%s' for email %s%n", shouldDeleteEmail ? "delete" : "send", emailId);
+        // validate
+        List<String> validationErrors = new ArrayList<>();
+        if (isEmpty(params.get("email-to"))) {
+            validationErrors.add("Missing 'To' field");
+        }
+        if (isEmpty(params.get("email-subject")) && isEmpty(params.get("email-body"))) {
+            validationErrors.add("Require at least a 'Subject' or a 'Body'");
+        }
+        System.out.println("The following files were uploaded: " + params.get("uploaded-file"));
+        if (!validationErrors.isEmpty()) {
+            redirectWithValidationErrors(emailId, String.join(" ", validationErrors), response);
+        } else {
+            // queue email for sending and signal frontend that we were successfull
+            ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/queued".formatted(emailId)));
+        }
     }
 
     private void emailQueued(ServerRequest request, ServerResponse response) {
         // TODO: we should if-last modified here so we can instruct the browser to use the cached version as long we did not restart the program
-        response.headers().contentType(MediaType.TEXT_HTML);
+        response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(Collections.emptyMap(), emailQueuedTemplate));
     }
 

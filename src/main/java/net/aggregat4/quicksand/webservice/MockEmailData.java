@@ -1,5 +1,6 @@
 package net.aggregat4.quicksand.webservice;
 
+import io.helidon.http.HttpMediaType;
 import net.aggregat4.quicksand.domain.Actor;
 import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Attachment;
@@ -12,8 +13,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
-import io.helidon.common.http.MediaType;
 
 public class MockEmailData {
     public static final Actor ACCOUNT1_OWNER = new Actor(ActorType.SENDER, "me@example.com", Optional.of("me"));
@@ -29,7 +28,7 @@ public class MockEmailData {
     public static final String EMAIL2_SUBJECT = "Foo du fafa";
     public static final ZonedDateTime EMAIL2_RECEIVEDDATE = ZonedDateTime.now().minus(3, ChronoUnit.MINUTES);
     public static final ZonedDateTime EMAIL2_SENTDATE = ZonedDateTime.now().minus(13, ChronoUnit.MINUTES);
-    static final Attachment ATTACHMENT1 = new Attachment(1, "sounds and music.mp3", 43534555, MediaType.builder().type("audio").subtype("mpeg").build());
+    static final Attachment ATTACHMENT1 = new Attachment(1, "sounds and music.mp3", 43534555, HttpMediaType.create("audio/mpeg"));
      static final String sampleMp3Resource = "/sample-3s.mp3";
     static final Email PLAINTEXT_EMAIL = new Email(
             new EmailHeader(
