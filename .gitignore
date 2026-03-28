@@ -1,4 +1,7 @@
 target/
+node_modules/
+playwright-report/
+test-results/
 
 ### IntelliJ IDEA ###
 .idea
