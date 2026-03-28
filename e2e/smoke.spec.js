@@ -78,6 +78,8 @@ test('account browsing and paging stay consistent for inbox', async ({ page }) =
 
   await expect(page).toHaveURL(/offsetReceivedTimestamp=/);
   await expect(page.locator('#messagelist a.emailheader')).toHaveCount(20);
+  await expect(page.locator('#pagination-status')).toContainText('older than');
+  await expect(page.locator('#pagination-status')).not.toContainText(/\b\d{10}\b/);
   const nextPageSubjects = await page.locator('#messagelist .subjectline').evaluateAll(nodes =>
     nodes.map(node => node.textContent?.trim() ?? '')
   );

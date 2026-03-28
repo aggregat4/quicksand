@@ -43,8 +43,8 @@
                     <div id="pagination-status">
                         {{ emailGroupPage.pagination().pageParams().isAscending() ? 'Oldest' : 'Newest' }}
                         {{ emailGroupPage.getNofMessages() }} messages
-                        {% if emailGroupPage.pagination().receivedDateOffsetInSeconds.isPresent() %}
-                            {{  emailGroupPage.pagination().pageParams().getOffsetComparator() }} than {{ emailGroupPage.pagination().receivedDateOffsetInSeconds.get() }}
+                        {% if emailGroupPage.pagination().formattedReceivedDateOffset().isPresent() %}
+                            {{  emailGroupPage.pagination().pageParams().getOffsetComparator() }} than {{ emailGroupPage.pagination().formattedReceivedDateOffset().get() }}
                         {% endif %}
                         {% if emailGroupPage.pagination().totalMessageCount().isPresent() %}
                           of {{ emailGroupPage.pagination().totalMessageCount().get() }}
