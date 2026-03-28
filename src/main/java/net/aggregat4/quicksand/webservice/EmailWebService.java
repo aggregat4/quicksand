@@ -16,6 +16,8 @@ import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.HtmlSanitizer;
 import org.owasp.html.HtmlStreamRenderer;
 import org.owasp.html.PolicyFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedWriter;
 import java.io.StringWriter;
@@ -31,6 +33,7 @@ import java.util.Optional;
 
 public class EmailWebService implements HttpService {
     private static final HttpMediaType TEXT_HTML = HttpMediaType.create("text/html; charset=UTF-8");
+    private static final Logger LOGGER = LoggerFactory.getLogger(EmailWebService.class);
 
     private static final PebbleTemplate emailViewerTemplate =
             PebbleConfig.getEngine().getTemplate("templates/emailviewer.peb");
@@ -125,7 +128,7 @@ public class EmailWebService implements HttpService {
             }
         }
         List<String> selectionIds = formParams.getOrDefault("email_select", Collections.emptyList());
-        System.out.printf("Selection action %s for emails %s%n", action, selectionIds.toString());
+        LOGGER.info("Selection action {} for emails {}", action, selectionIds);
         // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local applications
         // it is no problem
         URI location = request.headers().referer().orElse(URI.create("/"));
@@ -179,7 +182,7 @@ public class EmailWebService implements HttpService {
         if ((!shouldDeleteEmail && !shouldSendEmail) || (shouldDeleteEmail && shouldSendEmail)) {
             throw new BadRequestException("Posting to a concrete email requires either the delete or send action");
         }
-        System.out.printf("Action '%s' for email %s%n", shouldDeleteEmail ? "delete" : "send", emailId);
+        LOGGER.info("Action '{}' for email {}", shouldDeleteEmail ? "delete" : "send", emailId);
         // validate
         List<String> validationErrors = new ArrayList<>();
         if (isEmpty(params.get("email-to"))) {
@@ -188,7 +191,7 @@ public class EmailWebService implements HttpService {
         if (isEmpty(params.get("email-subject")) && isEmpty(params.get("email-body"))) {
             validationErrors.add("Require at least a 'Subject' or a 'Body'");
         }
-        System.out.println("The following files were uploaded: " + params.get("uploaded-file"));
+        LOGGER.debug("Uploaded files: {}", params.get("uploaded-file"));
         if (!validationErrors.isEmpty()) {
             redirectWithValidationErrors(emailId, String.join(" ", validationErrors), response);
         } else {
@@ -214,7 +217,7 @@ public class EmailWebService implements HttpService {
     }
 
     private boolean isEmpty(String value) {
-        return value == null || value.trim().equals("");
+        return value == null || value.isBlank();
     }
 
 }

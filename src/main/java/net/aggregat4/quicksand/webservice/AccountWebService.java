@@ -65,10 +65,11 @@ public class AccountWebService implements HttpService {
         List<NamedFolder> folders = folderService.getFolders(accountId);
         PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
         if (! folders.isEmpty()) {
-            EmailPage emailPage = emailService.getMessages(accountId, folders.get(0).id(), Long.MAX_VALUE, Integer.MAX_VALUE, pageParams.pageDirection(), pageParams.sortOrder());
-            int messageCount = emailService.getMessageCount(accountId, folders.get(0).id());
+            NamedFolder firstFolder = folders.getFirst();
+            EmailPage emailPage = emailService.getMessages(accountId, firstFolder.id(), Long.MAX_VALUE, Integer.MAX_VALUE, pageParams.pageDirection(), pageParams.sortOrder());
+            int messageCount = emailService.getMessageCount(accountId, firstFolder.id());
             Pagination pagination = new Pagination(Optional.empty(), Optional.empty(), pageParams, PAGE_SIZE, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
-            renderAccount(response, accountId, folders.get(0), emailPage, pagination, Optional.empty(), Optional.empty());
+            renderAccount(response, accountId, firstFolder, emailPage, pagination, Optional.empty(), Optional.empty());
         } else {
             renderAccountWithoutFolders(response, accountId);
         }

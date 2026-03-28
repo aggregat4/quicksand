@@ -27,6 +27,8 @@ import net.aggregat4.quicksand.webservice.EmailWebService;
 import net.aggregat4.quicksand.webservice.HomeWebService;
 import org.sqlite.SQLiteConfig;
 import org.sqlite.SQLiteOpenMode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -37,6 +39,7 @@ import java.nio.file.Paths;
 import java.util.List;
 
 public final class Main {
+    private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
 
     private static MailFetcher mailFetcher;
     private static GreenMail greenMail;
@@ -71,7 +74,7 @@ public final class Main {
             mailFetcher = new MailFetcher(accountRepository, fetchPeriodInSeconds, folderRepository, messageRepository);
             mailFetcher.start();
         } else if (mailFetcherEnabled) {
-            System.out.println("Mail fetcher was enabled, but no accounts are configured. Skipping startup.");
+            LOGGER.info("Mail fetcher was enabled, but no accounts are configured. Skipping startup.");
         }
 
         FolderService folderService = new FolderService(folderRepository);
@@ -93,7 +96,7 @@ public final class Main {
                 .build();
 
         WebServer webServer = server.start();
-        System.out.println("WEB server is up! http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME) + "/");
+        LOGGER.info("Web server is up at http://localhost:{}/", webServer.port(WebServer.DEFAULT_SOCKET_NAME));
 
         return webServer;
     }
@@ -115,7 +118,6 @@ public final class Main {
      * already in it.
      */
     private static void bootstrapAccounts(List<Account> accounts, DbAccountRepository accountRepository) {
-        System.out.println(accounts);
         for (Account account : accounts) {
             accountRepository.createAccountIfNew(account);
         }

@@ -2,6 +2,7 @@ package net.aggregat4.quicksand.jobs;
 
 import org.eclipse.angus.mail.imap.IMAPFolder;
 import org.eclipse.angus.mail.imap.IMAPMessage;
+import jakarta.mail.Address;
 import jakarta.mail.FetchProfile;
 import jakarta.mail.Flags;
 import jakarta.mail.Folder;
@@ -75,8 +76,9 @@ public class ImapStoreSync {
      * - There are more efficient ways to sync using QRESYNC and CONDSTORE that we definitely need to implement
      */
     private static void syncImapFolder(NamedFolder localFolder, Folder remoteFolder, EmailRepository messageRepository) throws MessagingException {
-        assert (remoteFolder instanceof IMAPFolder);
-        IMAPFolder imapFolder = (IMAPFolder) remoteFolder;
+        if (!(remoteFolder instanceof IMAPFolder imapFolder)) {
+            throw new IllegalStateException("Expected IMAPFolder but got " + remoteFolder.getClass().getName());
+        }
         imapFolder.open(Folder.READ_ONLY);
         naiveFolderSync(localFolder, imapFolder, messageRepository);
 //        try {
@@ -145,9 +147,8 @@ public class ImapStoreSync {
         IMAPMessage[] messageToDownloadArray = messagesToDownload.toArray(new IMAPMessage[0]);
         imapFolder.fetch(messageToDownloadArray, newMessageProfile);
         for (IMAPMessage newMessage : messagesToDownload) {
-            InternetAddress sender = (InternetAddress) newMessage.getSender();
             List<Actor> actors = getActorsForImapMessage(newMessage);
-            actors.addAll(mapRecipientsToActors(new InternetAddress[]{sender}, ActorType.SENDER));
+            addSenderIfPresent(newMessage, actors);
             ZonedDateTime sentDateTime = ZonedDateTime.ofInstant(newMessage.getSentDate().toInstant(), ZoneId.systemDefault());
             ZonedDateTime receivedDateTime = ZonedDateTime.ofInstant(newMessage.getReceivedDate().toInstant(), ZoneId.systemDefault());
             Email newEmail = new Email(
@@ -173,12 +174,25 @@ public class ImapStoreSync {
         }
     }
 
+    private static void addSenderIfPresent(IMAPMessage message, List<Actor> actors) throws MessagingException {
+        var sender = message.getSender();
+        if (sender instanceof InternetAddress internetAddress) {
+            actors.addAll(mapRecipientsToActors(new InternetAddress[]{internetAddress}, ActorType.SENDER));
+            return;
+        }
+
+        InternetAddress[] fromAddresses = toInternetAddresses(message.getFrom());
+        if (fromAddresses.length > 0) {
+            actors.addAll(mapRecipientsToActors(fromAddresses, ActorType.SENDER));
+        }
+    }
+
     private static List<Actor> getActorsForImapMessage(IMAPMessage msg) throws MessagingException {
         InternetAddress[] toRecipients = (InternetAddress[]) msg.getRecipients(Message.RecipientType.TO);
-        // NOTE: this assumes that there is always at least one TO recipient, I am not sure that this is an invariant that
-        // the API guarantees
-        assert(toRecipients != null);
-        List<Actor> actors = new ArrayList<>(mapRecipientsToActors(toRecipients, ActorType.TO));
+        List<Actor> actors = new ArrayList<>();
+        if (toRecipients != null) {
+            actors.addAll(mapRecipientsToActors(toRecipients, ActorType.TO));
+        }
         InternetAddress[] ccRecipients = (InternetAddress[]) msg.getRecipients(Message.RecipientType.CC);
         if (ccRecipients != null) {
             actors.addAll(mapRecipientsToActors(ccRecipients, ActorType.CC));
@@ -196,6 +210,16 @@ public class ImapStoreSync {
             actors.add(new Actor(type, recipient.getAddress(), Optional.ofNullable(recipient.getPersonal())));
         }
         return actors;
+    }
+
+    private static InternetAddress[] toInternetAddresses(Address[] addresses) {
+        if (addresses == null) {
+            return new InternetAddress[0];
+        }
+        return java.util.Arrays.stream(addresses)
+                .filter(InternetAddress.class::isInstance)
+                .map(InternetAddress.class::cast)
+                .toArray(InternetAddress[]::new);
     }
 
 }

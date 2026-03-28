@@ -12,21 +12,22 @@ public record EmailGroupPage(List<EmailGroup> groups, Pagination pagination) {
         if (groups.isEmpty()) {
             return Optional.empty();
         }
-        if (groups.get(0).headers().isEmpty()) {
+        EmailGroup firstGroup = groups.getFirst();
+        if (firstGroup.headers().isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(groups.get(0).headers().get(0));
+        return Optional.of(firstGroup.headers().getFirst());
     }
 
     public Optional<EmailHeader> getLastEmailHeader() {
         if (groups.isEmpty()) {
             return Optional.empty();
         }
-        EmailGroup lastGroup = groups.get(groups.size() - 1);
+        EmailGroup lastGroup = groups.getLast();
         if (lastGroup.headers().isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(lastGroup.headers().get(lastGroup.headers().size() - 1));
+        return Optional.of(lastGroup.headers().getLast());
     }
 
 }

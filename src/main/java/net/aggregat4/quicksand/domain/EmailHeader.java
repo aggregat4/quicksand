@@ -19,23 +19,23 @@ public record EmailHeader(
         boolean starred,
         boolean attachment,
         boolean read) {
-    private static DateTimeFormatter currentYearFormatter = DateTimeFormatter.ofPattern("dd LLL");
-    private static DateTimeFormatter longDateFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM);
+    private static final DateTimeFormatter CURRENT_YEAR_FORMATTER = DateTimeFormatter.ofPattern("dd LLL");
+    private static final DateTimeFormatter LONG_DATE_FORMATTER = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM);
 
     public String shortFormattedReceivedDate() {
-        return currentYearFormatter.format(receivedDateTime.toLocalDate());
+        return CURRENT_YEAR_FORMATTER.format(receivedDateTime.toLocalDate());
     }
 
     public String longFormattedReceivedDate() {
-        return longDateFormatter.format(receivedDateTime.toLocalDateTime());
+        return LONG_DATE_FORMATTER.format(receivedDateTime.toLocalDateTime());
     }
 
     public String shortFormattedSentDate() {
-        return currentYearFormatter.format(sentDateTime.toLocalDate());
+        return CURRENT_YEAR_FORMATTER.format(sentDateTime.toLocalDate());
     }
 
     public String longFormattedSentDate() {
-        return longDateFormatter.format(sentDateTime.toLocalDateTime());
+        return LONG_DATE_FORMATTER.format(sentDateTime.toLocalDateTime());
     }
 
     @Override
@@ -56,10 +56,13 @@ public record EmailHeader(
 
     public Actor getSender() {
         List<Actor> senders = getActors(ActorType.SENDER);
-        if (senders.isEmpty()) {
-            throw new IllegalStateException("We expect there to always be a sender for an email");
+        if (!senders.isEmpty()) {
+            return senders.getFirst();
         }
-        return senders.get(0);
+        if (!actors.isEmpty()) {
+            return actors.getFirst();
+        }
+        return new Actor(ActorType.SENDER, "unknown@invalid", java.util.Optional.of("Unknown sender"));
     }
 
     public List<Actor> getRecipients() {

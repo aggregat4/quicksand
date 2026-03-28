@@ -5,6 +5,8 @@ import net.aggregat4.quicksand.domain.*;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,6 +15,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class MailFetcher {
+    private static final Logger LOGGER = LoggerFactory.getLogger(MailFetcher.class);
 
     private static final long INITIAL_DELAY_SECONDS = 0;
     private final long fetchPeriodInSeconds;
@@ -42,7 +45,7 @@ public class MailFetcher {
      * Package private for testing.
      */
     void fetch() {
-        System.out.println("fetching");
+        LOGGER.debug("Fetching mail for configured accounts");
         checkAndInitializeStores();
         for (Map.Entry<Account, Store> entry : accountStores.entrySet()) {
             Store store = entry.getValue();
@@ -51,12 +54,11 @@ public class MailFetcher {
                 try {
                     store.connect(account.imapHost(), account.imapPort(), account.imapUsername(), account.imapPassword());
                 } catch (MessagingException e) {
-                    // TODO: log this to our yet to be developed logging system
-                    e.printStackTrace();
+                    LOGGER.warn("Failed to connect to IMAP store for account {}", account.name(), e);
+                    continue;
                 }
-                System.out.println("New connection");
+                LOGGER.info("Opened IMAP connection for account {}", account.name());
             }
-            System.out.println("connected");
             ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
         }
     }

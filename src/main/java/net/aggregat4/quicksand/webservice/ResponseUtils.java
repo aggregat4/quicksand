@@ -14,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ResponseUtils {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ResponseUtils.class);
+
     public static void redirectAfterPost(ServerResponse response, URI location) {
         response.status(303);
         response.headers().location(location);
@@ -60,8 +62,6 @@ public class ResponseUtils {
     static void setCacheControlImmutable(ServerResponse response) {
         response.headers().add(HeaderNames.CACHE_CONTROL, "max-age=365000000, immutable");
     }
-
-    private static Logger LOGGER = LoggerFactory.getLogger(ResponseUtils.class);
 
     static Consumer<Throwable> asyncExceptionConsumer(ServerResponse response) {
         return throwable -> {

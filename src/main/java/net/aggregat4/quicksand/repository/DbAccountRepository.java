@@ -2,12 +2,15 @@ package net.aggregat4.quicksand.repository;
 
 import net.aggregat4.dblib.DbUtil;
 import net.aggregat4.quicksand.domain.Account;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.util.ArrayList;
 import java.util.List;
 
 public class DbAccountRepository {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DbAccountRepository.class);
 
     private final DataSource ds;
 
@@ -56,13 +59,12 @@ public class DbAccountRepository {
             stmt.setString(9, account.smtpPassword());
             int affectedRows = stmt.executeUpdate();
             if (affectedRows == 0) {
-                // TODO: DEBUG/INFO logging
-                System.out.println("Account %s already existed".formatted(account));
+                LOGGER.debug("Account {} already existed", account.name());
             }
         });
     }
 
-    public Object getAccount(int accountId) {
+    public Account getAccount(int accountId) {
         return DbUtil.withPreparedStmtFunction(
                 ds,
                 "SELECT * FROM accounts WHERE id = ?",
