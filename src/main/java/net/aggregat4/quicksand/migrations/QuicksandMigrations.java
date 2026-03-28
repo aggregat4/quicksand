@@ -69,13 +69,21 @@ public class QuicksandMigrations implements Migrations {
         return 2;
     };
 
+    private static final Function<Connection, Integer> v3Migration = (con) -> {
+        executeUpdate(con, "ALTER TABLE messages ADD COLUMN body TEXT");
+        executeUpdate(con, "ALTER TABLE messages ADD COLUMN plain_text INTEGER NOT NULL DEFAULT 1");
+        return 3;
+    };
+
     @Override
     public Map<Integer, Function<Connection, Integer>> getMigrations() {
-        return Map.of(2, v2Migration);
+        return Map.of(
+                2, v2Migration,
+                3, v3Migration);
     }
 
     @Override
     public int getCurrentVersion() {
-        return 2;
+        return 3;
     }
 }

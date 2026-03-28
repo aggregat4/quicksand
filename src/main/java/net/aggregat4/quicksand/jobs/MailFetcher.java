@@ -37,6 +37,10 @@ public class MailFetcher {
         this.scheduler.scheduleWithFixedDelay(this::fetch, INITIAL_DELAY_SECONDS, fetchPeriodInSeconds, TimeUnit.SECONDS);
     }
 
+    public void fetchNow() {
+        fetch();
+    }
+
     public void stop() {
         this.scheduler.shutdown();
     }

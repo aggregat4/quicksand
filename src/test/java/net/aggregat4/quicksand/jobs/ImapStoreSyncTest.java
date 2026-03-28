@@ -43,8 +43,9 @@ public class ImapStoreSyncTest {
         assertEquals(1, messageRepository.getAllMessageIds(inbox.id()).size());
         Email email = messageRepository.findByMessageUid(messageRepository.getAllMessageIds(inbox.id()).iterator().next()).orElseThrow();
         assertEquals(subject, email.header().subject());
-        assertFalse(email.header().read());
-        // TODO: body handling
+        assertTrue(email.plainText());
+        assertTrue(email.body().contains(body));
+        assertTrue(email.header().bodyExcerpt().contains(body));
         // TODO: attachment handling
         // TODO: message update handling
 

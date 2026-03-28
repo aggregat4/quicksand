@@ -58,6 +58,11 @@ public class DbEmailRepositoryTest {
         Email message = messages.emails().get(0);
         assertEquals(from, message.header().getSender().emailAddress());
         assertEquals(to, message.header().getRecipients().get(0).emailAddress());
+        Email storedMessage = emailRepository.findById(message.header().id()).orElseThrow();
+        assertTrue(storedMessage.plainText());
+        assertTrue(storedMessage.body().contains(body));
+        assertTrue(storedMessage.header().bodyExcerpt().contains(body));
+        assertTrue(emailRepository.findById(Integer.MAX_VALUE).isEmpty());
         long receivedDateTimeEpochSeconds = message.header().receivedDateTimeEpochSeconds();
         assertTrue(receivedDateTimeEpochSeconds >= startOfTestTimestamp && receivedDateTimeEpochSeconds <= startOfTestPlusOneHour, "The received timestamp shoud be less than one hour after the start of the test");
         long sentDateTimeEpochSeconds = message.header().sentDateTimeEpochSeconds();

@@ -12,6 +12,7 @@ import io.helidon.webserver.http.ServerResponse;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
+import net.aggregat4.quicksand.service.EmailService;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.HtmlSanitizer;
 import org.owasp.html.HtmlStreamRenderer;
@@ -61,6 +62,11 @@ public class EmailWebService implements HttpService {
             .allowStandardUrlProtocols()
             .allowAttributes("src", "href").globally()
             .toFactory();
+    private final EmailService emailService;
+
+    public EmailWebService(EmailService emailService) {
+        this.emailService = emailService;
+    }
 
     @Override
     public void routing(HttpRules rules) {
@@ -77,20 +83,29 @@ public class EmailWebService implements HttpService {
     private void emailHandler(ServerRequest request, ServerResponse response) {
         int emailId = RequestUtils.intPathParam(request, "emailId");
         boolean showImages = getShowImagesParam(request);
+        Optional<Email> email = emailService.getMessage(emailId);
+        if (email.isEmpty()) {
+            response.status(404);
+            response.send();
+            return;
+        }
         Map<String, Object> context = new HashMap<>();
         context.put("showImages", showImages);
-        if (emailId == 1) {
-            context.put("email", MockEmailData.PLAINTEXT_EMAIL);
-        } else {
-            context.put("email", MockEmailData.HTML_EMAIL);
-        }
+        context.put("email", email.get());
         // TODO: we should if-last modified here so we can instruct the browser to use the cached version as long we did not restart the program
         response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, emailViewerTemplate));
     }
 
     private void htmlEmailBodyHandler(ServerRequest request, ServerResponse response) {
+        int emailId = RequestUtils.intPathParam(request, "emailId");
         boolean showImages = getShowImagesParam(request);
+        Optional<Email> email = emailService.getMessage(emailId);
+        if (email.isEmpty() || email.get().plainText() || email.get().body() == null) {
+            response.status(404);
+            response.send();
+            return;
+        }
         StringWriter sw = new StringWriter();
         BufferedWriter bw = new BufferedWriter(sw);
         HtmlStreamRenderer renderer = HtmlStreamRenderer.create(
@@ -106,9 +121,9 @@ public class EmailWebService implements HttpService {
                     throw new AssertionError(x);
                 });
         if (showImages) {
-            HtmlSanitizer.sanitize(MockEmailData.HTML_EMAIL_BODY, IMAGES_POLICY.apply(renderer));
+            HtmlSanitizer.sanitize(email.get().body(), IMAGES_POLICY.apply(renderer));
         } else {
-            HtmlSanitizer.sanitize(MockEmailData.HTML_EMAIL_BODY, NO_IMAGES_POLICY.apply(renderer));
+            HtmlSanitizer.sanitize(email.get().body(), NO_IMAGES_POLICY.apply(renderer));
         }
         response.headers().contentType(TEXT_HTML);
         ResponseUtils.setCacheControlImmutable(response);

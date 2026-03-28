@@ -22,6 +22,18 @@ class InMemoryEmailRepository implements EmailRepository {
     private final Map<Integer, List<Email>> messages = new HashMap<>();
 
     @Override
+    public Optional<Email> findById(int id) {
+        for (List<Email> emails : messages.values()) {
+            for (Email email : emails) {
+                if (email.header().id() == id) {
+                    return Optional.of(email);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public Optional<Email> findByMessageUid(long uid) {
         for (List<Email> emails : messages.values()) {
             for (Email email : emails) {

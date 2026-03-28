@@ -8,6 +8,8 @@ import jakarta.mail.Flags;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
+import jakarta.mail.Multipart;
+import jakarta.mail.Part;
 import jakarta.mail.Store;
 import jakarta.mail.internet.InternetAddress;
 import net.aggregat4.quicksand.domain.Account;
@@ -25,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -42,6 +45,8 @@ import java.util.Set;
 // See https://www.rfc-editor.org/rfc/rfc4549#section-3 for a recommendation on how to sync a disconnected IMAP client
 // we can skip the client actions for now and try the server to client sync first
 public class ImapStoreSync {
+    private record StoredBody(String body, boolean plainText, String excerpt) { }
+
     public static void syncImapFolders(Account account, Store store, FolderRepository folderRepository, EmailRepository messageRepository) {
         try {
             // we filter by '*' as that seems to indicate that we want all folders not just toplevel folders
@@ -151,6 +156,7 @@ public class ImapStoreSync {
             addSenderIfPresent(newMessage, actors);
             ZonedDateTime sentDateTime = ZonedDateTime.ofInstant(newMessage.getSentDate().toInstant(), ZoneId.systemDefault());
             ZonedDateTime receivedDateTime = ZonedDateTime.ofInstant(newMessage.getReceivedDate().toInstant(), ZoneId.systemDefault());
+            StoredBody storedBody = extractStoredBody(newMessage);
             Email newEmail = new Email(
                     new EmailHeader(
                             -1,
@@ -161,17 +167,90 @@ public class ImapStoreSync {
                             sentDateTime.toEpochSecond(),
                             receivedDateTime,
                             receivedDateTime.toEpochSecond(),
-                            null /* TODO Body handling */,
+                            storedBody.excerpt(),
                             newMessage.getFlags().contains(Flags.Flag.FLAGGED),
                             false /* TODO attachment handling */,
                             newMessage.getFlags().contains(Flags.Flag.SEEN)
                     ),
-                    false /* TODO Body handling */,
-                    null /* TODO body handling */,
+                    storedBody.plainText(),
+                    storedBody.body(),
                     Collections.emptyList() /* TODO attachment handling */
             );
             emailRepository.addMessage(localFolder.id(), newEmail);
         }
+    }
+
+    private static StoredBody extractStoredBody(Part part) throws MessagingException {
+        try {
+            if (part.isMimeType("text/plain")) {
+                String body = Objects.toString(part.getContent(), "");
+                return new StoredBody(body, true, createExcerpt(body));
+            }
+            if (part.isMimeType("text/html")) {
+                String body = Objects.toString(part.getContent(), "");
+                return new StoredBody(body, false, createExcerpt(stripHtml(body)));
+            }
+            if (part.isMimeType("multipart/alternative")) {
+                return extractFromMultipart((Multipart) part.getContent(), true);
+            }
+            if (part.isMimeType("multipart/*")) {
+                return extractFromMultipart((Multipart) part.getContent(), false);
+            }
+            Object content = part.getContent();
+            if (content instanceof String text) {
+                return new StoredBody(text, true, createExcerpt(text));
+            }
+            return new StoredBody("", true, "");
+        } catch (Exception e) {
+            throw new MessagingException("Failed to extract message body", e);
+        }
+    }
+
+    private static StoredBody extractFromMultipart(Multipart multipart, boolean preferHtml) throws Exception {
+        StoredBody plainTextBody = null;
+        StoredBody htmlBody = null;
+        for (int i = 0; i < multipart.getCount(); i++) {
+            Part bodyPart = multipart.getBodyPart(i);
+            if (Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition())) {
+                continue;
+            }
+            StoredBody nestedBody = extractStoredBody(bodyPart);
+            if (nestedBody.body().isBlank()) {
+                continue;
+            }
+            if (nestedBody.plainText()) {
+                plainTextBody = plainTextBody == null ? nestedBody : plainTextBody;
+            } else {
+                htmlBody = htmlBody == null ? nestedBody : htmlBody;
+            }
+        }
+        if (preferHtml && htmlBody != null) {
+            return htmlBody;
+        }
+        if (plainTextBody != null) {
+            return plainTextBody;
+        }
+        if (htmlBody != null) {
+            return htmlBody;
+        }
+        return new StoredBody("", true, "");
+    }
+
+    private static String createExcerpt(String body) {
+        String normalized = body.replaceAll("\\s+", " ").trim();
+        if (normalized.isEmpty()) {
+            return "";
+        }
+        int excerptLength = Math.min(normalized.length(), 160);
+        return normalized.substring(0, excerptLength);
+    }
+
+    private static String stripHtml(String html) {
+        return html
+                .replaceAll("(?is)<script.*?>.*?</script>", " ")
+                .replaceAll("(?is)<style.*?>.*?</style>", " ")
+                .replaceAll("(?is)<[^>]+>", " ")
+                .replace("&nbsp;", " ");
     }
 
     private static void addSenderIfPresent(IMAPMessage message, List<Actor> actors) throws MessagingException {

@@ -11,6 +11,8 @@ import java.util.Optional;
 import java.util.Set;
 
 public interface EmailRepository {
+    Optional<Email> findById(int id);
+
     Optional<Email> findByMessageUid(long uid);
 
     void updateFlags(int id, boolean messageStarred, boolean messageRead);

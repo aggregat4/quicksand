@@ -72,6 +72,7 @@ public final class Main {
         if (mailFetcherEnabled && !accounts.isEmpty()) {
             long fetchPeriodInSeconds = config.get("mail_fetcher.period_seconds").asLong().orElse(15L);
             mailFetcher = new MailFetcher(accountRepository, fetchPeriodInSeconds, folderRepository, messageRepository);
+            mailFetcher.fetchNow();
             mailFetcher.start();
         } else if (mailFetcherEnabled) {
             LOGGER.info("Mail fetcher was enabled, but no accounts are configured. Skipping startup.");
@@ -81,7 +82,7 @@ public final class Main {
 
         HttpRouting.Builder routing = HttpRouting.builder()
                 .register("/accounts", new AccountWebService(folderService, accountService, emailService))
-                .register("/emails", new EmailWebService())
+                .register("/emails", new EmailWebService(emailService))
                 .register("/attachments", new AttachmentWebService())
                 .register("/", new HomeWebService(accountService));
 
