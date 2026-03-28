@@ -66,7 +66,7 @@ public class AccountWebService implements HttpService {
         PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
         if (! folders.isEmpty()) {
             NamedFolder firstFolder = folders.getFirst();
-            EmailPage emailPage = emailService.getMessages(accountId, firstFolder.id(), Long.MAX_VALUE, Integer.MAX_VALUE, pageParams.pageDirection(), pageParams.sortOrder());
+            EmailPage emailPage = emailService.getMessages(firstFolder.id(), PAGE_SIZE, Long.MAX_VALUE, Integer.MAX_VALUE, pageParams.pageDirection(), pageParams.sortOrder());
             int messageCount = emailService.getMessageCount(accountId, firstFolder.id());
             Pagination pagination = new Pagination(Optional.empty(), Optional.empty(), pageParams, PAGE_SIZE, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
             renderAccount(response, accountId, firstFolder, emailPage, pagination, Optional.empty(), Optional.empty());
@@ -96,11 +96,19 @@ public class AccountWebService implements HttpService {
     }
 
     private static Optional<Integer> parseOffsetMessageid(ServerRequest request) {
-        return request.query().first("offsetMessageId").map(Integer::parseInt);
+        return request.query().first("offsetMessageId")
+                .filter(AccountWebService::hasNumericValue)
+                .map(Integer::parseInt);
     }
 
     private static Optional<Long> parseOffsetReceivedTimestamp(ServerRequest request) {
-        return request.query().first("offsetReceivedTimestamp").map(Long::parseLong);
+        return request.query().first("offsetReceivedTimestamp")
+                .filter(AccountWebService::hasNumericValue)
+                .map(Long::parseLong);
+    }
+
+    private static boolean hasNumericValue(String value) {
+        return !value.isBlank() && !"null".equalsIgnoreCase(value);
     }
 
     private void getSearchHandler(ServerRequest request, ServerResponse response) {

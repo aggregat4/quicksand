@@ -62,14 +62,14 @@
                             {# FIRST PAGE #}
                             <li>{{ iconlink(baseLink + 'pageDirection=RIGHT&sortOrder=' + emailGroupPage.pagination().pageParams().getSortString(), 'Beginning', 'beginning', disabled = false, showLabel = false) }}</li>
                             {#  PREVIOUS PAGE #}
-                            {% if emailGroupPage.getFirstEmailHeader().isEmpty() %}
+                            {% if (not emailGroupPage.pagination().hasLeft()) or emailGroupPage.getFirstEmailHeader().isEmpty() %}
                                 <li>{{ iconlink(baseLink, 'Previous', 'previous', disabled = true, showLabel = false) }}</li>
                             {% else %}
-                                <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getFirstEmailHeader().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getFirstEmailHeader().id(), 'Previous', 'previous', disabled = false, showLabel = false) }}</li>
+                                <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getFirstEmailHeader().get().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getFirstEmailHeader().get().id(), 'Previous', 'previous', disabled = false, showLabel = false) }}</li>
                             {% endif %}
                             {# NEXT PAGE #}
                             {% if emailGroupPage.pagination().hasRight() and not emailGroupPage.getLastEmailHeader().isEmpty() %}
-                                <li>{{ iconlink(baseLink  + 'pageDirection=RIGHT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getLastEmailHeader().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getLastEmailHeader().id(), 'Next', 'next', disabled = true, showLabel = false) }}</li>
+                                <li>{{ iconlink(baseLink  + 'pageDirection=RIGHT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getLastEmailHeader().get().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getLastEmailHeader().get().id(), 'Next', 'next', disabled = false, showLabel = false) }}</li>
                             {% else %}
                                 <li>{{ iconlink(baseLink, 'Next', 'next', disabled = true, showLabel = false) }}</li>
                             {% endif %}
