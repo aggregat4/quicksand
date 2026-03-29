@@ -41,13 +41,14 @@
                 </dialog>
                 <div id="email-paging-controls">
                     <div id="pagination-status">
-                        {{ emailGroupPage.pagination().pageParams().isAscending() ? 'Oldest' : 'Newest' }}
-                        {{ emailGroupPage.getNofMessages() }} messages
-                        {% if emailGroupPage.pagination().formattedReceivedDateOffset().isPresent() %}
-                            {{  emailGroupPage.pagination().pageParams().getOffsetComparator() }} than {{ emailGroupPage.pagination().formattedReceivedDateOffset().get() }}
-                        {% endif %}
+                        {{ emailGroupPage.getNofMessages() }}
                         {% if emailGroupPage.pagination().totalMessageCount().isPresent() %}
-                          of {{ emailGroupPage.pagination().totalMessageCount().get() }}
+                            of {{ emailGroupPage.pagination().totalMessageCount().get() }}
+                        {% else %}
+                            messages
+                        {% endif %}
+                        {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
+                            - {{ emailGroupPage.formattedReceivedDateRange().get() }}
                         {% endif %}
                     </div>
                     <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
@@ -75,9 +76,9 @@
                             {% endif %}
                             {#  LAST PAGE #}
                             {% if emailGroupPage.pagination().pageParams().isAscending() %}{#  ASCENDING  #}
-                                <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder=ASCENDING&offsetReceivedTimestamp=' + Long.MAX_VALUE, 'End', 'end', disabled = false, showLabel = false) }}</li>
+                                <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&sortOrder=ASCENDING&offsetReceivedTimestamp=' + Long.MAX_VALUE, 'End', 'end', disabled = false, showLabel = false) }}</li>
                             {% else %}{#  DESCENDING  #}
-                                <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder=DESCENDING&offsetReceivedTimestamp=0', 'End', 'end', disabled = false, showLabel = false) }}</li>
+                                <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&sortOrder=DESCENDING&offsetReceivedTimestamp=0', 'End', 'end', disabled = false, showLabel = false) }}</li>
                             {% endif %}
                         </ul>
                     </nav>

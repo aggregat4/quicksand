@@ -66,7 +66,13 @@ public class AccountWebService implements HttpService {
         PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
         if (! folders.isEmpty()) {
             NamedFolder firstFolder = folders.getFirst();
-            EmailPage emailPage = emailService.getMessages(firstFolder.id(), PAGE_SIZE, Long.MAX_VALUE, Integer.MAX_VALUE, pageParams.pageDirection(), pageParams.sortOrder());
+            EmailPage emailPage = emailService.getMessages(
+                    firstFolder.id(),
+                    PAGE_SIZE,
+                    defaultOffsetReceivedTimestamp(pageParams),
+                    defaultOffsetMessageId(pageParams),
+                    pageParams.pageDirection(),
+                    pageParams.sortOrder());
             int messageCount = emailService.getMessageCount(accountId, firstFolder.id());
             Pagination pagination = new Pagination(Optional.empty(), Optional.empty(), pageParams, PAGE_SIZE, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
             renderAccount(response, accountId, firstFolder, emailPage, pagination, Optional.empty(), Optional.empty());
@@ -83,9 +89,16 @@ public class AccountWebService implements HttpService {
         PageParams pageParams = parseEmailPageParams(request);
         var selectedEmailId = request.query().first("selectedEmailId").map(Integer::parseInt);
         NamedFolder folder = findFolder(folderId);
-        EmailPage emailPage = emailService.getMessages(folder.id(), PAGE_SIZE, offsetReceivedTimestamp.orElse(Long.MAX_VALUE), offsetMessageId.orElse(Integer.MAX_VALUE), pageParams.pageDirection(), pageParams.sortOrder());
         int messageCount = emailService.getMessageCount(accountId, folder.id());
-        Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, PAGE_SIZE, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
+        int effectivePageSize = isEndJump(request) ? terminalPageSize(messageCount) : PAGE_SIZE;
+        EmailPage emailPage = emailService.getMessages(
+                folder.id(),
+                effectivePageSize,
+                offsetReceivedTimestamp.orElse(defaultOffsetReceivedTimestamp(pageParams)),
+                offsetMessageId.orElse(defaultOffsetMessageId(pageParams)),
+                pageParams.pageDirection(),
+                pageParams.sortOrder());
+        Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, effectivePageSize, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
         renderAccount(response, accountId, folder, emailPage, pagination, selectedEmailId, Optional.empty());
     }
 
@@ -111,6 +124,34 @@ public class AccountWebService implements HttpService {
         return !value.isBlank() && !"null".equalsIgnoreCase(value);
     }
 
+    private static boolean isEndJump(ServerRequest request) {
+        return request.query().first("pagePosition")
+                .map("END"::equals)
+                .orElse(false);
+    }
+
+    private static int terminalPageSize(int totalMessageCount) {
+        if (totalMessageCount == 0) {
+            return PAGE_SIZE;
+        }
+        int remainder = totalMessageCount % PAGE_SIZE;
+        return remainder == 0 ? PAGE_SIZE : remainder;
+    }
+
+    private static long defaultOffsetReceivedTimestamp(PageParams pageParams) {
+        return switch (pageParams.sortOrder()) {
+            case DESCENDING -> pageParams.pageDirection() == PageDirection.RIGHT ? Long.MAX_VALUE : 0L;
+            case ASCENDING -> pageParams.pageDirection() == PageDirection.RIGHT ? 0L : Long.MAX_VALUE;
+        };
+    }
+
+    private static int defaultOffsetMessageId(PageParams pageParams) {
+        return switch (pageParams.sortOrder()) {
+            case DESCENDING -> pageParams.pageDirection() == PageDirection.RIGHT ? Integer.MAX_VALUE : 0;
+            case ASCENDING -> pageParams.pageDirection() == PageDirection.RIGHT ? 0 : Integer.MAX_VALUE;
+        };
+    }
+
     private void getSearchHandler(ServerRequest request, ServerResponse response) {
         int accountId = RequestUtils.intPathParam(request, "accountId");
         Optional<Long> offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
@@ -130,7 +171,9 @@ public class AccountWebService implements HttpService {
     private void renderAccount(ServerResponse response, int accountId, Folder folder, EmailPage emailPage, Pagination pagination, Optional<Integer> selectedEmailId, Optional<String> query) {
         // TODO: figure out
         List<EmailHeader> emailHeaders = emailPage.emails().stream().map(Email::header).toList();
-        List<EmailGroup> emailGroups = query.isPresent() ? EmailGroup.createNoGroupEmailgroup(emailHeaders) : EmailGroup.createEmailGroups(emailHeaders);
+        List<EmailGroup> emailGroups = query.isPresent()
+                ? EmailGroup.createNoGroupEmailgroup(emailHeaders)
+                : EmailGroup.createEmailGroups(emailHeaders);
         EmailGroupPage emailGroupPage = new EmailGroupPage(emailGroups, pagination);
         Map<String, Object> context = new HashMap<>();
         context.put("bodyclass", "accountpage");

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.Set;
 
 import static net.aggregat4.quicksand.repository.DatabaseMaintenance.migrateDb;
 import static org.junit.jupiter.api.Assertions.*;
@@ -81,5 +82,8 @@ public class DbEmailRepositoryTest {
         assertEquals(3, messages.emails().size());
         assertTrue(messages.hasLeft());
         assertFalse(messages.hasRight());
+
+        emailRepository.removeAllByUid(Set.of(message.header().imapUid()));
+        assertTrue(emailRepository.findByMessageUid(message.header().imapUid()).isEmpty());
     }
 }

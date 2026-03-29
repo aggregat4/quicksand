@@ -192,8 +192,8 @@ public class DbEmailRepository implements EmailRepository {
         return DbUtil.withPreparedStmtFunction(ds, """
                 SELECT %s
                 FROM messages
-                WHERE folder_id = ? AND (received_date_epoch_s, id) %s (?, ?) ORDER BY received_date_epoch_s, id %s LIMIT ?
-                """.formatted(MESSAGE_HEADER_COLUMNS, operatorString, orderByString), stmt -> {
+                WHERE folder_id = ? AND (received_date_epoch_s, id) %s (?, ?) ORDER BY received_date_epoch_s %s, id %s LIMIT ?
+                """.formatted(MESSAGE_HEADER_COLUMNS, operatorString, orderByString, orderByString), stmt -> {
             stmt.setInt(1, folderId);
             stmt.setLong(2, dateTimeOffsetEpochSeconds);
             stmt.setInt(3, offsetMessageId);
@@ -248,7 +248,7 @@ public class DbEmailRepository implements EmailRepository {
             throw new IllegalStateException("Only allowed to delete batches of maximally %s messages".formatted(DbEmailRepository.IN_BATCH_SIZE));
         }
         String inString = batch.stream().map(msgId -> "?").collect(Collectors.joining(", "));
-        DbUtil.withPreparedStmtConsumer(ds, "DELETE FROM messages WHERE imap_message_id IN (%s)".formatted(inString), stmt -> {
+        DbUtil.withPreparedStmtConsumer(ds, "DELETE FROM messages WHERE imap_uid IN (%s)".formatted(inString), stmt -> {
             for (int i = 0; i < batch.size(); i++) {
                 stmt.setLong(i + 1, batch.get(i));
             }
