@@ -26,6 +26,7 @@ import java.io.BufferedWriter;
 import java.io.StringWriter;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -80,6 +81,7 @@ public class EmailWebService implements HttpService {
         rules.get("/{emailId}/viewer/body", this::htmlEmailBodyHandler);
         rules.post("/selection", this::emailActionHandler);
         rules.get("/{emailId}/composer", this::emailComposerHandler);
+        rules.post("/{emailId}/draft", this::draftSaveHandler);
         rules.post("/{emailId}", this::emailSendOrDeleteHandler);
         rules.get("/{emailId}/queued", this::emailQueued);
     }
@@ -172,6 +174,25 @@ public class EmailWebService implements HttpService {
         response.send(PebbleRenderer.renderTemplate(context, emailComposerTemplate));
     }
 
+    private void draftSaveHandler(ServerRequest request, ServerResponse response) {
+        int emailId = RequestUtils.intPathParam(request, "emailId");
+        Map<String, String> formParams = parseFormEncoded(request.content().as(String.class));
+        Optional<Draft> draft = draftService.saveDraft(
+                emailId,
+                formParams.getOrDefault("email-to", ""),
+                formParams.getOrDefault("email-cc", ""),
+                formParams.getOrDefault("email-bcc", ""),
+                formParams.getOrDefault("email-subject", ""),
+                formParams.getOrDefault("email-body", ""));
+        if (draft.isEmpty()) {
+            response.status(404);
+            response.send();
+            return;
+        }
+        response.headers().contentType(TEXT_HTML);
+        response.send("<!DOCTYPE html><html><body data-save-status=\"ok\"></body></html>");
+    }
+
     /**
      * This can be a delete or a send, we validate that these actions are selected.
      */
@@ -255,6 +276,23 @@ public class EmailWebService implements HttpService {
         String relativeUrl = "/emails/%s/composer?validationErrors=%s".formatted(emailId, URLEncoder.encode(s, StandardCharsets.UTF_8));
         URI composerUri = URI.create(relativeUrl);
         ResponseUtils.redirectAfterPost(response, composerUri);
+    }
+
+    private static Map<String, String> parseFormEncoded(String body) {
+        Map<String, String> params = new HashMap<>();
+        if (body == null || body.isBlank()) {
+            return params;
+        }
+        for (String pair : body.split("&")) {
+            if (pair.isEmpty()) {
+                continue;
+            }
+            String[] keyValue = pair.split("=", 2);
+            String key = URLDecoder.decode(keyValue[0], StandardCharsets.UTF_8);
+            String value = keyValue.length > 1 ? URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8) : "";
+            params.put(key, value);
+        }
+        return params;
     }
 
     private boolean isEmpty(List<String> list) {

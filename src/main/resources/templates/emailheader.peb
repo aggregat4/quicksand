@@ -1,16 +1,18 @@
-<a href="/emails/{{ emailHeader.id }}/viewer?showImages=false"
+<a href="{% if currentFolderIsDrafts %}/emails/{{ emailHeader.id }}/composer{% else %}/emails/{{ emailHeader.id }}/viewer?showImages=false{% endif %}"
    id="email{{ emailHeader.id }}"
    class="emailheader{{ emailHeader.read ? ' read' : '' }}{{ emailActive and selectedEmailId == emailHeader.id ? ' active' : '' }}"
-    {# Clicking the link will open it in the iframe inside of the message viewer dialog #}
-   target="emailviewer"
-    {# Sadly dialogs can not be opened without javascript (or horrible CSS hacks), but at least we can close it without using javascript... #}
-   onclick="onEmailHeaderClick(event)">
-    <div class="emailselection">
-        <label>
-            <input type="checkbox" name="email_select" value="{{ emailHeader.id }}" form="selected-email-actions" onchange="onChangeEmailSelection()">
-            <span hidden>Select E-Mail</span>
-        </label>
-    </div>
+   target="{{ currentFolderIsDrafts ? 'newmailframe' : 'emailviewer' }}"
+   onclick="{{ currentFolderIsDrafts ? 'onDraftHeaderClick(event)' : 'onEmailHeaderClick(event)' }}">
+    {% if currentFolderIsDrafts %}
+        <div class="emailselection"></div>
+    {% else %}
+        <div class="emailselection">
+            <label>
+                <input type="checkbox" name="email_select" value="{{ emailHeader.id }}" form="selected-email-actions" onchange="onChangeEmailSelection()">
+                <span hidden>Select E-Mail</span>
+            </label>
+        </div>
+    {% endif %}
     <div class="fromname">{{ emailHeader.getSender().name().orElse(emailHeader.getSender().emailAddress()) | raw}}</div>
     <div class="date-and-actions">
         <span class="date">
@@ -19,16 +21,18 @@
             {% endif %}
             {{ emailHeader.shortFormattedReceivedDate }}
         </span>
-        <form class="emailactions" method="POST" action="/emails/selection">
-            <input type="text" name="email_select" value="{{ emailHeader.id }}" hidden aria-hidden="true">
-            <button class="iconbutton" type="submit" name="email_action_archive" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
-            <button class="iconbutton" type="submit" name="email_action_delete" title="Delete E-Mail" aria-label="Delete E-Mail">{{ svgIcon('delete') | raw }}</button>
-            {% if emailHeader.read %}
-                <button class="iconbutton" type="submit" name="email_action_markunread" title="Mark E-Mail Unread" aria-label="Mark E-Mail Unread">{{ svgIcon('markunread') | raw }}</button>
-                {% else %}
-                <button class="iconbutton" type="submit" name="email_action_markread" title="Mark E-Mail Read" aria-label="Mark E-Mail Read">{{ svgIcon('markread') | raw }}</button>
-            {% endif %}
-        </form>
+        {% if not currentFolderIsDrafts %}
+            <form class="emailactions" method="POST" action="/emails/selection">
+                <input type="text" name="email_select" value="{{ emailHeader.id }}" hidden aria-hidden="true">
+                <button class="iconbutton" type="submit" name="email_action_archive" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>
+                <button class="iconbutton" type="submit" name="email_action_delete" title="Delete E-Mail" aria-label="Delete E-Mail">{{ svgIcon('delete') | raw }}</button>
+                {% if emailHeader.read %}
+                    <button class="iconbutton" type="submit" name="email_action_markunread" title="Mark E-Mail Unread" aria-label="Mark E-Mail Unread">{{ svgIcon('markunread') | raw }}</button>
+                    {% else %}
+                    <button class="iconbutton" type="submit" name="email_action_markread" title="Mark E-Mail Read" aria-label="Mark E-Mail Read">{{ svgIcon('markread') | raw }}</button>
+                {% endif %}
+            </form>
+        {% endif %}
     </div>
     <div class="subjectline">
         {{ emailHeader.subject | raw}}

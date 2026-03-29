@@ -1,5 +1,6 @@
 package net.aggregat4.quicksand.domain;
 
+import java.time.ZonedDateTime;
 import java.util.Optional;
 
 public record Draft(
@@ -12,13 +13,15 @@ public record Draft(
         String bcc,
         String subject,
         String body,
-        boolean queued) {
+        boolean queued,
+        ZonedDateTime updatedAt,
+        long updatedAtEpochSeconds) {
 
-    public Draft withContent(String to, String cc, String bcc, String subject, String body) {
-        return new Draft(id, accountId, type, sourceMessageId, to, cc, bcc, subject, body, queued);
+    public Draft withContent(String to, String cc, String bcc, String subject, String body, ZonedDateTime updatedAt) {
+        return new Draft(id, accountId, type, sourceMessageId, to, cc, bcc, subject, body, queued, updatedAt, updatedAt.toEpochSecond());
     }
 
-    public Draft markQueued() {
-        return new Draft(id, accountId, type, sourceMessageId, to, cc, bcc, subject, body, true);
+    public Draft markQueued(ZonedDateTime updatedAt) {
+        return new Draft(id, accountId, type, sourceMessageId, to, cc, bcc, subject, body, true, updatedAt, updatedAt.toEpochSecond());
     }
 }

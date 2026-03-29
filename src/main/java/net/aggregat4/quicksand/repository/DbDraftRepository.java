@@ -7,9 +7,14 @@ import net.aggregat4.quicksand.domain.DraftType;
 import javax.sql.DataSource;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 public class DbDraftRepository implements DraftRepository {
+    private static final DateTimeFormatter ISO_DATE_TIME = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
     private final DataSource ds;
 
     public DbDraftRepository(DataSource ds) {
@@ -19,8 +24,8 @@ public class DbDraftRepository implements DraftRepository {
     @Override
     public Draft create(Draft draft) {
         return DbUtil.withPreparedStmtFunction(ds, """
-                INSERT INTO drafts (account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, body, queued)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO drafts (account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, body, queued, updated_at, updated_at_epoch_s)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, stmt -> {
             stmt.setInt(1, draft.accountId());
             stmt.setString(2, draft.type().name());
@@ -35,6 +40,8 @@ public class DbDraftRepository implements DraftRepository {
             stmt.setString(7, draft.subject());
             stmt.setString(8, draft.body());
             stmt.setInt(9, draft.queued() ? 1 : 0);
+            stmt.setString(10, ISO_DATE_TIME.format(draft.updatedAt()));
+            stmt.setLong(11, draft.updatedAtEpochSeconds());
             stmt.executeUpdate();
             try (ResultSet keyRs = stmt.getGeneratedKeys()) {
                 if (!keyRs.next()) {
@@ -50,7 +57,9 @@ public class DbDraftRepository implements DraftRepository {
                         draft.bcc(),
                         draft.subject(),
                         draft.body(),
-                        draft.queued());
+                        draft.queued(),
+                        draft.updatedAt(),
+                        draft.updatedAtEpochSeconds());
             }
         });
     }
@@ -58,7 +67,7 @@ public class DbDraftRepository implements DraftRepository {
     @Override
     public Optional<Draft> findById(int id) {
         return DbUtil.withPreparedStmtFunction(ds, """
-                SELECT id, account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, body, queued
+                SELECT id, account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, body, queued, updated_at, updated_at_epoch_s
                 FROM drafts
                 WHERE id = ?
                 """, stmt -> {
@@ -68,10 +77,29 @@ public class DbDraftRepository implements DraftRepository {
     }
 
     @Override
+    public List<Draft> findOpenByAccountId(int accountId) {
+        return DbUtil.withPreparedStmtFunction(ds, """
+                SELECT id, account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, body, queued, updated_at, updated_at_epoch_s
+                FROM drafts
+                WHERE account_id = ? AND queued = 0
+                ORDER BY updated_at_epoch_s DESC, id DESC
+                """, stmt -> {
+            stmt.setInt(1, accountId);
+            return DbUtil.withResultSetFunction(stmt, rs -> {
+                List<Draft> drafts = new ArrayList<>();
+                while (rs.next()) {
+                    drafts.add(toDraft(rs));
+                }
+                return drafts;
+            });
+        });
+    }
+
+    @Override
     public void update(Draft draft) {
         DbUtil.withPreparedStmtConsumer(ds, """
                 UPDATE drafts
-                SET to_recipients = ?, cc_recipients = ?, bcc_recipients = ?, subject = ?, body = ?, queued = ?
+                SET to_recipients = ?, cc_recipients = ?, bcc_recipients = ?, subject = ?, body = ?, queued = ?, updated_at = ?, updated_at_epoch_s = ?
                 WHERE id = ?
                 """, stmt -> {
             stmt.setString(1, draft.to());
@@ -80,7 +108,9 @@ public class DbDraftRepository implements DraftRepository {
             stmt.setString(4, draft.subject());
             stmt.setString(5, draft.body());
             stmt.setInt(6, draft.queued() ? 1 : 0);
-            stmt.setInt(7, draft.id());
+            stmt.setString(7, ISO_DATE_TIME.format(draft.updatedAt()));
+            stmt.setLong(8, draft.updatedAtEpochSeconds());
+            stmt.setInt(9, draft.id());
             stmt.executeUpdate();
         });
     }
@@ -105,6 +135,8 @@ public class DbDraftRepository implements DraftRepository {
                 rs.getString(7),
                 rs.getString(8),
                 rs.getString(9),
-                rs.getInt(10) == 1);
+                rs.getInt(10) == 1,
+                ZonedDateTime.parse(rs.getString(11), ISO_DATE_TIME),
+                rs.getLong(12));
     }
 }

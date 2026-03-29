@@ -7,90 +7,101 @@
 {% endblock %}
 
 {% block content %}
-    <main>
+    <main data-current-folder-is-drafts="{{ currentFolderIsDrafts ? 'true' : 'false' }}"{% if selectedEmailId %} data-selected-email-id="{{ selectedEmailId }}"{% endif %}>
         <div id="accountnav">
             <div id="emailcontrols">
-                {#  as per https://www.barrierefreies-webdesign.de/knowhow/checkbox/ #}
-                <div id="select-all-mail-checkbox" role="checkbox" aria-checked="false" tabindex="0" title="Select All E-Mails" onclick="onClickSelectAllEmails()">
-                    {{ svgIcon('noneselected') | raw }}
-                    {{ svgIcon('someselected') | raw }}
-                    {{ svgIcon('allselected')  | raw }}
-                </div>
-                <form id="selected-email-actions" method="POST" action="/emails/selection">
-                    {{ submitButton(true, 'archive',    true, 'email_action_archive', 'Archive', classes = 'emailaction') }}
-                    {{ submitButton(true, null,         true, 'email_action_mark_spam', 'Mark Spam', classes = 'emailaction') }}
-                    {{ submitButton(true, 'delete',     true, 'email_action_delete', 'Delete', classes = 'emailaction') }}
-                    {{ submitButton(true, 'markread',   true, 'email_action_mark_read', 'Mark Read', classes = 'emailaction') }}
-                    {{ submitButton(true, 'markunread', true, 'email_action_mark_unread', 'Mark Unread', classes = 'emailaction') }}
-                </form>
-                {{ submitButton(true, 'move',       true, '', 'Move', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
-                <dialog id="move-emails-dialog">
-                    <form class="dialogcloser" method="dialog">
-                            {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
+                {% if not currentFolderIsDrafts %}
+                    {#  as per https://www.barrierefreies-webdesign.de/knowhow/checkbox/ #}
+                    <div id="select-all-mail-checkbox" role="checkbox" aria-checked="false" tabindex="0" title="Select All E-Mails" onclick="onClickSelectAllEmails()">
+                        {{ svgIcon('noneselected') | raw }}
+                        {{ svgIcon('someselected') | raw }}
+                        {{ svgIcon('allselected')  | raw }}
+                    </div>
+                    <form id="selected-email-actions" method="POST" action="/emails/selection">
+                        {{ submitButton(true, 'archive',    true, 'email_action_archive', 'Archive', classes = 'emailaction') }}
+                        {{ submitButton(true, null,         true, 'email_action_mark_spam', 'Mark Spam', classes = 'emailaction') }}
+                        {{ submitButton(true, 'delete',     true, 'email_action_delete', 'Delete', classes = 'emailaction') }}
+                        {{ submitButton(true, 'markread',   true, 'email_action_mark_read', 'Mark Read', classes = 'emailaction') }}
+                        {{ submitButton(true, 'markunread', true, 'email_action_mark_unread', 'Mark Unread', classes = 'emailaction') }}
                     </form>
-                    <fieldset id="movefolders">
-                        <legend>Select folder</legend>
-                        {% for folder in folders %}
-                            <label>
-                                <input type="radio" form="selected-email-actions" name="target_folder" value="{{ folder.id }}">
-                                {{ folder.name }}
-                            </label>
-                        {% endfor %}
-                    </fieldset>
-                    {{ submitButton(true, null, false, 'email_action_move', 'Move Emails', form = 'selected-email-actions') }}
-                </dialog>
+                    {{ submitButton(true, 'move',       true, '', 'Move', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
+                    <dialog id="move-emails-dialog">
+                        <form class="dialogcloser" method="dialog">
+                                {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
+                        </form>
+                        <fieldset id="movefolders">
+                            <legend>Select folder</legend>
+                            {% for folder in moveFolders %}
+                                <label>
+                                    <input type="radio" form="selected-email-actions" name="target_folder" value="{{ folder.id }}">
+                                    {{ folder.name }}
+                                </label>
+                            {% endfor %}
+                        </fieldset>
+                        {{ submitButton(true, null, false, 'email_action_move', 'Move Emails', form = 'selected-email-actions') }}
+                    </dialog>
+                {% endif %}
                 <div id="email-paging-controls">
                     <div id="pagination-status">
-                        {{ emailGroupPage.getNofMessages() }}
-                        {% if emailGroupPage.pagination().totalMessageCount().isPresent() %}
-                            of {{ emailGroupPage.pagination().totalMessageCount().get() }}
+                        {% if currentFolderIsDrafts %}
+                            {{ emailGroupPage.getNofMessages() }} drafts
+                            {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
+                                - {{ emailGroupPage.formattedReceivedDateRange().get() }}
+                            {% endif %}
                         {% else %}
-                            messages
-                        {% endif %}
-                        {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
-                            - {{ emailGroupPage.formattedReceivedDateRange().get() }}
+                            {{ emailGroupPage.getNofMessages() }}
+                            {% if emailGroupPage.pagination().totalMessageCount().isPresent() %}
+                                of {{ emailGroupPage.pagination().totalMessageCount().get() }}
+                            {% else %}
+                                messages
+                            {% endif %}
+                            {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
+                                - {{ emailGroupPage.formattedReceivedDateRange().get() }}
+                            {% endif %}
                         {% endif %}
                     </div>
-                    <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
-                        {% set baseLink = '/accounts/' + currentAccount.id %}
-                        {% if not currentQuery %}
-                            {% set baseLink = baseLink + '/folders/' + currentFolder.id + '?' %}
-                        {% else %}
-                            {# This is the case where we have a search and we have to write a modified navigation #}
-                            {% set baseLink = baseLink + '/search?query=' + (currentQuery.get() | urlencode) + '&' %}
-                        {% endif %}
-                        <ul>
-                            {# FIRST PAGE #}
-                            <li>{{ iconlink(baseLink + 'pageDirection=RIGHT&sortOrder=' + emailGroupPage.pagination().pageParams().getSortString(), 'Beginning', 'beginning', disabled = false, showLabel = false) }}</li>
-                            {#  PREVIOUS PAGE #}
-                            {% if (not emailGroupPage.pagination().hasLeft()) or emailGroupPage.getFirstEmailHeader().isEmpty() %}
-                                <li>{{ iconlink(baseLink, 'Previous', 'previous', disabled = true, showLabel = false) }}</li>
+                    {% if not currentFolderIsDrafts %}
+                        <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
+                            {% set baseLink = '/accounts/' + currentAccount.id %}
+                            {% if not currentQuery %}
+                                {% set baseLink = baseLink + '/folders/' + currentFolder.id + '?' %}
                             {% else %}
-                                <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getFirstEmailHeader().get().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getFirstEmailHeader().get().id(), 'Previous', 'previous', disabled = false, showLabel = false) }}</li>
+                                {# This is the case where we have a search and we have to write a modified navigation #}
+                                {% set baseLink = baseLink + '/search?query=' + (currentQuery.get() | urlencode) + '&' %}
                             {% endif %}
-                            {# NEXT PAGE #}
-                            {% if emailGroupPage.pagination().hasRight() and not emailGroupPage.getLastEmailHeader().isEmpty() %}
-                                <li>{{ iconlink(baseLink  + 'pageDirection=RIGHT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getLastEmailHeader().get().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getLastEmailHeader().get().id(), 'Next', 'next', disabled = false, showLabel = false) }}</li>
-                            {% else %}
-                                <li>{{ iconlink(baseLink, 'Next', 'next', disabled = true, showLabel = false) }}</li>
-                            {% endif %}
-                            {#  LAST PAGE #}
-                            {% if emailGroupPage.pagination().pageParams().isAscending() %}{#  ASCENDING  #}
-                                <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&sortOrder=ASCENDING&offsetReceivedTimestamp=' + Long.MAX_VALUE, 'End', 'end', disabled = false, showLabel = false) }}</li>
-                            {% else %}{#  DESCENDING  #}
-                                <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&sortOrder=DESCENDING&offsetReceivedTimestamp=0', 'End', 'end', disabled = false, showLabel = false) }}</li>
-                            {% endif %}
-                        </ul>
-                    </nav>
+                            <ul>
+                                {# FIRST PAGE #}
+                                <li>{{ iconlink(baseLink + 'pageDirection=RIGHT&sortOrder=' + emailGroupPage.pagination().pageParams().getSortString(), 'Beginning', 'beginning', disabled = false, showLabel = false) }}</li>
+                                {#  PREVIOUS PAGE #}
+                                {% if (not emailGroupPage.pagination().hasLeft()) or emailGroupPage.getFirstEmailHeader().isEmpty() %}
+                                    <li>{{ iconlink(baseLink, 'Previous', 'previous', disabled = true, showLabel = false) }}</li>
+                                {% else %}
+                                    <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getFirstEmailHeader().get().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getFirstEmailHeader().get().id(), 'Previous', 'previous', disabled = false, showLabel = false) }}</li>
+                                {% endif %}
+                                {# NEXT PAGE #}
+                                {% if emailGroupPage.pagination().hasRight() and not emailGroupPage.getLastEmailHeader().isEmpty() %}
+                                    <li>{{ iconlink(baseLink  + 'pageDirection=RIGHT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getLastEmailHeader().get().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getLastEmailHeader().get().id(), 'Next', 'next', disabled = false, showLabel = false) }}</li>
+                                {% else %}
+                                    <li>{{ iconlink(baseLink, 'Next', 'next', disabled = true, showLabel = false) }}</li>
+                                {% endif %}
+                                {#  LAST PAGE #}
+                                {% if emailGroupPage.pagination().pageParams().isAscending() %}{#  ASCENDING  #}
+                                    <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&sortOrder=ASCENDING&offsetReceivedTimestamp=' + Long.MAX_VALUE, 'End', 'end', disabled = false, showLabel = false) }}</li>
+                                {% else %}{#  DESCENDING  #}
+                                    <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&sortOrder=DESCENDING&offsetReceivedTimestamp=0', 'End', 'end', disabled = false, showLabel = false) }}</li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    {% endif %}
                 </div>
             </div>
         </div>
         <div id="folderlist">
-            {% if folders.isEmpty() %}
+            {% if sidebarFolders.isEmpty() %}
                 <div class="emptycollection">No folders found</div>
             {% else %}
-                {% for folder in folders %}
-                {{ iconlink('/accounts/' + currentAccount.id + '/folders/' + folder.id, folder.name, 'folder', selected = (currentFolder != null ? currentFolder.id == folder.id : false)) }}
+                {% for folder in sidebarFolders %}
+                {{ iconlink(folder.href, folder.name, 'folder', selected = folder.selected) }}
                 {% endfor %}
             {% endif %}
         </div>
@@ -109,16 +120,18 @@
                 {% endfor %}
             {% endfor %}
         </div>
-        <dialog id="messagepreview" {{ emailActive ? 'open' : '' }}>
-            <form class="dialogcloser" method="dialog">
-                    {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
-            </form>
-            <iframe name="emailviewer"
-            {% if emailActive %}
-                src="{{ '/emails/' + selectedEmailId + '/viewer?showImages=false' }}"
-            {% endif %}
-            >
-            </iframe>
-        </dialog>
+        {% if not currentFolderIsDrafts %}
+            <dialog id="messagepreview" {{ emailActive ? 'open' : '' }}>
+                <form class="dialogcloser" method="dialog">
+                        {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
+                </form>
+                <iframe name="emailviewer"
+                {% if emailActive %}
+                    src="{{ '/emails/' + selectedEmailId + '/viewer?showImages=false' }}"
+                {% endif %}
+                >
+                </iframe>
+            </dialog>
+        {% endif %}
     </main>
 {% endblock %}

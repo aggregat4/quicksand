@@ -1,5 +1,5 @@
 package net.aggregat4.quicksand.domain;
 
-public sealed interface Folder permits NamedFolder, SearchFolder {
+public sealed interface Folder permits DraftsFolder, NamedFolder, SearchFolder {
     String name();
 }

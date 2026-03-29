@@ -54,6 +54,8 @@ When making changes:
 - do not introduce client-side state as the source of truth for mailbox views
 - prefer links, forms, redirects, and server-rendered HTML over JSON-driven browser rendering
 - keep JavaScript focused on UI enhancement such as dialogs, iframe orchestration, selection state, history updates, and sizing
+- prefer small controllers in `src/main/resources/static/js`; keep Pebble templates declarative and pass behavior hooks through forms, ids, and `data-*` attributes
+- when enhancing forms, prefer layered behavior that still submits real forms and preserves post/redirect semantics over ad hoc client-side request construction unless there is a clear need
 - preserve existing route structure unless a route change is required by the feature
 - prefer isolated changes that fit the existing SSR + local-cache model
 

@@ -43,10 +43,11 @@ class MainTest {
     }
 
     @Test
-    void accountPageRendersWithoutFoldersWhenSyncIsDisabled() throws IOException, InterruptedException {
+    void accountPageFallsBackToDraftsWhenSyncIsDisabled() throws IOException, InterruptedException {
         String response = get("/accounts/1");
         assertTrue(response.contains("Greenmail Test Account"));
-        assertTrue(response.contains("This account has no folders."));
+        assertTrue(response.contains("Drafts"));
+        assertTrue(response.contains("0 drafts"));
     }
 
     private static String get(String path) throws IOException, InterruptedException {

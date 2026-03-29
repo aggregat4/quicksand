@@ -74,7 +74,7 @@ public final class Main {
         EmailRepository messageRepository = new DbEmailRepository(ds, actorRepository);
         DraftRepository draftRepository = new DbDraftRepository(ds);
         EmailService emailService = new EmailService(messageRepository);
-        DraftService draftService = new DraftService(draftRepository, messageRepository);
+        DraftService draftService = new DraftService(draftRepository, messageRepository, clock);
         List<Account> accounts = loadAccounts(config, demoEnabled);
         bootstrapAccounts(accounts, accountRepository);
 

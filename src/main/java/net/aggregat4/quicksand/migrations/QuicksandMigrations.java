@@ -79,6 +79,8 @@ public class QuicksandMigrations implements Migrations {
                 subject TEXT NOT NULL DEFAULT '',
                 body TEXT NOT NULL DEFAULT '',
                 queued INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                updated_at_epoch_s INTEGER NOT NULL,
                 FOREIGN KEY (account_id) REFERENCES accounts(id),
                 FOREIGN KEY (source_message_id) REFERENCES messages(id))""");
         // Enable WAL mode on the database to allow for concurrent reads and writes

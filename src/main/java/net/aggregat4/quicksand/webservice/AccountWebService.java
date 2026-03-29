@@ -8,6 +8,7 @@ import io.helidon.webserver.http.HttpService;
 import io.helidon.webserver.http.ServerRequest;
 import io.helidon.webserver.http.ServerResponse;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
+import net.aggregat4.quicksand.domain.DraftsFolder;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailGroup;
 import net.aggregat4.quicksand.domain.EmailGroupPage;
@@ -20,6 +21,7 @@ import net.aggregat4.quicksand.domain.PageParams;
 import net.aggregat4.quicksand.domain.Pagination;
 import net.aggregat4.quicksand.domain.Query;
 import net.aggregat4.quicksand.domain.SearchFolder;
+import net.aggregat4.quicksand.domain.SidebarFolderLink;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import net.aggregat4.quicksand.service.AccountService;
@@ -62,6 +64,7 @@ public class AccountWebService implements HttpService {
     public void routing(HttpRules rules) {
         rules.get("/{accountId}", this::getAccountHandler);
         rules.get("/{accountId}/folders/{folderId}", this::getFolderHandler);
+        rules.get("/{accountId}/drafts", this::getDraftsHandler);
         rules.get("/{accountId}/search", this::getSearchHandler);
         rules.post("/{accountId}/emails", this::emailCreationHandler);
     }
@@ -83,7 +86,7 @@ public class AccountWebService implements HttpService {
             Pagination pagination = new Pagination(Optional.empty(), Optional.empty(), pageParams, PAGE_SIZE, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
             renderAccount(response, accountId, firstFolder, emailPage, pagination, Optional.empty(), Optional.empty());
         } else {
-            renderAccountWithoutFolders(response, accountId);
+            renderDraftsAccount(response, accountId, Optional.empty());
         }
     }
 
@@ -106,6 +109,12 @@ public class AccountWebService implements HttpService {
                 pageParams.sortOrder());
         Pagination pagination = new Pagination(offsetReceivedTimestamp, offsetMessageId, pageParams, effectivePageSize, Optional.of(messageCount), emailPage.hasLeft(), emailPage.hasRight());
         renderAccount(response, accountId, folder, emailPage, pagination, selectedEmailId, Optional.empty());
+    }
+
+    private void getDraftsHandler(ServerRequest request, ServerResponse response) {
+        int accountId = RequestUtils.intPathParam(request, "accountId");
+        Optional<Integer> selectedEmailId = request.query().first("selectedEmailId").map(Integer::parseInt);
+        renderDraftsAccount(response, accountId, selectedEmailId);
     }
 
     private static PageParams parseEmailPageParams(ServerRequest request) {
@@ -174,8 +183,18 @@ public class AccountWebService implements HttpService {
         renderAccount(response, accountId, searchFolder, new EmailPage(Collections.emptyList(), false, false, new PageParams(PageDirection.RIGHT, SortOrder.ASCENDING)), pagination, selectedEmailId, query);
     }
 
+    private void renderDraftsAccount(ServerResponse response, int accountId, Optional<Integer> selectedEmailId) {
+        List<EmailHeader> draftHeaders = draftService.getDraftHeaders(accountId);
+        List<Email> drafts = draftHeaders.stream()
+                .map(header -> new Email(header, true, header.bodyExcerpt(), Collections.emptyList()))
+                .toList();
+        PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
+        Pagination pagination = new Pagination(Optional.empty(), Optional.empty(), pageParams, draftHeaders.size(), Optional.empty(), false, false);
+        renderAccount(response, accountId, new DraftsFolder(), new EmailPage(drafts, false, false, pageParams), pagination, selectedEmailId, Optional.empty());
+    }
+
     private void renderAccount(ServerResponse response, int accountId, Folder folder, EmailPage emailPage, Pagination pagination, Optional<Integer> selectedEmailId, Optional<String> query) {
-        // TODO: figure out
+        List<NamedFolder> folders = folderService.getFolders(accountId);
         List<EmailHeader> emailHeaders = emailPage.emails().stream().map(Email::header).toList();
         List<EmailGroup> emailGroups = query.isPresent()
                 ? EmailGroup.createNoGroupEmailgroup(emailHeaders)
@@ -185,9 +204,11 @@ public class AccountWebService implements HttpService {
         context.put("bodyclass", "accountpage");
         context.put("currentAccount", accountService.getAccount(accountId));
         context.put("accounts", accountService.getAccounts());
-        context.put("folders", folderService.getFolders(accountId));
+        context.put("moveFolders", folders);
+        context.put("sidebarFolders", toSidebarFolders(accountId, folders, folder));
         context.put("emailGroupPage", emailGroupPage);
         context.put("currentFolder", folder);
+        context.put("currentFolderIsDrafts", folder instanceof DraftsFolder);
         if (selectedEmailId.isPresent()) {
             context.put("selectedEmailId", selectedEmailId.get());
         }
@@ -196,6 +217,21 @@ public class AccountWebService implements HttpService {
         }
         response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, accountTemplate));
+    }
+
+    private List<SidebarFolderLink> toSidebarFolders(int accountId, List<NamedFolder> folders, Folder currentFolder) {
+        List<SidebarFolderLink> sidebarFolders = folders.stream()
+                .map(folder -> new SidebarFolderLink(
+                        folder.name(),
+                        "/accounts/%s/folders/%s".formatted(accountId, folder.id()),
+                        currentFolder instanceof NamedFolder namedFolder && namedFolder.id() == folder.id()))
+                .toList();
+        List<SidebarFolderLink> links = new java.util.ArrayList<>(sidebarFolders);
+        links.add(new SidebarFolderLink(
+                "Drafts",
+                "/accounts/%s/drafts".formatted(accountId),
+                currentFolder instanceof DraftsFolder));
+        return links;
     }
 
     private void renderAccountWithoutFolders(ServerResponse response, int accountId) {

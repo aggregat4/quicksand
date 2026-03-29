@@ -48,6 +48,7 @@ function init() {
             return false
         });
     });
+    initSelectedDraftComposer()
 }
 
 /*
@@ -123,10 +124,10 @@ function onCloseMessagePreview() {
     history.pushState(null, '', url.toString())
 }
 
-function onCloseEmailComposerDialog() {
-    // to make sure we clean up the minimized style if a user closes the composer and opens it immediately afterwards
-    const composer = document.getElementById('newmail-composer-dialog')
-    composer.classList.remove('minimized')
+function onCloseEmailComposerDialog(event) {
+    event?.preventDefault()
+    void closeEmailComposerDialog()
+    return false
 }
 
 /*
@@ -142,6 +143,9 @@ window.addEventListener("message", async function (event) {
             setTimeout(() => {
                 composer.close()
                 composer.classList.remove('minimized')
+                if (isDraftsPage()) {
+                    window.location.href = window.location.pathname
+                }
             }, 7000);
         }
     } else if (event.data.type === "reply-to-email") {
@@ -152,9 +156,112 @@ window.addEventListener("message", async function (event) {
 });
 
 async function createEmailAndShowComposer(urlParams) {
+    const queryString = urlParams ? `${urlParams}&redirect=false` : 'redirect=false'
     const response = await fetch(
-        `/accounts/${window.quicksand.currentAccountId}/emails?${urlParams}&redirect=false`,
+        `/accounts/${window.quicksand.currentAccountId}/emails?${queryString}`,
         {method: 'POST'})
-    document.getElementById('newmail-composer-frame').src = await response.text()
-    document.getElementById("newmail-composer-dialog").show()
+    openComposerDialog(await response.text())
+}
+
+function onDraftHeaderClick(event) {
+    openSelectedDraftComposer(getEmailIdFromNode(event.currentTarget))
+}
+
+function initSelectedDraftComposer() {
+    if (!isDraftsPage()) {
+        return
+    }
+    const accountMain = document.querySelector('body.accountpage main')
+    const selectedEmailId = accountMain?.getAttribute('data-selected-email-id')
+    if (!selectedEmailId) {
+        return
+    }
+    openSelectedDraftComposer(selectedEmailId, false)
+}
+
+function isDraftsPage() {
+    return document.querySelector('body.accountpage main')?.getAttribute('data-current-folder-is-drafts') === 'true'
+}
+
+async function closeEmailComposerDialog() {
+    const composer = document.getElementById('newmail-composer-dialog')
+    const composerFrame = document.getElementById('newmail-composer-frame')
+    composer.classList.remove('minimized')
+    await requestComposerDraftSave()
+    composer.close()
+    composerFrame.src = 'about:blank'
+    if (isDraftsPage()) {
+        markAllEmailHeadersInactive()
+        const url = new URL(window.location.href)
+        url.searchParams.delete('selectedEmailId')
+        history.pushState(null, '', url.toString())
+    }
+}
+
+function openComposerDialog(src) {
+    const composerFrame = document.getElementById('newmail-composer-frame')
+    composerFrame.src = 'about:blank'
+    composerFrame.src = src
+    document.getElementById('newmail-composer-dialog').show()
+}
+
+function openSelectedDraftComposer(emailId, updateHistory = true) {
+    if (updateHistory) {
+        updateSelectedEmailId(emailId)
+    }
+    markAllEmailHeadersInactive()
+    document.getElementById(`email${emailId}`)?.classList.add('active')
+    openComposerDialog(`/emails/${emailId}/composer`)
+}
+
+function getEmailIdFromNode(node) {
+    const emailIdAttribute = node.getAttribute('id')
+    return emailIdAttribute.substring('email'.length)
+}
+
+function updateSelectedEmailId(emailId) {
+    const url = new URL(window.location.href)
+    url.searchParams.delete('selectedEmailId')
+    url.searchParams.append('selectedEmailId', emailId)
+    history.pushState(null, '', url.toString())
+}
+
+function requestComposerDraftSave() {
+    const composerFrame = document.getElementById('newmail-composer-frame')
+    if (!composerFrame?.contentWindow) {
+        return Promise.resolve()
+    }
+    const composerPath = composerFrame.contentWindow.location?.pathname ?? ''
+    if (!composerPath.endsWith('/composer')) {
+        return Promise.resolve()
+    }
+    return new Promise(resolve => {
+        let settled = false
+        const timeoutId = setTimeout(() => {
+            finish()
+        }, 1500)
+
+        function onMessage(messageEvent) {
+            if (messageEvent.source !== composerFrame.contentWindow) {
+                return
+            }
+            if (messageEvent.data?.type !== 'draft-saved') {
+                return
+            }
+            finish()
+        }
+
+        function finish() {
+            if (settled) {
+                return
+            }
+            settled = true
+            clearTimeout(timeoutId)
+            window.removeEventListener('message', onMessage)
+            resolve()
+        }
+
+        window.addEventListener('message', onMessage)
+        composerFrame.contentWindow.postMessage({ type: 'save-draft' }, '*')
+    })
 }

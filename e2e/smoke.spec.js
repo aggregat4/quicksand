@@ -141,6 +141,44 @@ test('reply and forward create persisted drafts with derived defaults', async ({
   await expect(composerFrame.getByLabel('Email Body')).toContainText('Forwarded message');
 });
 
+test('new drafts persist headers and body and reopen from the drafts folder', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  await page.getByRole('button', { name: 'New Mail' }).click();
+  const composerFrame = page.frameLocator('#newmail-composer-frame');
+  await expect(composerFrame.locator('form#save-email-form')).toBeVisible();
+
+  await composerFrame.locator('#email-to').fill('Alice <alice@example.com>');
+  await composerFrame.locator('#email-cc').fill('Bob <bob@example.com>');
+  await composerFrame.locator('#email-bcc').fill('Carol <carol@example.com>');
+  await composerFrame.locator('#email-subject').fill('Drafts folder subject');
+  await composerFrame.getByLabel('Email Body').fill('Drafts folder body with enough text to show up as the excerpt');
+
+  await page.locator('#newmail-composer-dialog .dialogcloser button').click();
+  await page.locator('#folderlist a[title="Drafts"]').click();
+
+  await expect(page.locator('#pagination-status')).toContainText('drafts');
+  const draftRow = page.locator('#messagelist a.emailheader').filter({
+    has: page.locator('.subjectline', { hasText: 'Drafts folder subject' })
+  });
+  await expect(draftRow).toHaveCount(1);
+  await expect(draftRow.locator('.bodyline')).toContainText('Drafts folder body with enough text to show up as the excerpt');
+  await draftRow.click();
+  await expect(composerFrame.locator('#email-to')).toHaveValue('Alice <alice@example.com>');
+  await expect(composerFrame.locator('#email-cc')).toHaveValue('Bob <bob@example.com>');
+  await expect(composerFrame.locator('#email-bcc')).toHaveValue('Carol <carol@example.com>');
+  await expect(composerFrame.locator('#email-subject')).toHaveValue('Drafts folder subject');
+  await expect(composerFrame.getByLabel('Email Body')).toHaveValue('Drafts folder body with enough text to show up as the excerpt');
+
+  await page.locator('#newmail-composer-dialog .dialogcloser button').click();
+  await page.getByRole('button', { name: 'New Mail' }).click();
+  await expect(composerFrame.locator('#email-to')).toHaveValue('');
+  await expect(composerFrame.locator('#email-cc')).toHaveValue('');
+  await expect(composerFrame.locator('#email-bcc')).toHaveValue('');
+  await expect(composerFrame.locator('#email-subject')).toHaveValue('');
+  await expect(composerFrame.getByLabel('Email Body')).toHaveValue('');
+});
+
 test('descending inbox shows all temporal groups and seeded HTML examples', async ({ page }) => {
   await waitForDemoInbox(page);
 
