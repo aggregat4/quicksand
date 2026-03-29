@@ -106,6 +106,7 @@ public class OutboundMessageService {
                 Optional.empty(),
                 now,
                 Optional.empty(),
+                Optional.empty(),
                 now.toEpochSecond());
     }
 
@@ -175,7 +176,7 @@ public class OutboundMessageService {
     private static String createStatusExcerpt(OutboundMessage message) {
         String excerpt = createExcerpt(message.body());
         return switch (message.status()) {
-            case QUEUED -> "Queued: " + excerpt;
+            case QUEUED -> message.lastError().isPresent() ? "Retrying: " + excerpt : "Queued: " + excerpt;
             case SENT -> "Sent: " + excerpt;
             case FAILED -> "Failed: " + message.lastError().orElse(excerpt);
         };
@@ -183,7 +184,7 @@ public class OutboundMessageService {
 
     public static String formatStatus(OutboundMessage message) {
         return switch (message.status()) {
-            case QUEUED -> "Queued for delivery";
+            case QUEUED -> message.lastError().isPresent() ? "Retry scheduled" : "Queued for delivery";
             case SENT -> "Sent";
             case FAILED -> "Delivery failed";
         };
@@ -191,7 +192,13 @@ public class OutboundMessageService {
 
     public static String formatStatusDetail(OutboundMessage message) {
         return switch (message.status()) {
-            case QUEUED -> "Awaiting SMTP delivery.";
+            case QUEUED -> message.lastError().isPresent()
+                    ? message.nextAttemptAt()
+                    .map(nextAttemptAt -> "Next delivery attempt at "
+                            + nextAttemptAt.format(java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM))
+                            + ". Last error: " + message.lastError().orElse("Unknown error."))
+                    .orElse("Queued for another delivery attempt.")
+                    : "Awaiting SMTP delivery.";
             case SENT -> message.sentAt()
                     .map(sentAt -> "Delivered to SMTP at " + sentAt.format(java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM)))
                     .orElse("Delivered to SMTP.");

@@ -18,6 +18,7 @@ public record OutboundMessage(
         int attemptCount,
         Optional<String> lastError,
         ZonedDateTime queuedAt,
+        Optional<ZonedDateTime> nextAttemptAt,
         Optional<ZonedDateTime> sentAt,
         long queuedAtEpochSeconds) {
 }

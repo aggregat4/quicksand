@@ -26,8 +26,8 @@ public class DbOutboundMessageRepository implements OutboundMessageRepository {
                 INSERT INTO outbound_messages (
                     account_id, source_message_id, from_name, from_address,
                     to_recipients, cc_recipients, bcc_recipients, subject, body,
-                    status, attempt_count, last_error, queued_at, sent_at, sent_at_epoch_s, queued_at_epoch_s)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    status, attempt_count, last_error, queued_at, next_attempt_at, next_attempt_at_epoch_s, sent_at, sent_at_epoch_s, queued_at_epoch_s)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, stmt -> {
             stmt.setInt(1, outboundMessage.accountId());
             if (outboundMessage.sourceMessageId().isPresent()) {
@@ -46,14 +46,21 @@ public class DbOutboundMessageRepository implements OutboundMessageRepository {
             stmt.setInt(11, outboundMessage.attemptCount());
             stmt.setString(12, outboundMessage.lastError().orElse(null));
             stmt.setString(13, ISO_DATE_TIME.format(outboundMessage.queuedAt()));
-            if (outboundMessage.sentAt().isPresent()) {
-                stmt.setString(14, ISO_DATE_TIME.format(outboundMessage.sentAt().get()));
-                stmt.setLong(15, outboundMessage.sentAt().get().toEpochSecond());
+            if (outboundMessage.nextAttemptAt().isPresent()) {
+                stmt.setString(14, ISO_DATE_TIME.format(outboundMessage.nextAttemptAt().get()));
+                stmt.setLong(15, outboundMessage.nextAttemptAt().get().toEpochSecond());
             } else {
                 stmt.setNull(14, Types.VARCHAR);
                 stmt.setNull(15, Types.BIGINT);
             }
-            stmt.setLong(16, outboundMessage.queuedAtEpochSeconds());
+            if (outboundMessage.sentAt().isPresent()) {
+                stmt.setString(16, ISO_DATE_TIME.format(outboundMessage.sentAt().get()));
+                stmt.setLong(17, outboundMessage.sentAt().get().toEpochSecond());
+            } else {
+                stmt.setNull(16, Types.VARCHAR);
+                stmt.setNull(17, Types.BIGINT);
+            }
+            stmt.setLong(18, outboundMessage.queuedAtEpochSeconds());
             stmt.executeUpdate();
             try (ResultSet keyRs = stmt.getGeneratedKeys()) {
                 if (!keyRs.next()) {
@@ -74,6 +81,7 @@ public class DbOutboundMessageRepository implements OutboundMessageRepository {
                         outboundMessage.attemptCount(),
                         outboundMessage.lastError(),
                         outboundMessage.queuedAt(),
+                        outboundMessage.nextAttemptAt(),
                         outboundMessage.sentAt(),
                         outboundMessage.queuedAtEpochSeconds());
             }
@@ -85,7 +93,7 @@ public class DbOutboundMessageRepository implements OutboundMessageRepository {
         return DbUtil.withPreparedStmtFunction(ds, """
                 SELECT id, account_id, source_message_id, from_name, from_address,
                        to_recipients, cc_recipients, bcc_recipients, subject, body,
-                       status, attempt_count, last_error, queued_at, sent_at, sent_at_epoch_s, queued_at_epoch_s
+                       status, attempt_count, last_error, queued_at, next_attempt_at, next_attempt_at_epoch_s, sent_at, sent_at_epoch_s, queued_at_epoch_s
                 FROM outbound_messages
                 WHERE id = ?
                 """, stmt -> {
@@ -99,7 +107,7 @@ public class DbOutboundMessageRepository implements OutboundMessageRepository {
         return DbUtil.withPreparedStmtFunction(ds, """
                 SELECT id, account_id, source_message_id, from_name, from_address,
                        to_recipients, cc_recipients, bcc_recipients, subject, body,
-                       status, attempt_count, last_error, queued_at, sent_at, sent_at_epoch_s, queued_at_epoch_s
+                       status, attempt_count, last_error, queued_at, next_attempt_at, next_attempt_at_epoch_s, sent_at, sent_at_epoch_s, queued_at_epoch_s
                 FROM outbound_messages
                 WHERE account_id = ?
                 ORDER BY queued_at_epoch_s DESC, id DESC
@@ -120,7 +128,7 @@ public class DbOutboundMessageRepository implements OutboundMessageRepository {
         return DbUtil.withPreparedStmtFunction(ds, """
                 SELECT id, account_id, source_message_id, from_name, from_address,
                        to_recipients, cc_recipients, bcc_recipients, subject, body,
-                       status, attempt_count, last_error, queued_at, sent_at, sent_at_epoch_s, queued_at_epoch_s
+                       status, attempt_count, last_error, queued_at, next_attempt_at, next_attempt_at_epoch_s, sent_at, sent_at_epoch_s, queued_at_epoch_s
                 FROM outbound_messages
                 WHERE status = ?
                 ORDER BY queued_at_epoch_s ASC, id ASC
@@ -137,10 +145,33 @@ public class DbOutboundMessageRepository implements OutboundMessageRepository {
     }
 
     @Override
+    public List<OutboundMessage> findDeliverable(ZonedDateTime now) {
+        return DbUtil.withPreparedStmtFunction(ds, """
+                SELECT id, account_id, source_message_id, from_name, from_address,
+                       to_recipients, cc_recipients, bcc_recipients, subject, body,
+                       status, attempt_count, last_error, queued_at, next_attempt_at, next_attempt_at_epoch_s, sent_at, sent_at_epoch_s, queued_at_epoch_s
+                FROM outbound_messages
+                WHERE status = ? AND COALESCE(next_attempt_at_epoch_s, queued_at_epoch_s) <= ?
+                ORDER BY COALESCE(next_attempt_at_epoch_s, queued_at_epoch_s) ASC, id ASC
+                """, stmt -> {
+            stmt.setString(1, OutboundMessageStatus.QUEUED.name());
+            stmt.setLong(2, now.toEpochSecond());
+            return DbUtil.withResultSetFunction(stmt, rs -> {
+                List<OutboundMessage> messages = new ArrayList<>();
+                while (rs.next()) {
+                    messages.add(toOutboundMessage(rs));
+                }
+                return messages;
+            });
+        });
+    }
+
+    @Override
     public void markSent(int id, ZonedDateTime sentAt) {
         DbUtil.withPreparedStmtConsumer(ds, """
                 UPDATE outbound_messages
-                SET status = ?, attempt_count = attempt_count + 1, last_error = NULL, sent_at = ?, sent_at_epoch_s = ?
+                SET status = ?, attempt_count = attempt_count + 1, last_error = NULL,
+                    next_attempt_at = NULL, next_attempt_at_epoch_s = NULL, sent_at = ?, sent_at_epoch_s = ?
                 WHERE id = ?
                 """, stmt -> {
             stmt.setString(1, OutboundMessageStatus.SENT.name());
@@ -152,10 +183,26 @@ public class DbOutboundMessageRepository implements OutboundMessageRepository {
     }
 
     @Override
+    public void scheduleRetry(int id, String lastError, ZonedDateTime nextAttemptAt) {
+        DbUtil.withPreparedStmtConsumer(ds, """
+                UPDATE outbound_messages
+                SET status = ?, attempt_count = attempt_count + 1, last_error = ?, next_attempt_at = ?, next_attempt_at_epoch_s = ?, sent_at = NULL, sent_at_epoch_s = NULL
+                WHERE id = ?
+                """, stmt -> {
+            stmt.setString(1, OutboundMessageStatus.QUEUED.name());
+            stmt.setString(2, lastError);
+            stmt.setString(3, ISO_DATE_TIME.format(nextAttemptAt));
+            stmt.setLong(4, nextAttemptAt.toEpochSecond());
+            stmt.setInt(5, id);
+            stmt.executeUpdate();
+        });
+    }
+
+    @Override
     public void markFailed(int id, String lastError) {
         DbUtil.withPreparedStmtConsumer(ds, """
                 UPDATE outbound_messages
-                SET status = ?, attempt_count = attempt_count + 1, last_error = ?
+                SET status = ?, attempt_count = attempt_count + 1, last_error = ?, next_attempt_at = NULL, next_attempt_at_epoch_s = NULL
                 WHERE id = ?
                 """, stmt -> {
             stmt.setString(1, OutboundMessageStatus.FAILED.name());
@@ -168,7 +215,8 @@ public class DbOutboundMessageRepository implements OutboundMessageRepository {
     private static OutboundMessage toOutboundMessage(ResultSet rs) throws SQLException {
         Integer sourceMessageId = (Integer) rs.getObject(3);
         String lastError = rs.getString(13);
-        String sentAt = rs.getString(15);
+        String nextAttemptAt = rs.getString(15);
+        String sentAt = rs.getString(17);
         return new OutboundMessage(
                 rs.getInt(1),
                 rs.getInt(2),
@@ -184,7 +232,8 @@ public class DbOutboundMessageRepository implements OutboundMessageRepository {
                 rs.getInt(12),
                 Optional.ofNullable(lastError),
                 ZonedDateTime.parse(rs.getString(14), ISO_DATE_TIME),
+                Optional.ofNullable(nextAttemptAt).map(value -> ZonedDateTime.parse(value, ISO_DATE_TIME)),
                 Optional.ofNullable(sentAt).map(value -> ZonedDateTime.parse(value, ISO_DATE_TIME)),
-                rs.getLong(17));
+                rs.getLong(19));
     }
 }

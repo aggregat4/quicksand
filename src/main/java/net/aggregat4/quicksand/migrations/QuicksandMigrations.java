@@ -99,6 +99,8 @@ public class QuicksandMigrations implements Migrations {
                 attempt_count INTEGER NOT NULL DEFAULT 0,
                 last_error TEXT,
                 queued_at TEXT NOT NULL,
+                next_attempt_at TEXT,
+                next_attempt_at_epoch_s INTEGER,
                 sent_at TEXT,
                 sent_at_epoch_s INTEGER,
                 queued_at_epoch_s INTEGER NOT NULL,

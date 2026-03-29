@@ -40,18 +40,24 @@ public class MailSender {
     private final AttachmentRepository attachmentRepository;
     private final Clock clock;
     private final long sendPeriodInSeconds;
+    private final int maxAttempts;
+    private final long retryDelaySeconds;
 
     public MailSender(
             DbAccountRepository accountRepository,
             OutboundMessageRepository outboundMessageRepository,
             AttachmentRepository attachmentRepository,
             Clock clock,
-            long sendPeriodInSeconds) {
+            long sendPeriodInSeconds,
+            int maxAttempts,
+            long retryDelaySeconds) {
         this.accountRepository = accountRepository;
         this.outboundMessageRepository = outboundMessageRepository;
         this.attachmentRepository = attachmentRepository;
         this.clock = clock;
         this.sendPeriodInSeconds = sendPeriodInSeconds;
+        this.maxAttempts = maxAttempts;
+        this.retryDelaySeconds = retryDelaySeconds;
     }
 
     public void start() {
@@ -67,14 +73,20 @@ public class MailSender {
     }
 
     void sendQueuedMessages() {
-        for (OutboundMessage message : outboundMessageRepository.findByStatus(OutboundMessageStatus.QUEUED)) {
+        ZonedDateTime now = ZonedDateTime.now(clock);
+        for (OutboundMessage message : outboundMessageRepository.findDeliverable(now)) {
             Account account = accountRepository.getAccount(message.accountId());
             try {
                 deliver(account, message, attachmentRepository.findStoredByOutboundMessageId(message.id()));
-                outboundMessageRepository.markSent(message.id(), ZonedDateTime.now(clock));
+                outboundMessageRepository.markSent(message.id(), now);
             } catch (MessagingException | UnsupportedEncodingException e) {
                 LOGGER.warn("Failed to send outbound message {}", message.id(), e);
-                outboundMessageRepository.markFailed(message.id(), abbreviateError(e));
+                String abbreviatedError = abbreviateError(e);
+                if (message.attemptCount() + 1 >= maxAttempts) {
+                    outboundMessageRepository.markFailed(message.id(), abbreviatedError);
+                } else {
+                    outboundMessageRepository.scheduleRetry(message.id(), abbreviatedError, now.plusSeconds(backoffSeconds(message.attemptCount())));
+                }
             }
         }
     }
@@ -141,5 +153,9 @@ public class MailSender {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private long backoffSeconds(int attemptCount) {
+        return retryDelaySeconds * (1L << Math.max(0, attemptCount));
     }
 }

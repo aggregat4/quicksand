@@ -106,7 +106,9 @@ public final class Main {
         boolean mailSenderEnabled = config.get("mail_sender.enabled").asBoolean().orElse(demoEnabled);
         if (mailSenderEnabled && !accounts.isEmpty()) {
             long sendPeriodInSeconds = config.get("mail_sender.period_seconds").asLong().orElse(15L);
-            mailSender = new MailSender(accountRepository, outboundMessageRepository, attachmentRepository, clock, sendPeriodInSeconds);
+            int maxAttempts = config.get("mail_sender.max_attempts").asInt().orElse(3);
+            long retryDelaySeconds = config.get("mail_sender.retry_delay_seconds").asLong().orElse(60L);
+            mailSender = new MailSender(accountRepository, outboundMessageRepository, attachmentRepository, clock, sendPeriodInSeconds, maxAttempts, retryDelaySeconds);
             mailSender.start();
         } else if (mailSenderEnabled) {
             LOGGER.info("Mail sender was enabled, but no accounts are configured. Skipping startup.");

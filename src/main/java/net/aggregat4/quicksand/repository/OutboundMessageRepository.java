@@ -17,7 +17,11 @@ public interface OutboundMessageRepository {
 
     List<OutboundMessage> findByStatus(OutboundMessageStatus status);
 
+    List<OutboundMessage> findDeliverable(ZonedDateTime now);
+
     void markSent(int id, ZonedDateTime sentAt);
+
+    void scheduleRetry(int id, String lastError, ZonedDateTime nextAttemptAt);
 
     void markFailed(int id, String lastError);
 }

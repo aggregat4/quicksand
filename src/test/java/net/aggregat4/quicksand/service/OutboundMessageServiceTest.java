@@ -75,6 +75,7 @@ public class OutboundMessageServiceTest {
         assertEquals(OutboundMessageStatus.QUEUED, queuedMessage.status());
         assertEquals(0, queuedMessage.attemptCount());
         assertTrue(queuedMessage.lastError().isEmpty());
+        assertTrue(queuedMessage.nextAttemptAt().isEmpty());
         assertTrue(queuedMessage.sentAt().isEmpty());
 
         var queuedEmail = outboundMessageService.getQueuedMessage(queuedMessage.id()).orElseThrow();
