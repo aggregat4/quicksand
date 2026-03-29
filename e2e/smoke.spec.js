@@ -153,6 +153,13 @@ test('new drafts persist headers and body and reopen from the drafts folder', as
   await composerFrame.locator('#email-bcc').fill('Carol <carol@example.com>');
   await composerFrame.locator('#email-subject').fill('Drafts folder subject');
   await composerFrame.getByLabel('Email Body').fill('Drafts folder body with enough text to show up as the excerpt');
+  await composerFrame.locator('#attachment-upload-input').setInputFiles({
+    name: 'draft-note.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('draft attachment body')
+  });
+  await expect(composerFrame.locator('#draft-attachments')).toContainText('draft-note.txt');
+  await expect(composerFrame.locator('#email-subject')).toHaveValue('Drafts folder subject');
 
   await page.locator('#newmail-composer-dialog .dialogcloser button').click();
   await page.locator('#folderlist a[title="Drafts"]').click();
@@ -169,6 +176,13 @@ test('new drafts persist headers and body and reopen from the drafts folder', as
   await expect(composerFrame.locator('#email-bcc')).toHaveValue('Carol <carol@example.com>');
   await expect(composerFrame.locator('#email-subject')).toHaveValue('Drafts folder subject');
   await expect(composerFrame.getByLabel('Email Body')).toHaveValue('Drafts folder body with enough text to show up as the excerpt');
+  const attachmentLink = composerFrame.locator('#draft-attachments a.attachment', { hasText: 'draft-note.txt' });
+  await expect(attachmentLink).toHaveCount(1);
+  const attachmentHref = await attachmentLink.getAttribute('href');
+  expect(attachmentHref).toBeTruthy();
+  const attachmentResponse = await page.request.get(attachmentHref);
+  expect(attachmentResponse.ok()).toBeTruthy();
+  expect(await attachmentResponse.text()).toBe('draft attachment body');
 
   await page.locator('#newmail-composer-dialog .dialogcloser button').click();
   await page.getByRole('button', { name: 'New Mail' }).click();
@@ -177,6 +191,7 @@ test('new drafts persist headers and body and reopen from the drafts folder', as
   await expect(composerFrame.locator('#email-bcc')).toHaveValue('');
   await expect(composerFrame.locator('#email-subject')).toHaveValue('');
   await expect(composerFrame.getByLabel('Email Body')).toHaveValue('');
+  await expect(composerFrame.locator('#no-draft-attachments')).toContainText('No attachments yet');
 });
 
 test('descending inbox shows all temporal groups and seeded HTML examples', async ({ page }) => {

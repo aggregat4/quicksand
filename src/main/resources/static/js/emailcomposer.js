@@ -8,7 +8,10 @@ function initEmailComposer() {
     const visibleForm = document.getElementById('save-email-form')
     const autosaveForm = document.getElementById('autosave-email-form')
     const autosaveFrame = document.getElementById('draftsaveframe')
-    if (!visibleForm || !autosaveForm || !autosaveFrame) {
+    const attachmentUploadForm = document.getElementById('attachment-upload-form')
+    const attachmentUploadInput = document.getElementById('attachment-upload-input')
+    const addAttachmentButton = document.querySelector('.add-attachment-button')
+    if (!visibleForm || !autosaveForm || !autosaveFrame || !attachmentUploadForm || !attachmentUploadInput || !addAttachmentButton) {
         return
     }
 
@@ -16,6 +19,22 @@ function initEmailComposer() {
     let autoSaveTimer = null
     let saveChain = Promise.resolve()
     let lastSavedSnapshot = serializeDraftFields(draftFieldNames)
+
+    addAttachmentButton.addEventListener('click', event => {
+        event.preventDefault()
+        attachmentUploadInput.click()
+    })
+
+    attachmentUploadInput.addEventListener('change', () => {
+        if (!attachmentUploadInput.files?.length) {
+            return
+        }
+        clearTimeout(autoSaveTimer)
+        queueDraftSave()
+        saveChain.finally(() => {
+            attachmentUploadForm.requestSubmit()
+        })
+    })
 
     for (const fieldName of draftFieldNames) {
         const field = document.getElementById(fieldName)

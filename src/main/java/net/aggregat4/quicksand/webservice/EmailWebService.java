@@ -13,6 +13,7 @@ import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
+import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import org.owasp.html.HtmlPolicyBuilder;
@@ -23,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedWriter;
+import java.io.IOException;
 import java.io.StringWriter;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -67,10 +69,12 @@ public class EmailWebService implements HttpService {
             .toFactory();
     private final EmailService emailService;
     private final DraftService draftService;
+    private final AttachmentService attachmentService;
 
-    public EmailWebService(EmailService emailService, DraftService draftService) {
+    public EmailWebService(EmailService emailService, DraftService draftService, AttachmentService attachmentService) {
         this.emailService = emailService;
         this.draftService = draftService;
+        this.attachmentService = attachmentService;
     }
 
     @Override
@@ -82,6 +86,7 @@ public class EmailWebService implements HttpService {
         rules.post("/selection", this::emailActionHandler);
         rules.get("/{emailId}/composer", this::emailComposerHandler);
         rules.post("/{emailId}/draft", this::draftSaveHandler);
+        rules.post("/{emailId}/attachments", this::draftAttachmentUploadHandler);
         rules.post("/{emailId}", this::emailSendOrDeleteHandler);
         rules.get("/{emailId}/queued", this::emailQueued);
     }
@@ -166,12 +171,42 @@ public class EmailWebService implements HttpService {
         }
         Map<String, Object> context = new HashMap<>();
         context.put("draft", draft.get());
+        context.put("attachments", attachmentService.getDraftAttachments(emailId));
         Optional<String> validationErrors = request.query().first("validationErrors").map(s -> s);
         if (validationErrors.isPresent()) {
             context.put("validationErrors", validationErrors.get());
         }
         response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, emailComposerTemplate));
+    }
+
+    private void draftAttachmentUploadHandler(ServerRequest request, ServerResponse response) {
+        int emailId = RequestUtils.intPathParam(request, "emailId");
+        if (draftService.getDraft(emailId).isEmpty()) {
+            response.status(404);
+            response.send();
+            return;
+        }
+
+        MultiPart multiPart = request.content().as(MultiPart.GENERIC_TYPE);
+        while (multiPart.hasNext()) {
+            ReadablePart part = multiPart.next();
+            if (!"uploaded-file".equals(part.name())) {
+                part.consume();
+                continue;
+            }
+            Optional<String> fileName = part.fileName().filter(name -> !name.isBlank());
+            if (fileName.isEmpty()) {
+                part.consume();
+                continue;
+            }
+            try (var inputStream = part.inputStream()) {
+                attachmentService.storeDraftAttachment(emailId, fileName.get(), part.contentType(), inputStream);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/composer".formatted(emailId)));
     }
 
     private void draftSaveHandler(ServerRequest request, ServerResponse response) {

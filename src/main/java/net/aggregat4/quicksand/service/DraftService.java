@@ -18,11 +18,13 @@ import java.util.stream.Collectors;
 public class DraftService {
     private final DraftRepository draftRepository;
     private final EmailRepository emailRepository;
+    private final AttachmentService attachmentService;
     private final Clock clock;
 
-    public DraftService(DraftRepository draftRepository, EmailRepository emailRepository, Clock clock) {
+    public DraftService(DraftRepository draftRepository, EmailRepository emailRepository, AttachmentService attachmentService, Clock clock) {
         this.draftRepository = draftRepository;
         this.emailRepository = emailRepository;
+        this.attachmentService = attachmentService;
         this.clock = clock;
     }
 
@@ -103,6 +105,7 @@ public class DraftService {
         if (draftRepository.findById(id).isEmpty()) {
             return false;
         }
+        attachmentService.deleteDraftAttachments(id);
         draftRepository.delete(id);
         return true;
     }
@@ -171,7 +174,7 @@ public class DraftService {
                 draft.updatedAtEpochSeconds(),
                 excerpt,
                 false,
-                false,
+                attachmentService.hasDraftAttachments(draft.id()),
                 false);
     }
 

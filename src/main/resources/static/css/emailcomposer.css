@@ -95,3 +95,8 @@ body {
     flex-direction: column;
     gap: var(--gap-m);
 }
+
+#draft-attachments ul {
+    margin: 0;
+    padding-left: 1.5rem;
+}

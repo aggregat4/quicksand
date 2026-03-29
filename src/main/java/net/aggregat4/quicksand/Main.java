@@ -12,8 +12,10 @@ import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.repository.DatabaseMaintenance;
+import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
+import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
 import net.aggregat4.quicksand.repository.DbFolderRepository;
@@ -21,6 +23,7 @@ import net.aggregat4.quicksand.repository.DraftRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.service.AccountService;
+import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
@@ -73,8 +76,10 @@ public final class Main {
         DbActorRepository actorRepository = new DbActorRepository(ds);
         EmailRepository messageRepository = new DbEmailRepository(ds, actorRepository);
         DraftRepository draftRepository = new DbDraftRepository(ds);
+        AttachmentRepository attachmentRepository = new DbAttachmentRepository(ds);
+        AttachmentService attachmentService = new AttachmentService(attachmentRepository);
         EmailService emailService = new EmailService(messageRepository);
-        DraftService draftService = new DraftService(draftRepository, messageRepository, clock);
+        DraftService draftService = new DraftService(draftRepository, messageRepository, attachmentService, clock);
         List<Account> accounts = loadAccounts(config, demoEnabled);
         bootstrapAccounts(accounts, accountRepository);
 
@@ -92,8 +97,8 @@ public final class Main {
 
         HttpRouting.Builder routing = HttpRouting.builder()
                 .register("/accounts", new AccountWebService(folderService, accountService, emailService, draftService, clock))
-                .register("/emails", new EmailWebService(emailService, draftService))
-                .register("/attachments", new AttachmentWebService())
+                .register("/emails", new EmailWebService(emailService, draftService, attachmentService))
+                .register("/attachments", new AttachmentWebService(attachmentService))
                 .register("/", new HomeWebService(accountService));
 
         WebServer server = WebServer.builder()
@@ -203,5 +208,4 @@ public final class Main {
 //        hkConfig.setMaximumPoolSize(1);
         return new HikariDataSource(hkConfig);
     }
-
 }

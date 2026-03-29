@@ -83,6 +83,18 @@ public class QuicksandMigrations implements Migrations {
                 updated_at_epoch_s INTEGER NOT NULL,
                 FOREIGN KEY (account_id) REFERENCES accounts(id),
                 FOREIGN KEY (source_message_id) REFERENCES messages(id))""");
+        executeUpdate(con, """
+                CREATE TABLE attachments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                draft_id INTEGER,
+                message_id INTEGER,
+                name TEXT NOT NULL,
+                size_bytes INTEGER NOT NULL,
+                media_type TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                content BLOB NOT NULL,
+                FOREIGN KEY (draft_id) REFERENCES drafts(id) ON DELETE CASCADE,
+                FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE)""");
         // Enable WAL mode on the database to allow for concurrent reads and writes
         executeQuery(con, """
                 PRAGMA journal_mode=WAL;""");
