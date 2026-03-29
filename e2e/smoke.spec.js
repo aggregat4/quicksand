@@ -194,6 +194,46 @@ test('new drafts persist headers and body and reopen from the drafts folder', as
   await expect(composerFrame.locator('#no-draft-attachments')).toContainText('No attachments yet');
 });
 
+test('sending a draft moves it into outbox with attachments', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  await page.getByRole('button', { name: 'New Mail' }).click();
+  const composerFrame = page.frameLocator('#newmail-composer-frame');
+  await composerFrame.locator('#email-to').fill('Alice <alice@example.com>');
+  await composerFrame.locator('#email-subject').fill('Queued outbox subject');
+  await composerFrame.getByLabel('Email Body').fill('Queued outbox body');
+  await composerFrame.locator('#attachment-upload-input').setInputFiles({
+    name: 'outbox-note.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('outbox attachment body')
+  });
+  await expect(composerFrame.locator('#draft-attachments')).toContainText('outbox-note.txt');
+
+  await composerFrame.getByRole('button', { name: 'Send Email' }).click();
+  await expect(composerFrame.locator('.info-notification')).toContainText('queued');
+
+  await page.locator('#folderlist a[title="Outbox"]').click();
+  await expect(page.locator('#pagination-status')).toContainText('queued');
+
+  const queuedRow = page.locator('#messagelist a.emailheader').filter({
+    has: page.locator('.subjectline', { hasText: 'Queued outbox subject' })
+  });
+  await expect(queuedRow).toHaveCount(1);
+  await queuedRow.click();
+
+  const viewerFrame = page.frameLocator('iframe[name="emailviewer"]');
+  await expect(viewerFrame.locator('#emailsubject h1')).toHaveText('Queued outbox subject');
+  await expect(viewerFrame.locator('#emailbody pre')).toContainText('Queued outbox body');
+  await expect(viewerFrame.locator('#emailattachments')).toContainText('outbox-note.txt');
+  await expect(viewerFrame.getByRole('button', { name: 'Reply' })).toHaveCount(0);
+
+  const attachmentHref = await viewerFrame.locator('#emailattachments a.attachment', { hasText: 'outbox-note.txt' }).getAttribute('href');
+  expect(attachmentHref).toBeTruthy();
+  const attachmentResponse = await page.request.get(attachmentHref);
+  expect(attachmentResponse.ok()).toBeTruthy();
+  expect(await attachmentResponse.text()).toBe('outbox attachment body');
+});
+
 test('descending inbox shows all temporal groups and seeded HTML examples', async ({ page }) => {
   await waitForDemoInbox(page);
 

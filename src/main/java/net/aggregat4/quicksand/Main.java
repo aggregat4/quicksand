@@ -19,19 +19,23 @@ import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
 import net.aggregat4.quicksand.repository.DbFolderRepository;
+import net.aggregat4.quicksand.repository.DbOutboundMessageRepository;
 import net.aggregat4.quicksand.repository.DraftRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
+import net.aggregat4.quicksand.repository.OutboundMessageRepository;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
+import net.aggregat4.quicksand.service.OutboundMessageService;
 import net.aggregat4.quicksand.time.ApplicationClock;
 import net.aggregat4.quicksand.webservice.AccountWebService;
 import net.aggregat4.quicksand.webservice.AttachmentWebService;
 import net.aggregat4.quicksand.webservice.EmailWebService;
 import net.aggregat4.quicksand.webservice.HomeWebService;
+import net.aggregat4.quicksand.webservice.OutboxWebService;
 import org.sqlite.SQLiteConfig;
 import org.sqlite.SQLiteOpenMode;
 import org.slf4j.Logger;
@@ -75,11 +79,15 @@ public final class Main {
         FolderRepository  folderRepository = new DbFolderRepository(ds);
         DbActorRepository actorRepository = new DbActorRepository(ds);
         EmailRepository messageRepository = new DbEmailRepository(ds, actorRepository);
-        DraftRepository draftRepository = new DbDraftRepository(ds);
-        AttachmentRepository attachmentRepository = new DbAttachmentRepository(ds);
+        DbDraftRepository dbDraftRepository = new DbDraftRepository(ds);
+        DraftRepository draftRepository = dbDraftRepository;
+        DbAttachmentRepository dbAttachmentRepository = new DbAttachmentRepository(ds);
+        AttachmentRepository attachmentRepository = dbAttachmentRepository;
+        OutboundMessageRepository outboundMessageRepository = new DbOutboundMessageRepository(ds);
         AttachmentService attachmentService = new AttachmentService(attachmentRepository);
         EmailService emailService = new EmailService(messageRepository);
         DraftService draftService = new DraftService(draftRepository, messageRepository, attachmentService, clock);
+        OutboundMessageService outboundMessageService = new OutboundMessageService(ds, accountRepository, dbDraftRepository, dbAttachmentRepository, outboundMessageRepository, clock);
         List<Account> accounts = loadAccounts(config, demoEnabled);
         bootstrapAccounts(accounts, accountRepository);
 
@@ -96,8 +104,9 @@ public final class Main {
         FolderService folderService = new FolderService(folderRepository);
 
         HttpRouting.Builder routing = HttpRouting.builder()
-                .register("/accounts", new AccountWebService(folderService, accountService, emailService, draftService, clock))
-                .register("/emails", new EmailWebService(emailService, draftService, attachmentService))
+                .register("/accounts", new AccountWebService(folderService, accountService, emailService, draftService, outboundMessageService, clock))
+                .register("/emails", new EmailWebService(emailService, draftService, attachmentService, outboundMessageService))
+                .register("/outbox", new OutboxWebService(outboundMessageService))
                 .register("/attachments", new AttachmentWebService(attachmentService))
                 .register("/", new HomeWebService(accountService));
 

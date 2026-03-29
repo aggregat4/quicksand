@@ -16,6 +16,7 @@ import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
+import net.aggregat4.quicksand.service.OutboundMessageService;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.HtmlSanitizer;
 import org.owasp.html.HtmlStreamRenderer;
@@ -70,11 +71,13 @@ public class EmailWebService implements HttpService {
     private final EmailService emailService;
     private final DraftService draftService;
     private final AttachmentService attachmentService;
+    private final OutboundMessageService outboundMessageService;
 
-    public EmailWebService(EmailService emailService, DraftService draftService, AttachmentService attachmentService) {
+    public EmailWebService(EmailService emailService, DraftService draftService, AttachmentService attachmentService, OutboundMessageService outboundMessageService) {
         this.emailService = emailService;
         this.draftService = draftService;
         this.attachmentService = attachmentService;
+        this.outboundMessageService = outboundMessageService;
     }
 
     @Override
@@ -289,9 +292,14 @@ public class EmailWebService implements HttpService {
         if (!validationErrors.isEmpty()) {
             redirectWithValidationErrors(emailId, String.join(" ", validationErrors), response);
         } else {
-            draftService.queueDraft(emailId);
+            Optional<net.aggregat4.quicksand.domain.OutboundMessage> queuedMessage = outboundMessageService.queueDraftForDelivery(emailId);
+            if (queuedMessage.isEmpty()) {
+                response.status(404);
+                response.send();
+                return;
+            }
             // queue email for sending and signal frontend that we were successfull
-            ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/queued?result=queued".formatted(emailId)));
+            ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/queued?result=queued".formatted(queuedMessage.get().id())));
         }
     }
 

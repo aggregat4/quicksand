@@ -6,6 +6,7 @@ import net.aggregat4.quicksand.domain.Attachment;
 import net.aggregat4.quicksand.domain.StoredAttachment;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -42,13 +43,55 @@ public class DbAttachmentRepository implements AttachmentRepository {
 
     @Override
     public List<Attachment> findByDraftId(int draftId) {
+        return findByAssociation("draft_id", draftId);
+    }
+
+    @Override
+    public List<Attachment> findByOutboundMessageId(int outboundMessageId) {
+        return findByAssociation("outbound_message_id", outboundMessageId);
+    }
+
+    @Override
+    public Optional<StoredAttachment> findStoredById(int id) {
+        return DbUtil.withPreparedStmtFunction(ds, """
+                SELECT id, draft_id, message_id, outbound_message_id, name, size_bytes, media_type, content_hash, content
+                FROM attachments
+                WHERE id = ?
+                """, stmt -> {
+            stmt.setInt(1, id);
+            return DbUtil.withResultSetFunction(stmt, rs -> rs.next() ? Optional.of(toStoredAttachment(rs)) : Optional.empty());
+        });
+    }
+
+    @Override
+    public void moveDraftAttachmentsToOutboundMessage(Connection con, int draftId, int outboundMessageId) {
+        DbUtil.withPreparedStmtConsumer(con, """
+                UPDATE attachments
+                SET draft_id = NULL, outbound_message_id = ?
+                WHERE draft_id = ?
+                """, stmt -> {
+            stmt.setInt(1, outboundMessageId);
+            stmt.setInt(2, draftId);
+            stmt.executeUpdate();
+        });
+    }
+
+    @Override
+    public void deleteByDraftId(int draftId) {
+        DbUtil.withPreparedStmtConsumer(ds, "DELETE FROM attachments WHERE draft_id = ?", stmt -> {
+            stmt.setInt(1, draftId);
+            stmt.executeUpdate();
+        });
+    }
+
+    private List<Attachment> findByAssociation(String columnName, int id) {
         return DbUtil.withPreparedStmtFunction(ds, """
                 SELECT id, name, size_bytes, media_type
                 FROM attachments
-                WHERE draft_id = ?
+                WHERE %s = ?
                 ORDER BY id
-                """, stmt -> {
-            stmt.setInt(1, draftId);
+                """.formatted(columnName), stmt -> {
+            stmt.setInt(1, id);
             return DbUtil.withResultSetFunction(stmt, rs -> {
                 List<Attachment> attachments = new java.util.ArrayList<>();
                 while (rs.next()) {
@@ -63,37 +106,19 @@ public class DbAttachmentRepository implements AttachmentRepository {
         });
     }
 
-    @Override
-    public Optional<StoredAttachment> findStoredById(int id) {
-        return DbUtil.withPreparedStmtFunction(ds, """
-                SELECT id, draft_id, message_id, name, size_bytes, media_type, content_hash, content
-                FROM attachments
-                WHERE id = ?
-                """, stmt -> {
-            stmt.setInt(1, id);
-            return DbUtil.withResultSetFunction(stmt, rs -> rs.next() ? Optional.of(toStoredAttachment(rs)) : Optional.empty());
-        });
-    }
-
-    @Override
-    public void deleteByDraftId(int draftId) {
-        DbUtil.withPreparedStmtConsumer(ds, "DELETE FROM attachments WHERE draft_id = ?", stmt -> {
-            stmt.setInt(1, draftId);
-            stmt.executeUpdate();
-        });
-    }
-
     private static StoredAttachment toStoredAttachment(ResultSet rs) throws SQLException {
         Integer draftId = (Integer) rs.getObject(2);
         Integer messageId = (Integer) rs.getObject(3);
+        Integer outboundMessageId = (Integer) rs.getObject(4);
         return new StoredAttachment(
                 rs.getInt(1),
                 Optional.ofNullable(draftId),
                 Optional.ofNullable(messageId),
-                rs.getString(4),
-                rs.getLong(5),
-                HttpMediaType.create(rs.getString(6)),
-                rs.getString(7),
-                rs.getBytes(8));
+                Optional.ofNullable(outboundMessageId),
+                rs.getString(5),
+                rs.getLong(6),
+                HttpMediaType.create(rs.getString(7)),
+                rs.getString(8),
+                rs.getBytes(9));
     }
 }

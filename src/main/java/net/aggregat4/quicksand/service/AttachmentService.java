@@ -35,8 +35,16 @@ public class AttachmentService {
         return attachmentRepository.findByDraftId(draftId);
     }
 
+    public List<Attachment> getOutboundAttachments(int outboundMessageId) {
+        return attachmentRepository.findByOutboundMessageId(outboundMessageId);
+    }
+
     public boolean hasDraftAttachments(int draftId) {
         return !attachmentRepository.findByDraftId(draftId).isEmpty();
+    }
+
+    public boolean hasOutboundAttachments(int outboundMessageId) {
+        return !attachmentRepository.findByOutboundMessageId(outboundMessageId).isEmpty();
     }
 
     public Optional<StoredAttachment> getStoredAttachment(int attachmentId) {

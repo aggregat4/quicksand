@@ -8,6 +8,7 @@ public record StoredAttachment(
         int id,
         Optional<Integer> draftId,
         Optional<Integer> messageId,
+        Optional<Integer> outboundMessageId,
         String name,
         long sizeInBytes,
         HttpMediaType mediaType,

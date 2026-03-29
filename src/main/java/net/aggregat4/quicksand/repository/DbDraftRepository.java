@@ -5,6 +5,7 @@ import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.DraftType;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.ZonedDateTime;
@@ -76,6 +77,17 @@ public class DbDraftRepository implements DraftRepository {
         });
     }
 
+    public Optional<Draft> findById(Connection con, int id) {
+        return DbUtil.withPreparedStmtFunction(con, """
+                SELECT id, account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, body, queued, updated_at, updated_at_epoch_s
+                FROM drafts
+                WHERE id = ?
+                """, stmt -> {
+            stmt.setInt(1, id);
+            return DbUtil.withResultSetFunction(stmt, rs -> rs.next() ? Optional.of(toDraft(rs)) : Optional.empty());
+        });
+    }
+
     @Override
     public List<Draft> findOpenByAccountId(int accountId) {
         return DbUtil.withPreparedStmtFunction(ds, """
@@ -118,6 +130,13 @@ public class DbDraftRepository implements DraftRepository {
     @Override
     public void delete(int id) {
         DbUtil.withPreparedStmtConsumer(ds, "DELETE FROM drafts WHERE id = ?", stmt -> {
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+        });
+    }
+
+    public void delete(Connection con, int id) {
+        DbUtil.withPreparedStmtConsumer(con, "DELETE FROM drafts WHERE id = ?", stmt -> {
             stmt.setInt(1, id);
             stmt.executeUpdate();
         });

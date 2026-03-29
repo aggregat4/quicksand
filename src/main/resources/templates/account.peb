@@ -7,10 +7,10 @@
 {% endblock %}
 
 {% block content %}
-    <main data-current-folder-is-drafts="{{ currentFolderIsDrafts ? 'true' : 'false' }}"{% if selectedEmailId %} data-selected-email-id="{{ selectedEmailId }}"{% endif %}>
+    <main data-current-folder-is-drafts="{{ currentFolderIsDrafts ? 'true' : 'false' }}" data-current-folder-is-outbox="{{ currentFolderIsOutbox ? 'true' : 'false' }}"{% if selectedEmailId %} data-selected-email-id="{{ selectedEmailId }}"{% endif %}>
         <div id="accountnav">
             <div id="emailcontrols">
-                {% if not currentFolderIsDrafts %}
+                {% if not currentFolderIsDrafts and not currentFolderIsOutbox %}
                     {#  as per https://www.barrierefreies-webdesign.de/knowhow/checkbox/ #}
                     <div id="select-all-mail-checkbox" role="checkbox" aria-checked="false" tabindex="0" title="Select All E-Mails" onclick="onClickSelectAllEmails()">
                         {{ svgIcon('noneselected') | raw }}
@@ -48,6 +48,11 @@
                             {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
                                 - {{ emailGroupPage.formattedReceivedDateRange().get() }}
                             {% endif %}
+                        {% elseif currentFolderIsOutbox %}
+                            {{ emailGroupPage.getNofMessages() }} queued
+                            {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
+                                - {{ emailGroupPage.formattedReceivedDateRange().get() }}
+                            {% endif %}
                         {% else %}
                             {{ emailGroupPage.getNofMessages() }}
                             {% if emailGroupPage.pagination().totalMessageCount().isPresent() %}
@@ -60,7 +65,7 @@
                             {% endif %}
                         {% endif %}
                     </div>
-                    {% if not currentFolderIsDrafts %}
+                    {% if not currentFolderIsDrafts and not currentFolderIsOutbox %}
                         <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
                             {% set baseLink = '/accounts/' + currentAccount.id %}
                             {% if not currentQuery %}
@@ -127,7 +132,7 @@
                 </form>
                 <iframe name="emailviewer"
                 {% if emailActive %}
-                    src="{{ '/emails/' + selectedEmailId + '/viewer?showImages=false' }}"
+                    src="{% if currentFolderIsOutbox %}{{ '/outbox/' + selectedEmailId + '/viewer' }}{% else %}{{ '/emails/' + selectedEmailId + '/viewer?showImages=false' }}{% endif %}"
                 {% endif %}
                 >
                 </iframe>

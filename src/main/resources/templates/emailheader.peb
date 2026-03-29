@@ -1,9 +1,9 @@
-<a href="{% if currentFolderIsDrafts %}/emails/{{ emailHeader.id }}/composer{% else %}/emails/{{ emailHeader.id }}/viewer?showImages=false{% endif %}"
+<a href="{% if currentFolderIsDrafts %}/emails/{{ emailHeader.id }}/composer{% elseif currentFolderIsOutbox %}/outbox/{{ emailHeader.id }}/viewer{% else %}/emails/{{ emailHeader.id }}/viewer?showImages=false{% endif %}"
    id="email{{ emailHeader.id }}"
    class="emailheader{{ emailHeader.read ? ' read' : '' }}{{ emailActive and selectedEmailId == emailHeader.id ? ' active' : '' }}"
    target="{{ currentFolderIsDrafts ? 'newmailframe' : 'emailviewer' }}"
    onclick="{{ currentFolderIsDrafts ? 'onDraftHeaderClick(event)' : 'onEmailHeaderClick(event)' }}">
-    {% if currentFolderIsDrafts %}
+    {% if currentFolderIsDrafts or currentFolderIsOutbox %}
         <div class="emailselection"></div>
     {% else %}
         <div class="emailselection">
@@ -21,7 +21,7 @@
             {% endif %}
             {{ emailHeader.shortFormattedReceivedDate }}
         </span>
-        {% if not currentFolderIsDrafts %}
+        {% if not currentFolderIsDrafts and not currentFolderIsOutbox %}
             <form class="emailactions" method="POST" action="/emails/selection">
                 <input type="text" name="email_select" value="{{ emailHeader.id }}" hidden aria-hidden="true">
                 <button class="iconbutton" type="submit" name="email_action_archive" title="Archive E-Mail" aria-label="Archive E-Mail">{{ svgIcon('archive') | raw }}</button>

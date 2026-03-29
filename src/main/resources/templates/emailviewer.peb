@@ -40,6 +40,7 @@
             {% endif %}
         </div>
         <div id="emailactions">
+            {% if readOnly != true %}
             <div id="emailreplyforward">
                     {{ submitButton(true, 'reply', false, 'reply_email', 'Reply', clickHandler = 'replyToEmail(' + email.header.id + ')') }}
                     {{ submitButton(true, 'reply', false, 'forward_email', 'Forward', clickHandler = 'forwardEmail(' + email.header.id + ')') }}
@@ -52,6 +53,7 @@
                 {{ submitButton(true, null,         false, 'email_action_mark_spam', 'Mark Spam') }}
                 {{ submitButton(true, 'delete',     false, 'email_action_delete', 'Delete') }}
             </form>
+            {% endif %}
         </div>
         {% if not email.plainText %}
             <a id="emailimages" href="/emails/{{ email.header.id }}/viewer?showImages={{ showImages ? 'false' : 'true' }}">

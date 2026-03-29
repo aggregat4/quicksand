@@ -46,6 +46,7 @@ class MainTest {
     void accountPageFallsBackToDraftsWhenSyncIsDisabled() throws IOException, InterruptedException {
         String response = get("/accounts/1");
         assertTrue(response.contains("Greenmail Test Account"));
+        assertTrue(response.contains("Outbox"));
         assertTrue(response.contains("Drafts"));
         assertTrue(response.contains("0 drafts"));
     }

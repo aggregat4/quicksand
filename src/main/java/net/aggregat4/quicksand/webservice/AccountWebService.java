@@ -16,6 +16,7 @@ import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.Folder;
 import net.aggregat4.quicksand.domain.NamedFolder;
+import net.aggregat4.quicksand.domain.OutboxFolder;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.PageParams;
 import net.aggregat4.quicksand.domain.Pagination;
@@ -28,6 +29,7 @@ import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
+import net.aggregat4.quicksand.service.OutboundMessageService;
 
 import java.time.Clock;
 import java.net.URI;
@@ -50,13 +52,15 @@ public class AccountWebService implements HttpService {
 
     private final EmailService emailService;
     private final DraftService draftService;
+    private final OutboundMessageService outboundMessageService;
     private final Clock clock;
 
-    public AccountWebService(FolderService folderService, AccountService accountService, EmailService emailService, DraftService draftService, Clock clock) {
+    public AccountWebService(FolderService folderService, AccountService accountService, EmailService emailService, DraftService draftService, OutboundMessageService outboundMessageService, Clock clock) {
         this.folderService = folderService;
         this.accountService = accountService;
         this.emailService = emailService;
         this.draftService = draftService;
+        this.outboundMessageService = outboundMessageService;
         this.clock = clock;
     }
 
@@ -65,6 +69,7 @@ public class AccountWebService implements HttpService {
         rules.get("/{accountId}", this::getAccountHandler);
         rules.get("/{accountId}/folders/{folderId}", this::getFolderHandler);
         rules.get("/{accountId}/drafts", this::getDraftsHandler);
+        rules.get("/{accountId}/outbox", this::getOutboxHandler);
         rules.get("/{accountId}/search", this::getSearchHandler);
         rules.post("/{accountId}/emails", this::emailCreationHandler);
     }
@@ -115,6 +120,12 @@ public class AccountWebService implements HttpService {
         int accountId = RequestUtils.intPathParam(request, "accountId");
         Optional<Integer> selectedEmailId = request.query().first("selectedEmailId").map(Integer::parseInt);
         renderDraftsAccount(response, accountId, selectedEmailId);
+    }
+
+    private void getOutboxHandler(ServerRequest request, ServerResponse response) {
+        int accountId = RequestUtils.intPathParam(request, "accountId");
+        Optional<Integer> selectedEmailId = request.query().first("selectedEmailId").map(Integer::parseInt);
+        renderOutboxAccount(response, accountId, selectedEmailId);
     }
 
     private static PageParams parseEmailPageParams(ServerRequest request) {
@@ -193,6 +204,16 @@ public class AccountWebService implements HttpService {
         renderAccount(response, accountId, new DraftsFolder(), new EmailPage(drafts, false, false, pageParams), pagination, selectedEmailId, Optional.empty());
     }
 
+    private void renderOutboxAccount(ServerResponse response, int accountId, Optional<Integer> selectedEmailId) {
+        List<EmailHeader> queuedHeaders = outboundMessageService.getQueuedHeaders(accountId);
+        List<Email> queuedMessages = queuedHeaders.stream()
+                .map(header -> new Email(header, true, header.bodyExcerpt(), Collections.emptyList()))
+                .toList();
+        PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
+        Pagination pagination = new Pagination(Optional.empty(), Optional.empty(), pageParams, queuedHeaders.size(), Optional.empty(), false, false);
+        renderAccount(response, accountId, new OutboxFolder(), new EmailPage(queuedMessages, false, false, pageParams), pagination, selectedEmailId, Optional.empty());
+    }
+
     private void renderAccount(ServerResponse response, int accountId, Folder folder, EmailPage emailPage, Pagination pagination, Optional<Integer> selectedEmailId, Optional<String> query) {
         List<NamedFolder> folders = folderService.getFolders(accountId);
         List<EmailHeader> emailHeaders = emailPage.emails().stream().map(Email::header).toList();
@@ -209,6 +230,7 @@ public class AccountWebService implements HttpService {
         context.put("emailGroupPage", emailGroupPage);
         context.put("currentFolder", folder);
         context.put("currentFolderIsDrafts", folder instanceof DraftsFolder);
+        context.put("currentFolderIsOutbox", folder instanceof OutboxFolder);
         if (selectedEmailId.isPresent()) {
             context.put("selectedEmailId", selectedEmailId.get());
         }
@@ -227,6 +249,10 @@ public class AccountWebService implements HttpService {
                         currentFolder instanceof NamedFolder namedFolder && namedFolder.id() == folder.id()))
                 .toList();
         List<SidebarFolderLink> links = new java.util.ArrayList<>(sidebarFolders);
+        links.add(new SidebarFolderLink(
+                "Outbox",
+                "/accounts/%s/outbox".formatted(accountId),
+                currentFolder instanceof OutboxFolder));
         links.add(new SidebarFolderLink(
                 "Drafts",
                 "/accounts/%s/drafts".formatted(accountId),
