@@ -23,6 +23,7 @@ import net.aggregat4.quicksand.domain.SearchFolder;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import net.aggregat4.quicksand.service.AccountService;
+import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 
@@ -46,12 +47,14 @@ public class AccountWebService implements HttpService {
     private final AccountService accountService;
 
     private final EmailService emailService;
+    private final DraftService draftService;
     private final Clock clock;
 
-    public AccountWebService(FolderService folderService, AccountService accountService, EmailService emailService, Clock clock) {
+    public AccountWebService(FolderService folderService, AccountService accountService, EmailService emailService, DraftService draftService, Clock clock) {
         this.folderService = folderService;
         this.accountService = accountService;
         this.emailService = emailService;
+        this.draftService = draftService;
         this.clock = clock;
     }
 
@@ -205,18 +208,27 @@ public class AccountWebService implements HttpService {
     }
 
     private void emailCreationHandler(ServerRequest request, ServerResponse response) {
-        // TODO: We create a new draft email and redirect to the composer
         boolean redirect = Boolean.parseBoolean(request.query().first("redirect").orElse("true"));
         Optional<Integer> replyEmailId = request.query().first("replyEmail").map(Integer::valueOf);
         Optional<Integer> forwardEmailId = request.query().first("forwardEmail").map(Integer::valueOf);
-        int newEmailId = replyEmailId.isPresent() ? 100 : forwardEmailId.isPresent() ? 200 : 42;
+        int accountId = RequestUtils.intPathParam(request, "accountId");
+        Optional<Integer> newEmailId = replyEmailId.isPresent()
+                ? draftService.createReplyDraft(accountId, replyEmailId.get()).map(net.aggregat4.quicksand.domain.Draft::id)
+                : forwardEmailId.isPresent()
+                ? draftService.createForwardDraft(accountId, forwardEmailId.get()).map(net.aggregat4.quicksand.domain.Draft::id)
+                : Optional.of(draftService.createDraft(accountId).id());
+        if (newEmailId.isEmpty()) {
+            response.status(404);
+            response.send();
+            return;
+        }
         // a client can post a request for a new email with or without a redirect. In the latter case we return the
         // composer location as the result and the client has to take care of going there himself
         if (redirect) {
-            ResponseUtils.redirectAfterPost(response, getComposerLocation(newEmailId));
+            ResponseUtils.redirectAfterPost(response, getComposerLocation(newEmailId.get()));
         } else {
             response.status(200);
-            response.send(getComposerLocation(newEmailId).toString());
+            response.send(getComposerLocation(newEmailId.get()).toString());
         }
     }
 

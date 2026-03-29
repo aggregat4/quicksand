@@ -107,6 +107,38 @@ test('account page supports message preview and composer dialogs', async ({ page
   const composerFrame = page.frameLocator('#newmail-composer-frame');
   await expect(composerFrame.locator('form#save-email-form')).toBeVisible();
   await expect(composerFrame.getByLabel('Email Body')).toBeVisible();
+
+  await composerFrame.locator('#email-subject').fill('Draft subject');
+  await composerFrame.getByLabel('Email Body').fill('Draft body');
+  await composerFrame.getByRole('button', { name: 'Send Email' }).click();
+
+  await expect(composerFrame.locator('#validation-errors')).toContainText("Missing 'To' field");
+  await expect(composerFrame.locator('#email-subject')).toHaveValue('Draft subject');
+  await expect(composerFrame.getByLabel('Email Body')).toHaveValue('Draft body');
+
+  await composerFrame.locator('#email-to').fill('Alice <alice@example.com>');
+  await composerFrame.getByRole('button', { name: 'Send Email' }).click();
+  await expect(composerFrame.locator('.info-notification')).toContainText('queued');
+});
+
+test('reply and forward create persisted drafts with derived defaults', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  const firstMessage = page.locator('#messagelist a.emailheader').first();
+  await firstMessage.click();
+
+  const viewerFrame = page.frameLocator('iframe[name="emailviewer"]');
+  await viewerFrame.getByRole('button', { name: 'Reply' }).click();
+
+  const composerFrame = page.frameLocator('#newmail-composer-frame');
+  await expect(composerFrame.locator('#email-to')).toHaveValue(/hello@quicksand\.demo/);
+  await expect(composerFrame.locator('#email-subject')).toHaveValue(/^Re: Today latest - welcome to the demo inbox$/);
+  await expect(composerFrame.getByLabel('Email Body')).toContainText('On ');
+
+  await page.evaluate(() => window.postMessage({ type: 'forward-email', emailId: 1 }, '*'));
+  await expect(composerFrame.locator('#email-to')).toHaveValue('');
+  await expect(composerFrame.locator('#email-subject')).toHaveValue(/^Fwd: Today latest - welcome to the demo inbox$/);
+  await expect(composerFrame.getByLabel('Email Body')).toContainText('Forwarded message');
 });
 
 test('descending inbox shows all temporal groups and seeded HTML examples', async ({ page }) => {

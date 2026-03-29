@@ -10,8 +10,10 @@ import io.helidon.webserver.http.HttpService;
 import io.helidon.webserver.http.ServerRequest;
 import io.helidon.webserver.http.ServerResponse;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
+import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
+import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.HtmlSanitizer;
@@ -63,9 +65,11 @@ public class EmailWebService implements HttpService {
             .allowAttributes("src", "href").globally()
             .toFactory();
     private final EmailService emailService;
+    private final DraftService draftService;
 
-    public EmailWebService(EmailService emailService) {
+    public EmailWebService(EmailService emailService, DraftService draftService) {
         this.emailService = emailService;
+        this.draftService = draftService;
     }
 
     @Override
@@ -152,23 +156,20 @@ public class EmailWebService implements HttpService {
 
     private void emailComposerHandler(ServerRequest request, ServerResponse response) {
         int emailId = RequestUtils.intPathParam(request, "emailId");
-        Email email = loadEmail(emailId);
+        Optional<Draft> draft = draftService.getDraft(emailId);
+        if (draft.isEmpty()) {
+            response.status(404);
+            response.send();
+            return;
+        }
         Map<String, Object> context = new HashMap<>();
-        context.put("email", email);
+        context.put("draft", draft.get());
         Optional<String> validationErrors = request.query().first("validationErrors").map(s -> s);
         if (validationErrors.isPresent()) {
             context.put("validationErrors", validationErrors.get());
         }
         response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, emailComposerTemplate));
-    }
-
-    private Email loadEmail(int emailId) {
-        return switch(emailId) {
-            case 100 -> MockEmailData.REPLY_EMAIL;
-            case 200 -> MockEmailData.FORWARD_EMAIL;
-            default -> MockEmailData.NEW_EMAIL;
-        };
     }
 
     /**
@@ -197,6 +198,28 @@ public class EmailWebService implements HttpService {
         if ((!shouldDeleteEmail && !shouldSendEmail) || (shouldDeleteEmail && shouldSendEmail)) {
             throw new BadRequestException("Posting to a concrete email requires either the delete or send action");
         }
+        if (shouldDeleteEmail) {
+            if (!draftService.deleteDraft(emailId)) {
+                response.status(404);
+                response.send();
+                return;
+            }
+            ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/queued?result=deleted".formatted(emailId)));
+            return;
+        }
+
+        Optional<Draft> draft = draftService.saveDraft(
+                emailId,
+                valueOrEmpty(params.get("email-to")),
+                valueOrEmpty(params.get("email-cc")),
+                valueOrEmpty(params.get("email-bcc")),
+                valueOrEmpty(params.get("email-subject")),
+                valueOrEmpty(params.get("email-body")));
+        if (draft.isEmpty()) {
+            response.status(404);
+            response.send();
+            return;
+        }
         LOGGER.info("Action '{}' for email {}", shouldDeleteEmail ? "delete" : "send", emailId);
         // validate
         List<String> validationErrors = new ArrayList<>();
@@ -210,15 +233,22 @@ public class EmailWebService implements HttpService {
         if (!validationErrors.isEmpty()) {
             redirectWithValidationErrors(emailId, String.join(" ", validationErrors), response);
         } else {
+            draftService.queueDraft(emailId);
             // queue email for sending and signal frontend that we were successfull
-            ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/queued".formatted(emailId)));
+            ResponseUtils.redirectAfterPost(response, URI.create("/emails/%s/queued?result=queued".formatted(emailId)));
         }
     }
 
     private void emailQueued(ServerRequest request, ServerResponse response) {
         // TODO: we should if-last modified here so we can instruct the browser to use the cached version as long we did not restart the program
+        String notificationText = request.query().first("result")
+                .map(result -> switch (result) {
+                    case "deleted" -> "Draft was deleted.";
+                    default -> "Email was queued for delivery.";
+                })
+                .orElse("Email was queued for delivery.");
         response.headers().contentType(TEXT_HTML);
-        response.send(PebbleRenderer.renderTemplate(Collections.emptyMap(), emailQueuedTemplate));
+        response.send(PebbleRenderer.renderTemplate(Map.of("notificationText", notificationText), emailQueuedTemplate));
     }
 
     private static void redirectWithValidationErrors(int emailId, String s, ServerResponse response) {
@@ -233,6 +263,10 @@ public class EmailWebService implements HttpService {
 
     private boolean isEmpty(String value) {
         return value == null || value.isBlank();
+    }
+
+    private static String valueOrEmpty(String value) {
+        return value == null ? "" : value;
     }
 
 }

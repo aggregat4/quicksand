@@ -14,11 +14,14 @@ import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.repository.DatabaseMaintenance;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
+import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
 import net.aggregat4.quicksand.repository.DbFolderRepository;
+import net.aggregat4.quicksand.repository.DraftRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.service.AccountService;
+import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 import net.aggregat4.quicksand.time.ApplicationClock;
@@ -69,7 +72,9 @@ public final class Main {
         FolderRepository  folderRepository = new DbFolderRepository(ds);
         DbActorRepository actorRepository = new DbActorRepository(ds);
         EmailRepository messageRepository = new DbEmailRepository(ds, actorRepository);
+        DraftRepository draftRepository = new DbDraftRepository(ds);
         EmailService emailService = new EmailService(messageRepository);
+        DraftService draftService = new DraftService(draftRepository, messageRepository);
         List<Account> accounts = loadAccounts(config, demoEnabled);
         bootstrapAccounts(accounts, accountRepository);
 
@@ -86,8 +91,8 @@ public final class Main {
         FolderService folderService = new FolderService(folderRepository);
 
         HttpRouting.Builder routing = HttpRouting.builder()
-                .register("/accounts", new AccountWebService(folderService, accountService, emailService, clock))
-                .register("/emails", new EmailWebService(emailService))
+                .register("/accounts", new AccountWebService(folderService, accountService, emailService, draftService, clock))
+                .register("/emails", new EmailWebService(emailService, draftService))
                 .register("/attachments", new AttachmentWebService())
                 .register("/", new HomeWebService(accountService));
 

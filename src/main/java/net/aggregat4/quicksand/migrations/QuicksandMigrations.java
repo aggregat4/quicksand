@@ -12,6 +12,8 @@ import static net.aggregat4.dblib.DbUtil.executeUpdate;
 public class QuicksandMigrations implements Migrations {
 
     // TODO: Store password bcrypt encrypted and salted
+    // Quicksand is still pre-production, so keep the schema definition collapsed into one
+    // explicit migration to make the current data model easy to read in one place.
     private static final Function<Connection, Integer> v2Migration = (con) -> {
         executeUpdate(con, """
                 CREATE TABLE accounts (
@@ -49,6 +51,8 @@ public class QuicksandMigrations implements Migrations {
                 body_excerpt TEXT,
                 starred INTEGER,
                 read INTEGER,
+                body TEXT,
+                plain_text INTEGER NOT NULL DEFAULT 1,
                 FOREIGN KEY (folder_id) REFERENCES folders(id))""");
         // TODO consider adding NOT NULL constraints
         // TODO this design does not consolidate addresses at all, we will have many duplicate addresses here as they are the raw addresses from the original message
@@ -63,27 +67,33 @@ public class QuicksandMigrations implements Migrations {
                 name TEXT,
                 email_address TEXT NOT NULL,
                 FOREIGN KEY (message_id) REFERENCES messages(id))""");
+        executeUpdate(con, """
+                CREATE TABLE drafts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                source_message_id INTEGER,
+                to_recipients TEXT NOT NULL DEFAULT '',
+                cc_recipients TEXT NOT NULL DEFAULT '',
+                bcc_recipients TEXT NOT NULL DEFAULT '',
+                subject TEXT NOT NULL DEFAULT '',
+                body TEXT NOT NULL DEFAULT '',
+                queued INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (account_id) REFERENCES accounts(id),
+                FOREIGN KEY (source_message_id) REFERENCES messages(id))""");
         // Enable WAL mode on the database to allow for concurrent reads and writes
         executeQuery(con, """
                 PRAGMA journal_mode=WAL;""");
         return 2;
     };
 
-    private static final Function<Connection, Integer> v3Migration = (con) -> {
-        executeUpdate(con, "ALTER TABLE messages ADD COLUMN body TEXT");
-        executeUpdate(con, "ALTER TABLE messages ADD COLUMN plain_text INTEGER NOT NULL DEFAULT 1");
-        return 3;
-    };
-
     @Override
     public Map<Integer, Function<Connection, Integer>> getMigrations() {
-        return Map.of(
-                2, v2Migration,
-                3, v3Migration);
+        return Map.of(2, v2Migration);
     }
 
     @Override
     public int getCurrentVersion() {
-        return 3;
+        return 2;
     }
 }

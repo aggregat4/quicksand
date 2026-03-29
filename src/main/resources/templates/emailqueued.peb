@@ -8,7 +8,7 @@
 </head>
 <body class="email-queued">
     <main>
-        <p class="info-notification">Email was queued for delivery.</p>
+        <p class="info-notification">{{ notificationText }}</p>
     </main>
     <script>
         window.parent.postMessage({type: "email-queued"}, "*")
