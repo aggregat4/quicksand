@@ -11,6 +11,7 @@ import io.helidon.webserver.staticcontent.StaticContentFeature;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.MailFetcher;
+import net.aggregat4.quicksand.jobs.MailSender;
 import net.aggregat4.quicksand.repository.DatabaseMaintenance;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
@@ -55,6 +56,7 @@ public final class Main {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
 
     private static MailFetcher mailFetcher;
+    private static MailSender mailSender;
     private static GreenMail greenMail;
 
     public static void main(final String[] args) throws IOException {
@@ -99,6 +101,15 @@ public final class Main {
             mailFetcher.start();
         } else if (mailFetcherEnabled) {
             LOGGER.info("Mail fetcher was enabled, but no accounts are configured. Skipping startup.");
+        }
+
+        boolean mailSenderEnabled = config.get("mail_sender.enabled").asBoolean().orElse(demoEnabled);
+        if (mailSenderEnabled && !accounts.isEmpty()) {
+            long sendPeriodInSeconds = config.get("mail_sender.period_seconds").asLong().orElse(15L);
+            mailSender = new MailSender(accountRepository, outboundMessageRepository, attachmentRepository, clock, sendPeriodInSeconds);
+            mailSender.start();
+        } else if (mailSenderEnabled) {
+            LOGGER.info("Mail sender was enabled, but no accounts are configured. Skipping startup.");
         }
 
         FolderService folderService = new FolderService(folderRepository);

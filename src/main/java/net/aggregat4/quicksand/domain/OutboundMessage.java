@@ -14,6 +14,10 @@ public record OutboundMessage(
         String bcc,
         String subject,
         String body,
+        OutboundMessageStatus status,
+        int attemptCount,
+        Optional<String> lastError,
         ZonedDateTime queuedAt,
+        Optional<ZonedDateTime> sentAt,
         long queuedAtEpochSeconds) {
 }

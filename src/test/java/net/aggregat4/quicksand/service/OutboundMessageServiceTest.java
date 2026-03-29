@@ -5,6 +5,7 @@ import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.DraftType;
+import net.aggregat4.quicksand.domain.OutboundMessageStatus;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
@@ -71,6 +72,10 @@ public class OutboundMessageServiceTest {
 
         assertTrue(draftRepository.findById(draft.id()).isEmpty());
         assertEquals(1, outboundMessageService.getQueuedHeaders(accountId).size());
+        assertEquals(OutboundMessageStatus.QUEUED, queuedMessage.status());
+        assertEquals(0, queuedMessage.attemptCount());
+        assertTrue(queuedMessage.lastError().isEmpty());
+        assertTrue(queuedMessage.sentAt().isEmpty());
 
         var queuedEmail = outboundMessageService.getQueuedMessage(queuedMessage.id()).orElseThrow();
         assertEquals("Queued subject", queuedEmail.header().subject());

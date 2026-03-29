@@ -8,6 +8,7 @@ import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.OutboundMessage;
+import net.aggregat4.quicksand.domain.OutboundMessageStatus;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
@@ -83,6 +84,10 @@ public class OutboundMessageService {
                         attachmentRepository.findByOutboundMessageId(message.id())));
     }
 
+    public Optional<OutboundMessage> findOutboundMessage(int id) {
+        return outboundMessageRepository.findById(id);
+    }
+
     private OutboundMessage toOutboundMessage(net.aggregat4.quicksand.domain.Draft draft, Account account) {
         ZonedDateTime now = ZonedDateTime.now(clock);
         return new OutboundMessage(
@@ -96,7 +101,11 @@ public class OutboundMessageService {
                 draft.bcc(),
                 draft.subject(),
                 draft.body(),
+                OutboundMessageStatus.QUEUED,
+                0,
+                Optional.empty(),
                 now,
+                Optional.empty(),
                 now.toEpochSecond());
     }
 
@@ -111,7 +120,7 @@ public class OutboundMessageService {
                 message.queuedAtEpochSeconds(),
                 message.queuedAt(),
                 message.queuedAtEpochSeconds(),
-                createExcerpt(message.body()),
+                createStatusExcerpt(message),
                 false,
                 !attachmentRepository.findByOutboundMessageId(message.id()).isEmpty(),
                 true);
@@ -161,6 +170,33 @@ public class OutboundMessageService {
             return collapsed;
         }
         return collapsed.substring(0, 157) + "...";
+    }
+
+    private static String createStatusExcerpt(OutboundMessage message) {
+        String excerpt = createExcerpt(message.body());
+        return switch (message.status()) {
+            case QUEUED -> "Queued: " + excerpt;
+            case SENT -> "Sent: " + excerpt;
+            case FAILED -> "Failed: " + message.lastError().orElse(excerpt);
+        };
+    }
+
+    public static String formatStatus(OutboundMessage message) {
+        return switch (message.status()) {
+            case QUEUED -> "Queued for delivery";
+            case SENT -> "Sent";
+            case FAILED -> "Delivery failed";
+        };
+    }
+
+    public static String formatStatusDetail(OutboundMessage message) {
+        return switch (message.status()) {
+            case QUEUED -> "Awaiting SMTP delivery.";
+            case SENT -> message.sentAt()
+                    .map(sentAt -> "Delivered to SMTP at " + sentAt.format(java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM)))
+                    .orElse("Delivered to SMTP.");
+            case FAILED -> message.lastError().map(error -> "Last delivery error: " + error).orElse("Last delivery attempt failed.");
+        };
     }
 
     private static String blankToNull(String value) {

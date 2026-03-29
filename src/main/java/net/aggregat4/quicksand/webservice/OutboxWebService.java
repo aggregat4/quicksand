@@ -30,8 +30,9 @@ public class OutboxWebService implements HttpService {
 
     private void queuedMessageViewerHandler(ServerRequest request, ServerResponse response) {
         int outboundMessageId = RequestUtils.intPathParam(request, "outboundMessageId");
+        var outboundMessage = outboundMessageService.findOutboundMessage(outboundMessageId);
         var email = outboundMessageService.getQueuedMessage(outboundMessageId);
-        if (email.isEmpty()) {
+        if (email.isEmpty() || outboundMessage.isEmpty()) {
             response.status(404);
             response.send();
             return;
@@ -40,6 +41,8 @@ public class OutboxWebService implements HttpService {
         response.send(PebbleRenderer.renderTemplate(Map.of(
                 "email", email.get(),
                 "showImages", false,
+                "outboundStatus", OutboundMessageService.formatStatus(outboundMessage.get()),
+                "outboundStatusDetail", OutboundMessageService.formatStatusDetail(outboundMessage.get()),
                 "readOnly", true), emailViewerTemplate));
     }
 }

@@ -95,7 +95,12 @@ public class QuicksandMigrations implements Migrations {
                 bcc_recipients TEXT NOT NULL DEFAULT '',
                 subject TEXT NOT NULL DEFAULT '',
                 body TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'QUEUED',
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT,
                 queued_at TEXT NOT NULL,
+                sent_at TEXT,
+                sent_at_epoch_s INTEGER,
                 queued_at_epoch_s INTEGER NOT NULL,
                 FOREIGN KEY (account_id) REFERENCES accounts(id),
                 FOREIGN KEY (source_message_id) REFERENCES messages(id))""");

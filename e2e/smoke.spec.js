@@ -213,16 +213,23 @@ test('sending a draft moves it into outbox with attachments', async ({ page }) =
   await expect(composerFrame.locator('.info-notification')).toContainText('queued');
 
   await page.locator('#folderlist a[title="Outbox"]').click();
-  await expect(page.locator('#pagination-status')).toContainText('queued');
+  await expect(page.locator('#pagination-status')).toContainText('outgoing');
 
   const queuedRow = page.locator('#messagelist a.emailheader').filter({
     has: page.locator('.subjectline', { hasText: 'Queued outbox subject' })
   });
   await expect(queuedRow).toHaveCount(1);
+  await expect.poll(async () => {
+    await page.reload();
+    return await page.locator('#messagelist a.emailheader').filter({
+      has: page.locator('.subjectline', { hasText: 'Queued outbox subject' })
+    }).first().textContent();
+  }, { timeout: 10_000 }).toContain('Sent:');
   await queuedRow.click();
 
   const viewerFrame = page.frameLocator('iframe[name="emailviewer"]');
   await expect(viewerFrame.locator('#emailsubject h1')).toHaveText('Queued outbox subject');
+  await expect(viewerFrame.locator('#emailstatus')).toContainText('Sent');
   await expect(viewerFrame.locator('#emailbody pre')).toContainText('Queued outbox body');
   await expect(viewerFrame.locator('#emailattachments')).toContainText('outbox-note.txt');
   await expect(viewerFrame.getByRole('button', { name: 'Reply' })).toHaveCount(0);

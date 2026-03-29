@@ -52,6 +52,25 @@ public class DbAttachmentRepository implements AttachmentRepository {
     }
 
     @Override
+    public List<StoredAttachment> findStoredByOutboundMessageId(int outboundMessageId) {
+        return DbUtil.withPreparedStmtFunction(ds, """
+                SELECT id, draft_id, message_id, outbound_message_id, name, size_bytes, media_type, content_hash, content
+                FROM attachments
+                WHERE outbound_message_id = ?
+                ORDER BY id
+                """, stmt -> {
+            stmt.setInt(1, outboundMessageId);
+            return DbUtil.withResultSetFunction(stmt, rs -> {
+                List<StoredAttachment> attachments = new java.util.ArrayList<>();
+                while (rs.next()) {
+                    attachments.add(toStoredAttachment(rs));
+                }
+                return attachments;
+            });
+        });
+    }
+
+    @Override
     public Optional<StoredAttachment> findStoredById(int id) {
         return DbUtil.withPreparedStmtFunction(ds, """
                 SELECT id, draft_id, message_id, outbound_message_id, name, size_bytes, media_type, content_hash, content

@@ -13,6 +13,12 @@
         <div id="emailsubject">
             <h1>{{ email.header.subject }}</h1>
         </div>
+        {% if outboundStatus %}
+            <div id="emailstatus">
+                <strong>{{ outboundStatus }}</strong>
+                {% if outboundStatusDetail %} - {{ outboundStatusDetail }}{% endif %}
+            </div>
+        {% endif %}
         <div id="emailmetadata">
             <div id="from">
                 From: {{  actor(email.header.getSender()) }}

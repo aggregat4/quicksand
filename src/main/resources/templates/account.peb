@@ -49,7 +49,7 @@
                                 - {{ emailGroupPage.formattedReceivedDateRange().get() }}
                             {% endif %}
                         {% elseif currentFolderIsOutbox %}
-                            {{ emailGroupPage.getNofMessages() }} queued
+                            {{ emailGroupPage.getNofMessages() }} outgoing
                             {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
                                 - {{ emailGroupPage.formattedReceivedDateRange().get() }}
                             {% endif %}

@@ -15,6 +15,8 @@ public interface AttachmentRepository {
 
     List<Attachment> findByOutboundMessageId(int outboundMessageId);
 
+    List<StoredAttachment> findStoredByOutboundMessageId(int outboundMessageId);
+
     Optional<StoredAttachment> findStoredById(int id);
 
     void moveDraftAttachmentsToOutboundMessage(Connection con, int draftId, int outboundMessageId);
