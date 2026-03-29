@@ -10,19 +10,20 @@ Current verified baseline:
 - inbox paging, sorting, and temporal grouping have deterministic browser coverage
 - demo inbox seeding is deterministic for tests and manual review
 - drafts are persisted in SQLite, visible in a synthetic Drafts folder, and autosaved through the composer flow
+- draft attachments are persisted in SQLite with content hashes and served back through real attachment routes
 
 ## Current Backlog
 
-### 1. Attachment Persistence
+### 1. Attachment Send And Queueing
 
-Attachment routes exist, but attachment content and uploads are still mock-backed or in-memory only.
+Draft attachments are now persisted, but the send path still does not project them into a queued or outbound message model.
 
 Needed:
 
-- persist attachment metadata in SQLite
-- store attachment content locally
-- tie attachments to real messages and drafts
-- replace the mock attachment endpoint with real file-backed serving
+- carry draft attachments through the send flow
+- define how queued messages reference their attachments
+- keep delete, queue, and eventual delivery behavior coherent
+- add browser and service coverage for the full attachment lifecycle
 
 ### 2. Search
 
@@ -57,9 +58,9 @@ Needed:
 
 If picking one product-facing task next:
 
-1. persist attachment metadata and content for drafts
-2. wire uploaded attachments into the existing composer flow
-3. serve persisted attachments back through the attachment routes
-4. keep the draft and queued-message paths coherent once attachments exist
+1. carry persisted draft attachments into the send flow
+2. model queued-message attachments explicitly
+3. keep composer, draft deletion, queueing, and delivery semantics aligned
+4. add regression coverage around attachment send behavior
 
-That is now the biggest remaining visible mock path inside the composer/send workflow.
+That is now the biggest remaining gap inside the composer/send workflow.
