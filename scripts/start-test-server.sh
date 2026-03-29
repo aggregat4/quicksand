@@ -32,4 +32,5 @@ exec java \
   -Dserver.port="${PORT}" \
   -Ddemo.enabled=true \
   -Dmail_fetcher.enabled="${MAIL_FETCHER_ENABLED}" \
+  -Duser.language=en -Duser.country=DE -Duser.timezone=Europe/Berlin \
   -jar target/quicksand.jar
