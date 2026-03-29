@@ -21,6 +21,7 @@ import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
+import net.aggregat4.quicksand.time.ApplicationClock;
 import net.aggregat4.quicksand.webservice.AccountWebService;
 import net.aggregat4.quicksand.webservice.AttachmentWebService;
 import net.aggregat4.quicksand.webservice.EmailWebService;
@@ -32,6 +33,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,9 +54,11 @@ public final class Main {
     static WebServer startServer() throws IOException {
         Config config = Config.create();
         boolean demoEnabled = config.get("demo.enabled").asBoolean().orElse(false);
+        Clock clock = createClock(config.get("clock"));
+        ApplicationClock.set(clock);
 
         if (demoEnabled) {
-            greenMail = startDemoMailServer(config.get("demo"));
+            greenMail = startDemoMailServer(config.get("demo"), clock);
         }
 
         // Dependency Injection and Initialisation
@@ -81,7 +86,7 @@ public final class Main {
         FolderService folderService = new FolderService(folderRepository);
 
         HttpRouting.Builder routing = HttpRouting.builder()
-                .register("/accounts", new AccountWebService(folderService, accountService, emailService))
+                .register("/accounts", new AccountWebService(folderService, accountService, emailService, clock))
                 .register("/emails", new EmailWebService(emailService))
                 .register("/attachments", new AttachmentWebService())
                 .register("/", new HomeWebService(accountService));
@@ -102,16 +107,24 @@ public final class Main {
         return webServer;
     }
 
-    private static GreenMail startDemoMailServer(Config config) {
+    private static GreenMail startDemoMailServer(Config config, Clock clock) {
         int smtpPort = config.get("smtp_port").asInt().orElse(25 + 4000);
         int imapPort = config.get("imap_port").asInt().orElse(143 + 4000);
-        int seedCount = config.get("seed_count").asInt().orElse(200);
+        int seedCount = config.get("seed_count").asInt().orElse(273);
         GreenMail greenMail = new GreenMail(new ServerSetup[]{
                 new ServerSetup(smtpPort, null, ServerSetup.PROTOCOL_SMTP),
                 new ServerSetup(imapPort, null, ServerSetup.PROTOCOL_IMAP)});
         greenMail.start();
-        GreenmailUtils.deliverMessages(greenMail, seedCount);
+        GreenmailUtils.deliverDemoMessages(greenMail, seedCount, clock);
         return greenMail;
+    }
+
+    private static Clock createClock(Config config) {
+        return config.get("fixed_instant")
+                .asString()
+                .map(Instant::parse)
+                .map(instant -> Clock.fixed(instant, java.time.ZoneId.systemDefault()))
+                .orElse(Clock.systemDefaultZone());
     }
 
     /**

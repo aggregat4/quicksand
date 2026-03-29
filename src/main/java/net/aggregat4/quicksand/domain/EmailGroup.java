@@ -1,12 +1,18 @@
 package net.aggregat4.quicksand.domain;
 
+import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 public record EmailGroup(List<EmailHeader> headers, GroupedPeriod period) {
 
+    public Optional<String> name() {
+        return period.displayName();
+    }
 
     public static List<EmailGroup> createNoGroupEmailgroup(List<EmailHeader> emailHeaders) {
         return List.of(new EmailGroup(emailHeaders, new GroupedPeriod() {
@@ -16,29 +22,29 @@ public record EmailGroup(List<EmailHeader> headers, GroupedPeriod period) {
             }
 
             @Override
-            public ZonedDateTime startOfPeriod() {
+            public ZonedDateTime startOfPeriod(Clock clock) {
                 return null;
             }
 
             @Override
-            public ZonedDateTime startOfNextPeriod() {
+            public ZonedDateTime startOfNextPeriod(Clock clock) {
                 return null;
             }
         }));
     }
 
     /**
-     * Assumes that all headers are sorted in descending chronological order.
+     * Assumes that all headers are sorted according to the provided sort order.
      */
-    public static List<EmailGroup> createEmailGroups(List<EmailHeader> emailHeaders) {
+    public static List<EmailGroup> createEmailGroups(List<EmailHeader> emailHeaders, Clock clock, SortOrder sortOrder) {
         List<EmailGroup> groups = new ArrayList<>();
-        GroupedPeriods[] groupedPeriods = GroupedPeriods.values();
+        GroupedPeriods[] groupedPeriods = orderedPeriods(sortOrder);
         int currentPeriodIndex = 0;
         GroupedPeriod currentGroupedPeriod = groupedPeriods[currentPeriodIndex];
         List<EmailHeader> currentGroupHeaders = new ArrayList<>();
         for (EmailHeader emailHeader: emailHeaders) {
             while (true) {
-                if (currentGroupedPeriod.matches(emailHeader)) {
+                if (currentGroupedPeriod.matches(emailHeader, clock)) {
                     currentGroupHeaders.add(emailHeader);
                     break;
                 } else {
@@ -58,6 +64,16 @@ public record EmailGroup(List<EmailHeader> headers, GroupedPeriod period) {
             groups.add(new EmailGroup(currentGroupHeaders, currentGroupedPeriod));
         }
         return groups;
+    }
+
+    private static GroupedPeriods[] orderedPeriods(SortOrder sortOrder) {
+        GroupedPeriods[] groupedPeriods = GroupedPeriods.values();
+        if (sortOrder == SortOrder.DESCENDING) {
+            return groupedPeriods;
+        }
+        List<GroupedPeriods> reversed = new ArrayList<>(Arrays.asList(groupedPeriods));
+        Collections.reverse(reversed);
+        return reversed.toArray(new GroupedPeriods[0]);
     }
 
     public int getNofMessages() {

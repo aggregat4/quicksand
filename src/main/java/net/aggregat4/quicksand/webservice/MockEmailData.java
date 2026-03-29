@@ -6,6 +6,7 @@ import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Attachment;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
+import net.aggregat4.quicksand.time.ApplicationClock;
 
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
@@ -21,13 +22,13 @@ public class MockEmailData {
     public static final Actor EMAIL1_CC1 = new Actor(ActorType.CC, "janecc@foobar.tld", Optional.of("Jane Carbon Copy"));
     public static final Actor EMAIL1_CC2 = new Actor(ActorType.CC, "johnny234@gmail.com", Optional.empty());
     public static final String EMAIL1_SUBJECT = "Hey there how are you?";
-    public static final ZonedDateTime EMAIL1_RECEIVEDDATE = ZonedDateTime.now();
-    public static final ZonedDateTime EMAIL1_SENTDATE = ZonedDateTime.now().minus(5, ChronoUnit.MINUTES);
+    public static final ZonedDateTime EMAIL1_RECEIVEDDATE = ZonedDateTime.now(ApplicationClock.current());
+    public static final ZonedDateTime EMAIL1_SENTDATE = ZonedDateTime.now(ApplicationClock.current()).minus(5, ChronoUnit.MINUTES);
     public static final Actor EMAIL2_SENDER = new Actor(ActorType.SENDER, "foo@bar.net", Optional.empty());
     public static final Actor EMAIL2_RECIPIENT = new Actor(ActorType.TO, "me@example.org", Optional.of("Doe, Me"));
     public static final String EMAIL2_SUBJECT = "Foo du fafa";
-    public static final ZonedDateTime EMAIL2_RECEIVEDDATE = ZonedDateTime.now().minus(3, ChronoUnit.MINUTES);
-    public static final ZonedDateTime EMAIL2_SENTDATE = ZonedDateTime.now().minus(13, ChronoUnit.MINUTES);
+    public static final ZonedDateTime EMAIL2_RECEIVEDDATE = ZonedDateTime.now(ApplicationClock.current()).minus(3, ChronoUnit.MINUTES);
+    public static final ZonedDateTime EMAIL2_SENTDATE = ZonedDateTime.now(ApplicationClock.current()).minus(13, ChronoUnit.MINUTES);
     static final Attachment ATTACHMENT1 = new Attachment(1, "sounds and music.mp3", 43534555, HttpMediaType.create("audio/mpeg"));
      static final String sampleMp3Resource = "/sample-3s.mp3";
     static final Email PLAINTEXT_EMAIL = new Email(

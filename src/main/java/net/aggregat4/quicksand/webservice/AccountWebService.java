@@ -26,6 +26,7 @@ import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 
+import java.time.Clock;
 import java.net.URI;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,11 +46,13 @@ public class AccountWebService implements HttpService {
     private final AccountService accountService;
 
     private final EmailService emailService;
+    private final Clock clock;
 
-    public AccountWebService(FolderService folderService, AccountService accountService, EmailService emailService) {
+    public AccountWebService(FolderService folderService, AccountService accountService, EmailService emailService, Clock clock) {
         this.folderService = folderService;
         this.accountService = accountService;
         this.emailService = emailService;
+        this.clock = clock;
     }
 
     @Override
@@ -173,7 +176,7 @@ public class AccountWebService implements HttpService {
         List<EmailHeader> emailHeaders = emailPage.emails().stream().map(Email::header).toList();
         List<EmailGroup> emailGroups = query.isPresent()
                 ? EmailGroup.createNoGroupEmailgroup(emailHeaders)
-                : EmailGroup.createEmailGroups(emailHeaders);
+                : EmailGroup.createEmailGroups(emailHeaders, clock, pagination.pageParams().sortOrder());
         EmailGroupPage emailGroupPage = new EmailGroupPage(emailGroups, pagination);
         Map<String, Object> context = new HashMap<>();
         context.put("bodyclass", "accountpage");
