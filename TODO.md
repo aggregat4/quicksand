@@ -11,21 +11,13 @@ Current verified baseline:
 - demo inbox seeding is deterministic for tests and manual review
 - drafts are persisted in SQLite, visible in a synthetic Drafts folder, and autosaved through the composer flow
 - draft attachments are persisted in SQLite with content hashes and served back through real attachment routes
+- send creates real outbound messages in a synthetic Outbox folder
+- outbound messages are delivered through SMTP with persisted status and retry state
+- browser and GreenMail-backed integration coverage now covers draft send, attachment handoff, SMTP delivery, retry scheduling, and IMAP round-trips
 
 ## Current Backlog
 
-### 1. Attachment Send And Queueing
-
-Draft attachments are now persisted, but the send path still does not project them into a queued or outbound message model.
-
-Needed:
-
-- carry draft attachments through the send flow
-- define how queued messages reference their attachments
-- keep delete, queue, and eventual delivery behavior coherent
-- add browser and service coverage for the full attachment lifecycle
-
-### 2. Search
+### 1. Search
 
 `/accounts/{accountId}/search` exists structurally but still returns an empty result page.
 
@@ -35,7 +27,7 @@ Needed:
 - support paging consistent with mailbox browsing
 - keep the result view inside the existing account page model
 
-### 3. Home Page
+### 2. Home Page
 
 The home route is real, but the template is still placeholder content.
 
@@ -44,7 +36,7 @@ Needed:
 - replace `Hello World!` with intentional behavior
 - handle zero, one, and multiple account states deliberately
 
-### 4. Runtime And Storage Hardening
+### 3. Runtime And Storage Hardening
 
 Recent work improved logging, sync behavior, paging, grouping, and deterministic test setup, but a few hardening tasks remain.
 
@@ -58,9 +50,9 @@ Needed:
 
 If picking one product-facing task next:
 
-1. carry persisted draft attachments into the send flow
-2. model queued-message attachments explicitly
-3. keep composer, draft deletion, queueing, and delivery semantics aligned
-4. add regression coverage around attachment send behavior
+1. implement real query execution against the local mirror
+2. keep search paging and sorting aligned with mailbox browsing
+3. preserve the existing account-page viewer flow for result selection
+4. add browser coverage for targeted and multi-page search results
 
-That is now the biggest remaining gap inside the composer/send workflow.
+That is now the clearest missing user-facing mailbox feature.
