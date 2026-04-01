@@ -120,6 +120,13 @@ public class QuicksandMigrations implements Migrations {
                 FOREIGN KEY (draft_id) REFERENCES drafts(id) ON DELETE CASCADE,
                 FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
                 FOREIGN KEY (outbound_message_id) REFERENCES outbound_messages(id) ON DELETE CASCADE)""");
+        executeUpdate(con, """
+                CREATE VIRTUAL TABLE message_search USING fts5(
+                subject,
+                body_excerpt,
+                body,
+                actors,
+                tokenize = 'unicode61 remove_diacritics 2')""");
         // Enable WAL mode on the database to allow for concurrent reads and writes
         executeQuery(con, """
                 PRAGMA journal_mode=WAL;""");

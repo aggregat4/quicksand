@@ -36,8 +36,11 @@
                    name="query"
                    type="search"
                    {% if currentQuery.isPresent() %}value="{{ currentQuery.get() }}"{% endif %}
-                   aria-label="Search all e-mail" required>
+                   aria-label="Search all e-mail">
             <button>Search</button>
+            {% if currentQuery.isPresent() %}
+                <a id="clearsearchlink" href="/accounts/{{ currentAccount.id }}">Clear</a>
+            {% endif %}
         </form>
     {% endif %}
 

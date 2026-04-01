@@ -251,7 +251,18 @@ header {
 #searchemailform {
     display: flex;
     align-items: center;
+    gap: var(--gap-m);
     margin: 0 var(--gap-l);
+}
+
+#clearsearchlink {
+    color: var(--muted-text-color);
+}
+
+mark {
+    background-color: #ffef75;
+    color: inherit;
+    padding: 0 1px;
 }
 
 li.has-submenu a {

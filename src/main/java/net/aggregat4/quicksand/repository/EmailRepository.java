@@ -31,4 +31,8 @@ public interface EmailRepository {
     EmailPage getMessages(int folderId, int pageSize, long dateTimeOffsetEpochSeconds, int offsetMessageId, PageDirection direction, SortOrder order);
 
     int getMessageCount(int accountId, int folderId);
+
+    EmailPage searchMessages(int accountId, String query, int pageSize, long dateTimeOffsetEpochSeconds, int offsetMessageId, PageDirection direction, SortOrder order);
+
+    int getSearchMessageCount(int accountId, String query);
 }

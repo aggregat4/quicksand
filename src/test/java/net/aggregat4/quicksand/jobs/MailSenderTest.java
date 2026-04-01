@@ -1,6 +1,22 @@
 package net.aggregat4.quicksand.jobs;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Optional;
+import java.util.Properties;
+
+import javax.sql.DataSource;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
+
 import com.icegreen.greenmail.junit5.GreenMailExtension;
+
 import io.helidon.http.HttpMediaType;
 import jakarta.mail.BodyPart;
 import jakarta.mail.Multipart;
@@ -12,9 +28,10 @@ import net.aggregat4.quicksand.GreenmailTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.DraftType;
-import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.OutboundMessageStatus;
+import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
+import static net.aggregat4.quicksand.repository.DatabaseMaintenance.migrateDb;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
@@ -24,22 +41,6 @@ import net.aggregat4.quicksand.repository.DbFolderRepository;
 import net.aggregat4.quicksand.repository.DbOutboundMessageRepository;
 import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.RegisterExtension;
-
-import javax.sql.DataSource;
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
-import java.time.Clock;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.Optional;
-import java.util.Properties;
-
-import static net.aggregat4.quicksand.repository.DatabaseMaintenance.migrateDb;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class MailSenderTest {
 

@@ -97,6 +97,7 @@ public class EmailWebService implements HttpService {
     private void emailHandler(ServerRequest request, ServerResponse response) {
         int emailId = RequestUtils.intPathParam(request, "emailId");
         boolean showImages = getShowImagesParam(request);
+        Optional<String> query = request.query().first("query").map(String::trim).filter(s -> !s.isBlank());
         Optional<Email> email = emailService.getMessage(emailId);
         if (email.isEmpty()) {
             response.status(404);
@@ -106,6 +107,7 @@ public class EmailWebService implements HttpService {
         Map<String, Object> context = new HashMap<>();
         context.put("showImages", showImages);
         context.put("email", email.get());
+        context.put("currentQuery", query);
         // TODO: we should if-last modified here so we can instruct the browser to use the cached version as long we did not restart the program
         response.headers().contentType(TEXT_HTML);
         response.send(PebbleRenderer.renderTemplate(context, emailViewerTemplate));
@@ -336,10 +338,6 @@ public class EmailWebService implements HttpService {
             params.put(key, value);
         }
         return params;
-    }
-
-    private boolean isEmpty(List<String> list) {
-        return list == null || list.isEmpty();
     }
 
     private boolean isEmpty(String value) {

@@ -11,7 +11,7 @@
     {% import "templates/macros.peb" %}
     <main>
         <div id="emailsubject">
-            <h1>{{ email.header.subject }}</h1>
+            <h1>{{ highlightText(email.header.subject, currentQuery.orElse('')) | raw }}</h1>
         </div>
         {% if outboundStatus %}
             <div id="emailstatus">
@@ -21,7 +21,7 @@
         {% endif %}
         <div id="emailmetadata">
             <div id="from">
-                From: {{  actor(email.header.getSender()) }}
+                From: {{ highlightedActor(email.header.getSender(), currentQuery.orElse('')) }}
             </div>
             <div id="receiveddate">
                 {% if (email.attachments != null) and (not email.attachments.isEmpty()) %}
@@ -32,16 +32,16 @@
                 {{ email.header.longFormattedReceivedDate() }}
             </div>
             <div id="to">
-                To: {{  actorList(email.header.getRecipients()) }}
+                To: {{ highlightedActorList(email.header.getRecipients(), currentQuery.orElse('')) }}
             </div>
             {% if not email.header.getBCCRecipients().isEmpty() %}
                 <div id="bcc">
-                    BCC: {{  actorList(email.header.getBCCRecipients()) }}
+                    BCC: {{ highlightedActorList(email.header.getBCCRecipients(), currentQuery.orElse('')) }}
                 </div>
             {% endif %}
             {% if not email.header.getCCRecipients().isEmpty() %}
                 <div id="cc">
-                    CC: {{  actorList(email.header.getCCRecipients()) }}
+                    CC: {{ highlightedActorList(email.header.getCCRecipients(), currentQuery.orElse('')) }}
                 </div>
             {% endif %}
         </div>
@@ -62,13 +62,13 @@
             {% endif %}
         </div>
         {% if not email.plainText %}
-            <a id="emailimages" href="/emails/{{ email.header.id }}/viewer?showImages={{ showImages ? 'false' : 'true' }}">
+            <a id="emailimages" href="/emails/{{ email.header.id }}/viewer?showImages={{ showImages ? 'false' : 'true' }}{% if currentQuery.isPresent() %}&query={{ currentQuery.get() | urlencode }}{% endif %}">
                 {% if showImages %}Disable Images{% else %}Enable Images{% endif %}
             </a>
         {% endif %}
         <div id="emailbody">
             {% if email.plainText %}
-                <pre>{{  email.body | raw }}</pre>
+                <pre>{{ highlightText(email.body, currentQuery.orElse('')) | raw }}</pre>
             {% else %}
                 <iframe id="emailbodyframe"
                         src="/emails/{{ email.header.id }}/viewer/body?showImages={{ showImages ? 'true' : 'false' }}"

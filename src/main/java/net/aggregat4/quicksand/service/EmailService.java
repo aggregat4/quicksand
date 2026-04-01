@@ -27,4 +27,12 @@ public class EmailService {
     public int getMessageCount(int accountId, int folderId) {
         return emailRepository.getMessageCount(accountId, folderId);
     }
+
+    public EmailPage searchMessages(int accountId, String query, int pageSize, long dateTimeOffsetEpochSeconds, int offsetMessageId, PageDirection direction, SortOrder order) {
+        return emailRepository.searchMessages(accountId, query, pageSize, dateTimeOffsetEpochSeconds, offsetMessageId, direction, order);
+    }
+
+    public int getSearchMessageCount(int accountId, String query) {
+        return emailRepository.getSearchMessageCount(accountId, query);
+    }
 }

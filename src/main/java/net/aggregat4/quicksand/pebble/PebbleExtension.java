@@ -9,6 +9,8 @@ public class PebbleExtension extends AbstractExtension {
 
     @Override
     public Map<String, Function> getFunctions() {
-        return Map.of("svgIcon", new SvgIconFunction());
+        return Map.of(
+                "svgIcon", new SvgIconFunction(),
+                "highlightText", new HighlightTextFunction());
     }
 }

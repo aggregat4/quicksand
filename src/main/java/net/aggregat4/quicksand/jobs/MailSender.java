@@ -1,5 +1,18 @@
 package net.aggregat4.quicksand.jobs;
 
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.activation.DataHandler;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
@@ -12,23 +25,10 @@ import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.util.ByteArrayDataSource;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.OutboundMessage;
-import net.aggregat4.quicksand.domain.OutboundMessageStatus;
 import net.aggregat4.quicksand.domain.StoredAttachment;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.OutboundMessageRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
-import java.time.Clock;
-import java.time.ZonedDateTime;
-import java.util.List;
-import java.util.Properties;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 public class MailSender {
     private static final Logger LOGGER = LoggerFactory.getLogger(MailSender.class);

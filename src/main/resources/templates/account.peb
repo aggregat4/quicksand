@@ -68,7 +68,7 @@
                     {% if not currentFolderIsDrafts and not currentFolderIsOutbox %}
                         <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
                             {% set baseLink = '/accounts/' + currentAccount.id %}
-                            {% if not currentQuery %}
+                            {% if not currentQuery.isPresent() %}
                                 {% set baseLink = baseLink + '/folders/' + currentFolder.id + '?' %}
                             {% else %}
                                 {# This is the case where we have a search and we have to write a modified navigation #}
@@ -132,7 +132,7 @@
                 </form>
                 <iframe name="emailviewer"
                 {% if emailActive %}
-                    src="{% if currentFolderIsOutbox %}{{ '/outbox/' + selectedEmailId + '/viewer' }}{% else %}{{ '/emails/' + selectedEmailId + '/viewer?showImages=false' }}{% endif %}"
+                    src="{% if currentFolderIsOutbox %}{{ '/outbox/' + selectedEmailId + '/viewer' }}{% else %}{{ '/emails/' + selectedEmailId + '/viewer?showImages=false' + (currentQuery.isPresent() ? '&query=' + (currentQuery.get() | urlencode) : '') }}{% endif %}"
                 {% endif %}
                 >
                 </iframe>

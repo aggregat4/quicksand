@@ -94,4 +94,14 @@ class InMemoryEmailRepository implements EmailRepository {
     public int getMessageCount(int accountId, int folderId) {
         return 1234;
     }
+
+    @Override
+    public EmailPage searchMessages(int accountId, String query, int pageSize, long dateTimeOffsetEpochSeconds, int offsetMessageId, PageDirection direction, SortOrder order) {
+        throw new UnsupportedOperationException("searchMessages not implemented");
+    }
+
+    @Override
+    public int getSearchMessageCount(int accountId, String query) {
+        throw new UnsupportedOperationException("getSearchMessageCount not implemented");
+    }
 }

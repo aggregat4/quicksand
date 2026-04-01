@@ -9,6 +9,7 @@ import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.PageParams;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
+import net.aggregat4.quicksand.search.SearchQueryUtils;
 
 import javax.sql.DataSource;
 import java.sql.ResultSet;
@@ -22,6 +23,9 @@ public class DbEmailRepository implements EmailRepository {
     private static final int IN_BATCH_SIZE = 100;
     private static final String MESSAGE_HEADER_COLUMNS = """
             id, imap_uid, subject, sent_date, sent_date_epoch_s, received_date, received_date_epoch_s, body_excerpt, starred, read
+            """;
+    private static final String QUALIFIED_MESSAGE_HEADER_COLUMNS = """
+            m.id, m.imap_uid, m.subject, m.sent_date, m.sent_date_epoch_s, m.received_date, m.received_date_epoch_s, m.body_excerpt, m.starred, m.read
             """;
     private static final String MESSAGE_VIEWER_COLUMNS = MESSAGE_HEADER_COLUMNS + ", body, plain_text";
     private final DataSource ds;
@@ -171,6 +175,7 @@ public class DbEmailRepository implements EmailRepository {
                 for (Actor actor : email.header().actors()) {
                     actorRepository.saveActor(messageId, actor);
                 }
+                indexSearchDocument(messageId, email);
                 return messageId;
             }
         });
@@ -243,16 +248,97 @@ public class DbEmailRepository implements EmailRepository {
     }
 
     @Override
+    public EmailPage searchMessages(int accountId, String query, int pageSize, long dateTimeOffsetEpochSeconds, int offsetMessageId, PageDirection direction, SortOrder order) {
+        String orderByString;
+        String operatorString;
+        if (order == SortOrder.DESCENDING) {
+            orderByString = direction == PageDirection.RIGHT ? "DESC" : "ASC";
+            operatorString = direction == PageDirection.RIGHT ? "<" : ">";
+        } else {
+            orderByString = direction == PageDirection.RIGHT ? "ASC" : "DESC";
+            operatorString = direction == PageDirection.RIGHT ? ">" : "<";
+        }
+        String matchQuery = SearchQueryUtils.toFtsMatchQuery(query);
+        return DbUtil.withPreparedStmtFunction(ds, """
+                SELECT %s
+                FROM messages m
+                JOIN message_search ON message_search.rowid = m.id
+                JOIN folders f ON f.id = m.folder_id
+                WHERE f.account_id = ?
+                  AND message_search MATCH ?
+                  AND (m.received_date_epoch_s, m.id) %s (?, ?)
+                ORDER BY m.received_date_epoch_s %s, m.id %s
+                LIMIT ?
+                """.formatted(QUALIFIED_MESSAGE_HEADER_COLUMNS, operatorString, orderByString, orderByString), stmt -> {
+            bindSearchParams(stmt, accountId, matchQuery, dateTimeOffsetEpochSeconds, offsetMessageId, pageSize + 1);
+            return DbUtil.withResultSetFunction(stmt, rs -> {
+                List<Email> messages = new ArrayList<>();
+                while (rs.next()) {
+                    int messageId = rs.getInt(1);
+                    List<Actor> actors = getActors(messageId);
+                    messages.add(convertRowToListEmail(rs, actors));
+                }
+                boolean hasMoreResults = messages.size() > pageSize;
+                if (hasMoreResults) {
+                    messages.remove(messages.size() - 1);
+                }
+                if (direction == PageDirection.LEFT) {
+                    Collections.reverse(messages);
+                }
+                boolean hasLeft = switch(direction) {
+                    case LEFT -> hasMoreResults;
+                    case RIGHT -> !((order == SortOrder.ASCENDING && dateTimeOffsetEpochSeconds == 0)
+                            || (order == SortOrder.DESCENDING && dateTimeOffsetEpochSeconds == Long.MAX_VALUE));
+                };
+                boolean hasRight = switch(direction) {
+                    case LEFT -> !((order == SortOrder.ASCENDING && dateTimeOffsetEpochSeconds == Long.MAX_VALUE)
+                            || (order == SortOrder.DESCENDING && dateTimeOffsetEpochSeconds == 0));
+                    case RIGHT -> hasMoreResults;
+                };
+                return new EmailPage(messages, hasLeft, hasRight, new PageParams(direction, order));
+            });
+        });
+    }
+
+    @Override
+    public int getSearchMessageCount(int accountId, String query) {
+        return DbUtil.withPreparedStmtFunction(ds, """
+                SELECT COUNT(*)
+                FROM messages m
+                JOIN message_search ON message_search.rowid = m.id
+                JOIN folders f ON f.id = m.folder_id
+                WHERE f.account_id = ?
+                  AND message_search MATCH ?
+                """, stmt -> {
+            bindSearchFilterParams(stmt, accountId, SearchQueryUtils.toFtsMatchQuery(query));
+            return DbUtil.withResultSetFunction(stmt, rs -> {
+                if (!rs.next()) {
+                    throw new IllegalStateException("We are expecting to get a result when counting search results");
+                }
+                return rs.getInt(1);
+            });
+        });
+    }
+
+    @Override
     public void removeBatchByUid(List<Long> batch) {
         if (batch.size() > DbEmailRepository.IN_BATCH_SIZE) {
             throw new IllegalStateException("Only allowed to delete batches of maximally %s messages".formatted(DbEmailRepository.IN_BATCH_SIZE));
         }
         String inString = batch.stream().map(msgId -> "?").collect(Collectors.joining(", "));
-        DbUtil.withPreparedStmtConsumer(ds, "DELETE FROM messages WHERE imap_uid IN (%s)".formatted(inString), stmt -> {
-            for (int i = 0; i < batch.size(); i++) {
-                stmt.setLong(i + 1, batch.get(i));
-            }
-            stmt.executeUpdate();
+        DbUtil.withConConsumer(ds, con -> {
+            DbUtil.withPreparedStmtConsumer(con, "DELETE FROM message_search WHERE rowid IN (SELECT id FROM messages WHERE imap_uid IN (%s))".formatted(inString), stmt -> {
+                for (int i = 0; i < batch.size(); i++) {
+                    stmt.setLong(i + 1, batch.get(i));
+                }
+                stmt.executeUpdate();
+            });
+            DbUtil.withPreparedStmtConsumer(con, "DELETE FROM messages WHERE imap_uid IN (%s)".formatted(inString), stmt -> {
+                for (int i = 0; i < batch.size(); i++) {
+                    stmt.setLong(i + 1, batch.get(i));
+                }
+                stmt.executeUpdate();
+            });
         });
     }
 
@@ -263,5 +349,38 @@ public class DbEmailRepository implements EmailRepository {
 
     private static ZonedDateTime fromISOString(String isoDate) {
         return ZonedDateTime.parse(isoDate, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+    }
+
+    private static void bindSearchFilterParams(java.sql.PreparedStatement stmt, int accountId, String matchQuery) throws SQLException {
+        stmt.setInt(1, accountId);
+        stmt.setString(2, matchQuery);
+    }
+
+    private static void bindSearchParams(java.sql.PreparedStatement stmt, int accountId, String matchQuery, long dateTimeOffsetEpochSeconds, int offsetMessageId, int limit) throws SQLException {
+        bindSearchFilterParams(stmt, accountId, matchQuery);
+        stmt.setLong(3, dateTimeOffsetEpochSeconds);
+        stmt.setInt(4, offsetMessageId);
+        stmt.setInt(5, limit);
+    }
+
+    private void indexSearchDocument(int messageId, Email email) {
+        DbUtil.withPreparedStmtConsumer(ds, """
+                INSERT INTO message_search(rowid, subject, body_excerpt, body, actors)
+                VALUES (?, ?, ?, ?, ?)
+                """, stmt -> {
+            stmt.setInt(1, messageId);
+            stmt.setString(2, Optional.ofNullable(email.header().subject()).orElse(""));
+            stmt.setString(3, Optional.ofNullable(email.header().bodyExcerpt()).orElse(""));
+            stmt.setString(4, Optional.ofNullable(email.body()).orElse(""));
+            stmt.setString(5, formatSearchActors(email.header().actors()));
+            stmt.executeUpdate();
+        });
+    }
+
+    private static String formatSearchActors(List<Actor> actors) {
+        return actors.stream()
+                .map(actor -> (actor.name().orElse("") + " " + actor.emailAddress()).trim())
+                .filter(actor -> !actor.isBlank())
+                .collect(Collectors.joining(" "));
     }
 }

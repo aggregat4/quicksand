@@ -1,30 +1,30 @@
 package net.aggregat4.quicksand.service;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Optional;
+
+import javax.sql.DataSource;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+
 import io.helidon.http.HttpMediaType;
 import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.DraftType;
 import net.aggregat4.quicksand.domain.OutboundMessageStatus;
+import static net.aggregat4.quicksand.repository.DatabaseMaintenance.migrateDb;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbOutboundMessageRepository;
-import org.junit.jupiter.api.Test;
-
-import javax.sql.DataSource;
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
-import java.time.Clock;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.Optional;
-
-import static net.aggregat4.quicksand.repository.DatabaseMaintenance.migrateDb;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class OutboundMessageServiceTest {
 

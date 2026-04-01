@@ -6,6 +6,7 @@ Current verified baseline:
 - `mvn clean test` and `npm run test:e2e` are green on the current branch
 - demo mail server and demo account are opt-in
 - account and folder pages render from the local SQLite mirror
+- account-wide message search runs against a local SQLite FTS index with paging, reset, and server-rendered highlighting
 - persisted message viewer routes load real stored messages
 - inbox paging, sorting, and temporal grouping have deterministic browser coverage
 - demo inbox seeding is deterministic for tests and manual review
@@ -19,15 +20,23 @@ Current verified baseline:
 
 ### 1. Search
 
-`/accounts/{accountId}/search` exists structurally but still returns an empty result page.
+Search now works against the local mirror, but one part of the experience is still incomplete.
 
 Needed:
 
-- implement query execution against the local mirror
-- support paging consistent with mailbox browsing
-- keep the result view inside the existing account page model
+- highlight matches inside rendered HTML email bodies while preserving the existing isolation/sanitization model
+- add regression coverage for search highlighting behavior where it is practical
 
-### 2. Home Page
+### 2. Developer Tooling
+
+Needed:
+
+- add `spotless-maven-plugin` with `google-java-format`
+- enable `removeUnusedImports`
+- try Error Prone as a correctness-focused compiler check
+- keep this intentionally free of style-policy nitpicking tools
+
+### 3. Home Page
 
 The home route is real, but the template is still placeholder content.
 
@@ -36,7 +45,7 @@ Needed:
 - replace `Hello World!` with intentional behavior
 - handle zero, one, and multiple account states deliberately
 
-### 3. Runtime And Storage Hardening
+### 4. Runtime And Storage Hardening
 
 Recent work improved logging, sync behavior, paging, grouping, and deterministic test setup, but a few hardening tasks remain.
 
@@ -50,9 +59,9 @@ Needed:
 
 If picking one product-facing task next:
 
-1. implement real query execution against the local mirror
-2. keep search paging and sorting aligned with mailbox browsing
-3. preserve the existing account-page viewer flow for result selection
-4. add browser coverage for targeted and multi-page search results
+1. finish search by bringing highlighting into rendered HTML message bodies
+2. add targeted regression coverage for search highlighting
+3. then wire in `spotless + google-java-format + removeUnusedImports`
+4. try Error Prone and keep it only if the signal is good
 
-That is now the clearest missing user-facing mailbox feature.
+That keeps the current search slice coherent before moving on to tooling and the home page.

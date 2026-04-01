@@ -3,6 +3,8 @@ import { expect, test } from '@playwright/test';
 const DEMO_MESSAGE_COUNT = 273;
 const PAGE_SIZE = 100;
 const LAST_PAGE_COUNT = 73;
+const DUPLICATE_SEARCH_COUNT = 260;
+const DUPLICATE_SEARCH_LAST_PAGE_COUNT = 60;
 const DESCENDING_GROUPS = ['Today', 'This Week', 'Last Week', 'This Month', 'Last Three Months', 'Older'];
 const ASCENDING_GROUPS = [...DESCENDING_GROUPS].reverse();
 const HTML_DEMO_SUBJECT = 'HTML demo: Product launch digest';
@@ -239,6 +241,74 @@ test('sending a draft moves it into outbox with attachments', async ({ page }) =
   const attachmentResponse = await page.request.get(attachmentHref);
   expect(attachmentResponse.ok()).toBeTruthy();
   expect(await attachmentResponse.text()).toBe('outbox attachment body');
+});
+
+test('search finds targeted messages inside the existing account viewer flow', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  await page.locator('#searchemailinput').fill('Launch Digest');
+  await page.locator('#searchemailform').getByRole('button', { name: 'Search' }).click();
+
+  await expect(page).toHaveURL(/\/accounts\/1\/search\?query=Launch\+Digest/);
+  await expect(page.locator('#searchemailinput')).toHaveValue('Launch Digest');
+  await expect(page.locator('#clearsearchlink')).toBeVisible();
+  await expect(page.locator('#pagination-status')).toContainText('1 of 1');
+  await expect(page.locator('#messagelist .emailgroup')).toHaveCount(0);
+
+  const resultRow = page.locator('#messagelist a.emailheader').filter({
+    has: page.locator('.subjectline', { hasText: 'HTML demo: Product launch digest' })
+  });
+  await expect(resultRow).toHaveCount(1);
+  await expect(resultRow.locator('.fromname')).toContainText('launches@example.com');
+  expect(await resultRow.locator('mark').count()).toBeGreaterThanOrEqual(3);
+  await resultRow.click();
+
+  const viewerFrame = page.frameLocator('iframe[name="emailviewer"]');
+  await expect(viewerFrame.locator('#emailsubject h1')).toHaveText('HTML demo: Product launch digest');
+  await expect(viewerFrame.locator('#emailsubject mark')).toHaveCount(2);
+
+  await page.locator('#clearsearchlink').click();
+  await expect(page).toHaveURL('/accounts/1');
+  await expect(page.locator('#searchemailinput')).toHaveValue('');
+});
+
+test('submitting an empty search query exits search mode', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  await page.locator('#searchemailinput').fill('Launch Digest');
+  await page.locator('#searchemailform').getByRole('button', { name: 'Search' }).click();
+  await expect(page).toHaveURL(/\/accounts\/1\/search\?query=Launch\+Digest/);
+
+  await page.locator('#searchemailinput').fill('');
+  await page.locator('#searchemailform').getByRole('button', { name: 'Search' }).click();
+
+  await expect(page).toHaveURL('/accounts/1');
+  await expect(page.locator('#searchemailinput')).toHaveValue('');
+  await expect(page.locator('#clearsearchlink')).toHaveCount(0);
+  await expect(page.locator('#messagelist .emailgroup')).not.toHaveCount(0);
+});
+
+test('search paging stays stable for multi-page result sets', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  await page.goto('/accounts/1/search?query=Duplicate%20timestamp%20sample');
+
+  await expect(page.locator('#searchemailinput')).toHaveValue('Duplicate timestamp sample');
+  await expect(page.locator('#pagination-status')).toContainText(`${PAGE_SIZE} of ${DUPLICATE_SEARCH_COUNT}`);
+  await expect(page.locator('#messagelist a.emailheader')).toHaveCount(PAGE_SIZE);
+  await expect(page.locator('#messagelist .emailgroup')).toHaveCount(0);
+
+  const firstPageSubjects = await pageSubjects(page);
+  await page.locator('#emailpagination a[title="Next"]').click();
+  await expect(page.locator('#pagination-status')).toContainText(`${PAGE_SIZE} of ${DUPLICATE_SEARCH_COUNT}`);
+  expect(await pageSubjects(page)).not.toEqual(firstPageSubjects);
+
+  await page.locator('#emailpagination a[title="End"]').click();
+  await expect(page.locator('#messagelist a.emailheader')).toHaveCount(DUPLICATE_SEARCH_LAST_PAGE_COUNT);
+  await expect(page.locator('#pagination-status')).toContainText(`${DUPLICATE_SEARCH_LAST_PAGE_COUNT} of ${DUPLICATE_SEARCH_COUNT}`);
+
+  await page.locator('#emailpagination a[title="Beginning"]').click();
+  expect(await pageSubjects(page)).toEqual(firstPageSubjects);
 });
 
 test('descending inbox shows all temporal groups and seeded HTML examples', async ({ page }) => {

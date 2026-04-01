@@ -1,4 +1,4 @@
-<a href="{% if currentFolderIsDrafts %}/emails/{{ emailHeader.id }}/composer{% elseif currentFolderIsOutbox %}/outbox/{{ emailHeader.id }}/viewer{% else %}/emails/{{ emailHeader.id }}/viewer?showImages=false{% endif %}"
+<a href="{% if currentFolderIsDrafts %}/emails/{{ emailHeader.id }}/composer{% elseif currentFolderIsOutbox %}/outbox/{{ emailHeader.id }}/viewer{% else %}/emails/{{ emailHeader.id }}/viewer?showImages=false{% if currentQuery.isPresent() %}&query={{ currentQuery.get() | urlencode }}{% endif %}{% endif %}"
    id="email{{ emailHeader.id }}"
    class="emailheader{{ emailHeader.read ? ' read' : '' }}{{ emailActive and selectedEmailId == emailHeader.id ? ' active' : '' }}"
    target="{{ currentFolderIsDrafts ? 'newmailframe' : 'emailviewer' }}"
@@ -13,7 +13,7 @@
             </label>
         </div>
     {% endif %}
-    <div class="fromname">{{ emailHeader.getSender().name().orElse(emailHeader.getSender().emailAddress()) | raw}}</div>
+    <div class="fromname">{{ highlightText(emailHeader.getSender().name().orElse(emailHeader.getSender().emailAddress()), currentQuery.orElse('')) | raw }}</div>
     <div class="date-and-actions">
         <span class="date">
             {% if emailHeader.attachment %}
@@ -35,10 +35,10 @@
         {% endif %}
     </div>
     <div class="subjectline">
-        {{ emailHeader.subject | raw}}
+        {{ highlightText(emailHeader.subject, currentQuery.orElse('')) | raw }}
     </div>
     <div class="bodyline">
-        {{ emailHeader.bodyExcerpt | raw}}
+        {{ highlightText(emailHeader.bodyExcerpt, currentQuery.orElse('')) | raw }}
     </div>
     <div class="emailstar">
         {% if emailHeader.starred %}

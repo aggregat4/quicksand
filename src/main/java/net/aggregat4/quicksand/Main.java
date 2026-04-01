@@ -1,9 +1,26 @@
 package net.aggregat4.quicksand;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.sql.DataSource;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sqlite.SQLiteConfig;
+import org.sqlite.SQLiteOpenMode;
+
 import com.icegreen.greenmail.util.GreenMail;
 import com.icegreen.greenmail.util.ServerSetup;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+
 import io.helidon.config.Config;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.http.HttpRouting;
@@ -12,8 +29,8 @@ import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.jobs.MailSender;
-import net.aggregat4.quicksand.repository.DatabaseMaintenance;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
+import net.aggregat4.quicksand.repository.DatabaseMaintenance;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
@@ -37,20 +54,6 @@ import net.aggregat4.quicksand.webservice.AttachmentWebService;
 import net.aggregat4.quicksand.webservice.EmailWebService;
 import net.aggregat4.quicksand.webservice.HomeWebService;
 import net.aggregat4.quicksand.webservice.OutboxWebService;
-import org.sqlite.SQLiteConfig;
-import org.sqlite.SQLiteOpenMode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.sql.DataSource;
-import java.io.IOException;
-import java.time.Clock;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.List;
 
 public final class Main {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);

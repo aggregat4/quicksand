@@ -86,4 +86,49 @@ public class DbEmailRepositoryTest {
         emailRepository.removeAllByUid(Set.of(message.header().imapUid()));
         assertTrue(emailRepository.findByMessageUid(message.header().imapUid()).isEmpty());
     }
+
+    @Test
+    public void searchQueriesMatchSubjectBodyAndSenderWithPaging() throws MessagingException, SQLException, IOException {
+        String subject = "Search fixture subject";
+        String body = "Search fixture body";
+        String from = "needle@foo.bar";
+        String to = "to@foo.bar";
+        GreenmailUtils.deliverMessages(greenMail, subject, body, from, to, 13);
+        Store store = GreenmailUtils.getImapStore(greenMail);
+
+        DataSource ds = DbTestUtils.getTempSqlite();
+        migrateDb(ds);
+        DbFolderRepository folderRepository = new DbFolderRepository(ds);
+        DbActorRepository actorRepository = new DbActorRepository(ds);
+        DbEmailRepository emailRepository = new DbEmailRepository(ds, actorRepository);
+
+        Account account = GreenmailUtils.getAccount();
+        ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
+
+        EmailPage subjectResults = emailRepository.searchMessages(account.id(), "fixture subject", 5, 0, 0, PageDirection.RIGHT, SortOrder.ASCENDING);
+        assertEquals(5, subjectResults.emails().size());
+        assertFalse(subjectResults.hasLeft());
+        assertTrue(subjectResults.hasRight());
+
+        Email rightOffsetMessage = subjectResults.emails().getLast();
+        EmailPage nextSubjectResults = emailRepository.searchMessages(
+                account.id(),
+                "fixture subject",
+                5,
+                rightOffsetMessage.header().receivedDateTimeEpochSeconds(),
+                rightOffsetMessage.header().id(),
+                PageDirection.RIGHT,
+                SortOrder.ASCENDING);
+        assertEquals(5, nextSubjectResults.emails().size());
+        assertTrue(nextSubjectResults.hasLeft());
+        assertTrue(nextSubjectResults.hasRight());
+
+        assertEquals(13, emailRepository.getSearchMessageCount(account.id(), "fixture subject"));
+        assertEquals(13, emailRepository.getSearchMessageCount(account.id(), "needle@foo.bar"));
+        assertEquals(13, emailRepository.getSearchMessageCount(account.id(), "fixture body"));
+        assertEquals(0, emailRepository.getSearchMessageCount(account.id(), "definitely absent"));
+
+        emailRepository.removeAllByUid(Set.of(subjectResults.emails().getFirst().header().imapUid()));
+        assertEquals(12, emailRepository.getSearchMessageCount(account.id(), "fixture subject"));
+    }
 }

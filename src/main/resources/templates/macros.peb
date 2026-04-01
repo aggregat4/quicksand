@@ -48,3 +48,15 @@
             {% if not loop.last %}, {% endif %}
         {% endfor %}
     {% endmacro %}
+
+    {% macro highlightedActor(actor, query) %}
+        {% set actorText = (actor.name.isPresent() ? actor.name.get() : '') + ' <' + actor.emailAddress + '>' %}
+        <span class="actor">{{ highlightText(actorText, query) | raw }}</span>
+    {% endmacro %}
+
+    {% macro highlightedActorList(actors, query) %}
+        {% for actor in actors %}
+            {{ highlightedActor(actor, query) }}
+            {% if not loop.last %}, {% endif %}
+        {% endfor %}
+    {% endmacro %}
