@@ -3,19 +3,19 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <parent>
-        <groupId>io.helidon.applications</groupId>
-        <artifactId>helidon-se</artifactId>
-        <version>4.3.2</version>
-        <relativePath/>
-    </parent>
     <groupId>net.aggregat4</groupId>
     <artifactId>quicksand</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
+        <helidon.version>4.3.2</helidon.version>
+        <helidon.maven.plugin.version>4.0.23</helidon.maven.plugin.version>
         <mainClass>net.aggregat4.quicksand.Main</mainClass>
+        <junit.jupiter.version>5.9.3</junit.jupiter.version>
+        <maven.dependency.plugin.version>3.6.0</maven.dependency.plugin.version>
+        <maven.jar.plugin.version>3.3.0</maven.jar.plugin.version>
         <maven.compiler.release>25</maven.compiler.release>
+        <exec.maven.plugin.version>3.1.0</exec.maven.plugin.version>
         <slf4j.version>2.0.17</slf4j.version>
         <sqlite.version>3.53.0.0</sqlite.version>
         <hikari.version>7.0.2</hikari.version>
@@ -26,6 +26,18 @@
         <owasp.html.sanitizer.version>20260313.1</owasp.html.sanitizer.version>
         <greenmail.version>2.1.8</greenmail.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.helidon</groupId>
+                <artifactId>helidon-bom</artifactId>
+                <version>${helidon.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -132,6 +144,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
+            <version>${junit.jupiter.version}</version>
             <scope>test</scope>
         </dependency>
         <!-- com.icegreen:greenmail:2.0.0-alpha-3 -->
@@ -166,18 +179,73 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
+                <version>${maven.dependency.plugin.version}</version>
                 <executions>
                     <execution>
                         <id>copy-libs</id>
+                        <!-- Keep runtime dependencies next to the app jar so java -jar works in Docker and test launch scripts. -->
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/libs</outputDirectory>
+                            <overWriteReleases>false</overWriteReleases>
+                            <overWriteSnapshots>false</overWriteSnapshots>
+                            <overWriteIfNewer>true</overWriteIfNewer>
+                            <includeScope>runtime</includeScope>
+                            <excludeArtifactIds>okio</excludeArtifactIds>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>${maven.jar.plugin.version}</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <!-- This is a thin jar: dependencies live in target/libs and are referenced from the manifest classpath. -->
+                            <addClasspath>true</addClasspath>
+                            <classpathPrefix>libs</classpathPrefix>
+                            <mainClass>${mainClass}</mainClass>
+                            <useUniqueVersions>false</useUniqueVersions>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${exec.maven.plugin.version}</version>
+                <configuration>
+                    <executable>java</executable>
+                    <longClasspath>true</longClasspath>
+                    <arguments>
+                        <argument>-classpath</argument>
+                        <classpath/>
+                        <argument>${mainClass}</argument>
+                    </arguments>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>io.helidon.build-tools</groupId>
                 <artifactId>helidon-maven-plugin</artifactId>
+                <version>${helidon.maven.plugin.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>io.helidon.licensing</groupId>
+                        <artifactId>helidon-licensing</artifactId>
+                        <version>${helidon.version}</version>
+                    </dependency>
+                </dependencies>
                 <executions>
                     <execution>
                         <id>third-party-license-report</id>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>
