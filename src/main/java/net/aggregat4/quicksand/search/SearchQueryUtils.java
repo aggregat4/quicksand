@@ -1,9 +1,11 @@
 package net.aggregat4.quicksand.search;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,6 +26,18 @@ public final class SearchQueryUtils {
             tokens.add(matcher.group());
         }
         return new ArrayList<>(tokens);
+    }
+
+    public static Optional<Pattern> toHighlightPattern(String query) {
+        List<String> tokens = tokenize(query).stream()
+                .sorted(Comparator.comparingInt(String::length).reversed())
+                .toList();
+        if (tokens.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(Pattern.compile(
+                tokens.stream().map(Pattern::quote).reduce((left, right) -> left + "|" + right).orElseThrow(),
+                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE));
     }
 
     public static String toFtsMatchQuery(String query) {

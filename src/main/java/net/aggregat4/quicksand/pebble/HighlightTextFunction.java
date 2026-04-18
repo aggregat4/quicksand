@@ -6,11 +6,9 @@ import io.pebbletemplates.pebble.template.PebbleTemplate;
 import net.aggregat4.quicksand.search.SearchQueryUtils;
 import org.unbescape.html.HtmlEscape;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class HighlightTextFunction implements Function {
     @Override
@@ -22,16 +20,11 @@ public class HighlightTextFunction implements Function {
     public Object execute(Map<String, Object> args, PebbleTemplate self, EvaluationContext context, int lineNumber) {
         String text = args.get("text") == null ? "" : String.valueOf(args.get("text"));
         String query = args.get("query") == null ? "" : String.valueOf(args.get("query"));
-        List<String> tokens = SearchQueryUtils.tokenize(query).stream()
-                .sorted(Comparator.comparingInt(String::length).reversed())
-                .toList();
-        if (tokens.isEmpty() || text.isBlank()) {
+        var highlightPattern = SearchQueryUtils.toHighlightPattern(query);
+        if (highlightPattern.isEmpty() || text.isBlank()) {
             return HtmlEscape.escapeHtml5(text);
         }
-        Pattern pattern = Pattern.compile(
-                tokens.stream().map(Pattern::quote).reduce((left, right) -> left + "|" + right).orElseThrow(),
-                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-        Matcher matcher = pattern.matcher(text);
+        Matcher matcher = highlightPattern.get().matcher(text);
         StringBuilder sb = new StringBuilder();
         int lastEnd = 0;
         while (matcher.find()) {

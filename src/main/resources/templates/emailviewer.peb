@@ -71,7 +71,7 @@
                 <pre>{{ highlightText(email.body, currentQuery.orElse('')) | raw }}</pre>
             {% else %}
                 <iframe id="emailbodyframe"
-                        src="/emails/{{ email.header.id }}/viewer/body?showImages={{ showImages ? 'true' : 'false' }}"
+                        src="/emails/{{ email.header.id }}/viewer/body?showImages={{ showImages ? 'true' : 'false' }}{% if currentQuery.isPresent() %}&query={{ currentQuery.get() | urlencode }}{% endif %}"
                         sandbox="allow-same-origin"
                 ></iframe>
             {% endif %}

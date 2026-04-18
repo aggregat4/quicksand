@@ -13,20 +13,17 @@ import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
+import net.aggregat4.quicksand.search.HtmlSearchHighlighter;
 import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 import org.owasp.html.HtmlPolicyBuilder;
-import org.owasp.html.HtmlSanitizer;
-import org.owasp.html.HtmlStreamRenderer;
 import org.owasp.html.PolicyFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.URLDecoder;
@@ -116,34 +113,20 @@ public class EmailWebService implements HttpService {
     private void htmlEmailBodyHandler(ServerRequest request, ServerResponse response) {
         int emailId = RequestUtils.intPathParam(request, "emailId");
         boolean showImages = getShowImagesParam(request);
+        Optional<String> query = request.query().first("query").map(String::trim).filter(s -> !s.isBlank());
         Optional<Email> email = emailService.getMessage(emailId);
         if (email.isEmpty() || email.get().plainText() || email.get().body() == null) {
             response.status(404);
             response.send();
             return;
         }
-        StringWriter sw = new StringWriter();
-        BufferedWriter bw = new BufferedWriter(sw);
-        HtmlStreamRenderer renderer = HtmlStreamRenderer.create(
-                bw,
-                // Receives notifications on a failure to write to the output.
-                ex -> {
-                    // System.out suppresses IOExceptions
-                    throw new AssertionError(null, ex);
-                },
-                // Our HTML parser is very lenient, but this receives notifications on
-                // truly bizarre inputs.
-                x -> {
-                    throw new AssertionError(x);
-                });
-        if (showImages) {
-            HtmlSanitizer.sanitize(email.get().body(), IMAGES_POLICY.apply(renderer));
-        } else {
-            HtmlSanitizer.sanitize(email.get().body(), NO_IMAGES_POLICY.apply(renderer));
-        }
+        String html = HtmlSearchHighlighter.sanitizeAndHighlight(
+                email.get().body(),
+                showImages ? IMAGES_POLICY : NO_IMAGES_POLICY,
+                query.orElse(""));
         response.headers().contentType(TEXT_HTML);
         ResponseUtils.setCacheControlImmutable(response);
-        response.send(sw.toString());
+        response.send(html);
     }
 
     private static boolean getShowImagesParam(ServerRequest request) {
