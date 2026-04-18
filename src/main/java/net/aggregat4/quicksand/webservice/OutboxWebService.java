@@ -1,48 +1,51 @@
 package net.aggregat4.quicksand.webservice;
 
 import io.helidon.http.HttpMediaType;
-import io.pebbletemplates.pebble.template.PebbleTemplate;
 import io.helidon.webserver.http.HttpRules;
 import io.helidon.webserver.http.HttpService;
 import io.helidon.webserver.http.ServerRequest;
 import io.helidon.webserver.http.ServerResponse;
+import io.pebbletemplates.pebble.template.PebbleTemplate;
+import java.util.Map;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 
-import java.util.Map;
-
 public class OutboxWebService implements HttpService {
-    private static final HttpMediaType TEXT_HTML = HttpMediaType.create("text/html; charset=UTF-8");
-    private static final PebbleTemplate emailViewerTemplate =
-            PebbleConfig.getEngine().getTemplate("templates/emailviewer.peb");
+  private static final HttpMediaType TEXT_HTML = HttpMediaType.create("text/html; charset=UTF-8");
+  private static final PebbleTemplate emailViewerTemplate =
+      PebbleConfig.getEngine().getTemplate("templates/emailviewer.peb");
 
-    private final OutboundMessageService outboundMessageService;
+  private final OutboundMessageService outboundMessageService;
 
-    public OutboxWebService(OutboundMessageService outboundMessageService) {
-        this.outboundMessageService = outboundMessageService;
+  public OutboxWebService(OutboundMessageService outboundMessageService) {
+    this.outboundMessageService = outboundMessageService;
+  }
+
+  @Override
+  public void routing(HttpRules rules) {
+    rules.get("/{outboundMessageId}/viewer", this::queuedMessageViewerHandler);
+  }
+
+  private void queuedMessageViewerHandler(ServerRequest request, ServerResponse response) {
+    int outboundMessageId = RequestUtils.intPathParam(request, "outboundMessageId");
+    var outboundMessage = outboundMessageService.findOutboundMessage(outboundMessageId);
+    var email = outboundMessageService.getQueuedMessage(outboundMessageId);
+    if (email.isEmpty() || outboundMessage.isEmpty()) {
+      response.status(404);
+      response.send();
+      return;
     }
-
-    @Override
-    public void routing(HttpRules rules) {
-        rules.get("/{outboundMessageId}/viewer", this::queuedMessageViewerHandler);
-    }
-
-    private void queuedMessageViewerHandler(ServerRequest request, ServerResponse response) {
-        int outboundMessageId = RequestUtils.intPathParam(request, "outboundMessageId");
-        var outboundMessage = outboundMessageService.findOutboundMessage(outboundMessageId);
-        var email = outboundMessageService.getQueuedMessage(outboundMessageId);
-        if (email.isEmpty() || outboundMessage.isEmpty()) {
-            response.status(404);
-            response.send();
-            return;
-        }
-        response.headers().contentType(TEXT_HTML);
-        response.send(PebbleRenderer.renderTemplate(Map.of(
+    response.headers().contentType(TEXT_HTML);
+    response.send(
+        PebbleRenderer.renderTemplate(
+            Map.of(
                 "email", email.get(),
                 "showImages", false,
                 "outboundStatus", OutboundMessageService.formatStatus(outboundMessage.get()),
-                "outboundStatusDetail", OutboundMessageService.formatStatusDetail(outboundMessage.get()),
-                "readOnly", true), emailViewerTemplate));
-    }
+                "outboundStatusDetail",
+                    OutboundMessageService.formatStatusDetail(outboundMessage.get()),
+                "readOnly", true),
+            emailViewerTemplate));
+  }
 }

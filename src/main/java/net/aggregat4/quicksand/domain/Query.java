@@ -1,4 +1,3 @@
 package net.aggregat4.quicksand.domain;
 
-public record Query(String query) {
-}
+public record Query(String query) {}

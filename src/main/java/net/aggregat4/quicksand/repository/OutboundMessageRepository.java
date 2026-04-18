@@ -1,27 +1,26 @@
 package net.aggregat4.quicksand.repository;
 
-import net.aggregat4.quicksand.domain.OutboundMessage;
-import net.aggregat4.quicksand.domain.OutboundMessageStatus;
-
 import java.sql.Connection;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
+import net.aggregat4.quicksand.domain.OutboundMessage;
+import net.aggregat4.quicksand.domain.OutboundMessageStatus;
 
 public interface OutboundMessageRepository {
-    OutboundMessage create(Connection con, OutboundMessage outboundMessage);
+  OutboundMessage create(Connection con, OutboundMessage outboundMessage);
 
-    Optional<OutboundMessage> findById(int id);
+  Optional<OutboundMessage> findById(int id);
 
-    List<OutboundMessage> findByAccountId(int accountId);
+  List<OutboundMessage> findByAccountId(int accountId);
 
-    List<OutboundMessage> findByStatus(OutboundMessageStatus status);
+  List<OutboundMessage> findByStatus(OutboundMessageStatus status);
 
-    List<OutboundMessage> findDeliverable(ZonedDateTime now);
+  List<OutboundMessage> findDeliverable(ZonedDateTime now);
 
-    void markSent(int id, ZonedDateTime sentAt);
+  void markSent(int id, ZonedDateTime sentAt);
 
-    void scheduleRetry(int id, String lastError, ZonedDateTime nextAttemptAt);
+  void scheduleRetry(int id, String lastError, ZonedDateTime nextAttemptAt);
 
-    void markFailed(int id, String lastError);
+  void markFailed(int id, String lastError);
 }

@@ -6,7 +6,7 @@ import com.icegreen.greenmail.util.ServerSetupTest;
 
 public class GreenmailTestUtils {
 
-    public static GreenMailExtension configureTestGreenMailExtension() {
-        return new GreenMailExtension(ServerSetup.dynamicPort(ServerSetupTest.SMTP_IMAP));
-    }
+  public static GreenMailExtension configureTestGreenMailExtension() {
+    return new GreenMailExtension(ServerSetup.dynamicPort(ServerSetupTest.SMTP_IMAP));
+  }
 }

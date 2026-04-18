@@ -6,6 +6,7 @@ import java.util.function.Function;
 
 public interface Migrations {
 
-    Map<Integer, Function<Connection, Integer>> getMigrations();
-    int getCurrentVersion();
+  Map<Integer, Function<Connection, Integer>> getMigrations();
+
+  int getCurrentVersion();
 }

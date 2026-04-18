@@ -4,16 +4,15 @@ import java.time.Clock;
 import java.util.Objects;
 
 public final class ApplicationClock {
-    private static volatile Clock current = Clock.systemDefaultZone();
+  private static volatile Clock current = Clock.systemDefaultZone();
 
-    private ApplicationClock() {
-    }
+  private ApplicationClock() {}
 
-    public static Clock current() {
-        return current;
-    }
+  public static Clock current() {
+    return current;
+  }
 
-    public static void set(Clock clock) {
-        current = Objects.requireNonNull(clock);
-    }
+  public static void set(Clock clock) {
+    current = Objects.requireNonNull(clock);
+  }
 }
