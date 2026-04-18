@@ -1,8 +1,7 @@
 package net.aggregat4.quicksand.jobs;
 
 import static net.aggregat4.quicksand.repository.DatabaseMaintenance.migrateDb;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import io.helidon.http.HttpMediaType;
@@ -132,7 +131,7 @@ public class MailSenderTest {
     MimeMessage deliveredMessage = greenMail.getReceivedMessages()[0];
     assertEquals("SMTP test subject", deliveredMessage.getSubject());
     Object content = deliveredMessage.getContent();
-    assertTrue(content instanceof Multipart);
+    assertInstanceOf(Multipart.class, content);
     Multipart multipart = (Multipart) content;
     BodyPart textPart = multipart.getBodyPart(0);
     assertTrue(textPart.getContent().toString().contains("SMTP test body"));
@@ -195,7 +194,7 @@ public class MailSenderTest {
             attachmentRepository,
             outboundMessageRepository,
             Clock.fixed(createdAt.toInstant(), ZoneId.of("Europe/Berlin")));
-    outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();
+    var unused = outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();
 
     MailSender mailSender =
         new MailSender(

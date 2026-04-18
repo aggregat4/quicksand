@@ -117,13 +117,13 @@ public class ImapStoreSync {
       throws MessagingException {
     // TODO: verify that all messages already have their UID set since we use that below
     Set<Long> remoteUids = new HashSet<>();
-    ArrayList<IMAPMessage> messagesToDownload =
+    List<IMAPMessage> messagesToDownload =
         updateLocalMessages(imapFolder, messageRepository, remoteUids);
     deleteExpungedMessages(localFolder, messageRepository, remoteUids);
     downloadNewMessages(localFolder, imapFolder, messageRepository, messagesToDownload);
   }
 
-  private static ArrayList<IMAPMessage> updateLocalMessages(
+  private static List<IMAPMessage> updateLocalMessages(
       IMAPFolder imapFolder, EmailRepository messageRepository, Set<Long> remoteUids)
       throws MessagingException {
     var remoteMessages = imapFolder.getMessages();
@@ -169,7 +169,7 @@ public class ImapStoreSync {
       NamedFolder localFolder,
       IMAPFolder imapFolder,
       EmailRepository emailRepository,
-      ArrayList<IMAPMessage> messagesToDownload)
+      List<IMAPMessage> messagesToDownload)
       throws MessagingException {
     FetchProfile newMessageProfile = new FetchProfile();
     newMessageProfile.add(FetchProfile.Item.ENVELOPE);
