@@ -60,7 +60,7 @@ public class ImapStoreSync {
       // folders
       long listFoldersStarted = System.nanoTime();
       Folder[] folders = store.getDefaultFolder().list("*");
-      LOGGER.info(
+      LOGGER.debug(
           "Listed {} remote folders for account {} in {} ms",
           folders.length,
           account.name(),
@@ -79,7 +79,7 @@ public class ImapStoreSync {
           seenFolders.add(localFolder);
           long folderSyncStarted = System.nanoTime();
           syncImapFolder(localFolder, folder, messageRepository);
-          LOGGER.info(
+          LOGGER.debug(
               "Synced folder {} for account {} in {} ms",
               folder.getFullName(),
               account.name(),
@@ -90,7 +90,7 @@ public class ImapStoreSync {
       localFolders.stream()
           .filter(f -> !seenFolders.contains(f))
           .forEach(folderRepository::deleteFolder);
-      LOGGER.info(
+      LOGGER.debug(
           "Synced all folders for account {} in {} ms", account.name(), elapsedMillis(syncStarted));
     } catch (MessagingException e) {
       // TODO: proper error handling
@@ -113,7 +113,7 @@ public class ImapStoreSync {
     }
     long openStarted = System.nanoTime();
     imapFolder.open(Folder.READ_ONLY);
-    LOGGER.info(
+    LOGGER.debug(
         "Opened remote folder {} with {} messages in {} ms",
         imapFolder.getFullName(),
         imapFolder.getMessageCount(),
@@ -143,7 +143,7 @@ public class ImapStoreSync {
     long updateStarted = System.nanoTime();
     List<IMAPMessage> messagesToDownload =
         updateLocalMessages(imapFolder, messageRepository, remoteUids);
-    LOGGER.info(
+    LOGGER.debug(
         "Checked {} remote messages in folder {}; {} new messages need download; took {} ms",
         remoteUids.size(),
         imapFolder.getFullName(),
@@ -151,13 +151,13 @@ public class ImapStoreSync {
         elapsedMillis(updateStarted));
     long deleteStarted = System.nanoTime();
     deleteExpungedMessages(localFolder, messageRepository, remoteUids);
-    LOGGER.info(
+    LOGGER.debug(
         "Deleted expunged local messages for folder {} in {} ms",
         imapFolder.getFullName(),
         elapsedMillis(deleteStarted));
     long downloadStarted = System.nanoTime();
     downloadNewMessages(localFolder, imapFolder, messageRepository, messagesToDownload);
-    LOGGER.info(
+    LOGGER.debug(
         "Downloaded {} new messages for folder {} in {} ms",
         messagesToDownload.size(),
         imapFolder.getFullName(),
@@ -169,7 +169,7 @@ public class ImapStoreSync {
       throws MessagingException {
     long getMessagesStarted = System.nanoTime();
     var remoteMessages = imapFolder.getMessages();
-    LOGGER.info(
+    LOGGER.debug(
         "Loaded {} remote message handles for folder {} in {} ms",
         remoteMessages.length,
         imapFolder.getFullName(),
@@ -179,7 +179,7 @@ public class ImapStoreSync {
     fp.add(UIDFolder.FetchProfileItem.UID);
     long fetchMetadataStarted = System.nanoTime();
     imapFolder.fetch(remoteMessages, fp);
-    LOGGER.info(
+    LOGGER.debug(
         "Fetched flags and UIDs for {} messages in folder {} in {} ms",
         remoteMessages.length,
         imapFolder.getFullName(),
@@ -232,7 +232,7 @@ public class ImapStoreSync {
     IMAPMessage[] messageToDownloadArray = messagesToDownload.toArray(new IMAPMessage[0]);
     long fetchNewMetadataStarted = System.nanoTime();
     imapFolder.fetch(messageToDownloadArray, newMessageProfile);
-    LOGGER.info(
+    LOGGER.debug(
         "Fetched envelope/content metadata for {} new messages in folder {} in {} ms",
         messagesToDownload.size(),
         imapFolder.getFullName(),
@@ -240,7 +240,7 @@ public class ImapStoreSync {
     long extractBodiesStarted = System.nanoTime();
     Map<IMAPMessage, ImapBodyExtractor.StoredBody> storedBodies =
         ImapBodyExtractor.extractBodies(imapFolder, messagesToDownload);
-    LOGGER.info(
+    LOGGER.debug(
         "Extracted selected bodies for {} new messages in folder {} in {} ms",
         messagesToDownload.size(),
         imapFolder.getFullName(),
@@ -276,7 +276,7 @@ public class ImapStoreSync {
       newEmails.add(newEmail);
       downloadedCount++;
       if (downloadedCount % 50 == 0 || downloadedCount == messagesToDownload.size()) {
-        LOGGER.info(
+        LOGGER.debug(
             "Prepared {}/{} new messages for folder {}",
             downloadedCount,
             messagesToDownload.size(),
@@ -285,7 +285,7 @@ public class ImapStoreSync {
     }
     long storeMessagesStarted = System.nanoTime();
     emailRepository.addMessages(localFolder.id(), newEmails);
-    LOGGER.info(
+    LOGGER.debug(
         "Stored {} new messages for folder {} in {} ms",
         newEmails.size(),
         imapFolder.getFullName(),

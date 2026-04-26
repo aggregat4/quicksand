@@ -136,6 +136,48 @@ public class ImapStoreSyncTest {
   }
 
   @Test
+  public void syncSelectsNestedHtmlAlternativeInsideMultipartMixed() throws MessagingException {
+    MimeMessage message = createBaseMessage("Nested mixed alternative subject");
+    MimeMultipart mixed = new MimeMultipart("mixed");
+
+    MimeMultipart alternative = new MimeMultipart("alternative");
+    MimeBodyPart plainPart = new MimeBodyPart();
+    plainPart.setText("nested plain alternative body", StandardCharsets.UTF_8.name());
+    alternative.addBodyPart(plainPart);
+
+    MimeBodyPart htmlPart = new MimeBodyPart();
+    htmlPart.setContent(
+        "<html><body><p>nested html alternative body</p></body></html>",
+        "text/html; charset=UTF-8");
+    alternative.addBodyPart(htmlPart);
+
+    MimeBodyPart alternativePart = new MimeBodyPart();
+    alternativePart.setContent(alternative);
+    mixed.addBodyPart(alternativePart);
+
+    MimeBodyPart attachmentPart = new MimeBodyPart();
+    attachmentPart.setText(
+        "nested attachment body must not be indexed", StandardCharsets.UTF_8.name());
+    attachmentPart.setFileName("nested-note.txt");
+    attachmentPart.setDisposition(Part.ATTACHMENT);
+    mixed.addBodyPart(attachmentPart);
+
+    message.setContent(mixed);
+    message.saveChanges();
+    deliver(message);
+
+    Email email = syncOnlyMessage();
+
+    assertFalse(email.plainText());
+    assertTrue(email.body().contains("nested html alternative body"));
+    assertFalse(email.body().contains("nested plain alternative body"));
+    assertFalse(email.body().contains("nested attachment body must not be indexed"));
+    assertTrue(email.header().bodyExcerpt().contains("nested html alternative body"));
+    assertFalse(
+        email.header().bodyExcerpt().contains("nested attachment body must not be indexed"));
+  }
+
+  @Test
   public void syncIgnoresAttachmentBodyInMultipartMixed() throws MessagingException {
     MimeMessage message = createBaseMessage("Mixed subject");
     MimeMultipart mixed = new MimeMultipart("mixed");

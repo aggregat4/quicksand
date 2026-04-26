@@ -51,7 +51,7 @@ public class MailFetcher {
   /** Package private for testing. */
   void fetch() {
     long fetchStarted = System.nanoTime();
-    LOGGER.info("Starting mail fetch for configured accounts");
+    LOGGER.debug("Starting mail fetch for configured accounts");
     checkAndInitializeStores();
     for (Map.Entry<Account, Store> entry : accountStores.entrySet()) {
       Store store = entry.getValue();
@@ -67,16 +67,16 @@ public class MailFetcher {
           LOGGER.warn("Failed to connect to IMAP store for account {}", account.name(), e);
           continue;
         }
-        LOGGER.info("Opened IMAP connection for account {}", account.name());
+        LOGGER.debug("Opened IMAP connection for account {}", account.name());
       }
       long accountFetchStarted = System.nanoTime();
       ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
-      LOGGER.info(
+      LOGGER.debug(
           "Finished mail fetch for account {} in {} ms",
           account.name(),
           elapsedMillis(accountFetchStarted));
     }
-    LOGGER.info("Finished mail fetch in {} ms", elapsedMillis(fetchStarted));
+    LOGGER.debug("Finished mail fetch in {} ms", elapsedMillis(fetchStarted));
   }
 
   /** Checks whether we have an active session for each account and if not creates a new session. */
