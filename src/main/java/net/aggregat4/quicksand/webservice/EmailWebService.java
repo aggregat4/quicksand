@@ -47,7 +47,7 @@ public class EmailWebService implements HttpService {
   private static final PebbleTemplate emailQueuedTemplate =
       PebbleConfig.getEngine().getTemplate("templates/emailqueued.peb");
 
-  private static final PolicyFactory NO_IMAGES_POLICY =
+  static final PolicyFactory NO_IMAGES_POLICY =
       new HtmlPolicyBuilder()
           .allowCommonBlockElements()
           .allowElements("table", "tr", "td", "a", "img")
@@ -55,7 +55,7 @@ public class EmailWebService implements HttpService {
           .allowCommonInlineFormattingElements()
           .toFactory();
 
-  private static final PolicyFactory IMAGES_POLICY =
+  static final PolicyFactory IMAGES_POLICY =
       new HtmlPolicyBuilder()
           .allowCommonBlockElements()
           .allowCommonInlineFormattingElements()
