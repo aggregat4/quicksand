@@ -8,7 +8,26 @@
 
 {% block content %}
     <main>
-        Hello World!
+        <section class="home-panel" aria-labelledby="home-heading">
+            {% if accounts.isEmpty() %}
+                <p class="eyebrow">Quicksand</p>
+                <h2 id="home-heading">No accounts configured</h2>
+                <p class="home-copy">
+                    Add at least one mail account to the application configuration, or start Quicksand in demo mode.
+                </p>
+            {% else %}
+                <p class="eyebrow">Quicksand</p>
+                <h2 id="home-heading">Choose an account</h2>
+                <nav class="account-picker" aria-label="Mail accounts">
+                    {% for account in accounts %}
+                        <a class="account-card" href="/accounts/{{ account.id }}">
+                            <span class="account-name">{{ account.name }}</span>
+                            <span class="account-action">Open mailbox</span>
+                        </a>
+                    {% endfor %}
+                </nav>
+            {% endif %}
+        </section>
     </main>
 
 {% endblock %}

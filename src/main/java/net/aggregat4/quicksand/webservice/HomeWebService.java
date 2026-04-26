@@ -6,9 +6,12 @@ import io.helidon.webserver.http.HttpService;
 import io.helidon.webserver.http.ServerRequest;
 import io.helidon.webserver.http.ServerResponse;
 import io.pebbletemplates.pebble.template.PebbleTemplate;
+import java.net.URI;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
+import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import net.aggregat4.quicksand.service.AccountService;
 
@@ -30,9 +33,17 @@ public class HomeWebService implements HttpService {
   }
 
   private void getHomeHandler(ServerRequest request, ServerResponse response) {
+    List<Account> accounts = accountService.getAccounts();
+    if (accounts.size() == 1) {
+      response.status(302);
+      response.headers().location(URI.create("/accounts/%s".formatted(accounts.getFirst().id())));
+      response.send();
+      return;
+    }
+
     Map<String, Object> context = new HashMap<>();
     context.put("bodyclass", "homepage");
-    context.put("accounts", accountService.getAccounts());
+    context.put("accounts", accounts);
     response.headers().contentType(TEXT_HTML);
     response.send(PebbleRenderer.renderTemplate(context, homeTemplate));
   }

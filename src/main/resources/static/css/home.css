@@ -2,6 +2,70 @@
     display: none;
 }
 
-main {
-    padding: 12px;
+body.homepage main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--gap-xl);
+}
+
+.home-panel {
+    width: min(720px, 100%);
+    border: var(--standard-border);
+    background: var(--highlighted-bgcolor);
+    padding: var(--gap-xl);
+}
+
+.eyebrow {
+    color: var(--muted-text-color);
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.home-panel h2 {
+    margin-top: var(--gap-m);
+    margin-bottom: var(--gap-l);
+}
+
+.home-copy {
+    color: var(--body-text-color);
+    max-width: 56ch;
+}
+
+.account-picker {
+    display: grid;
+    gap: var(--gap-l);
+}
+
+.account-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gap-l);
+    border: var(--standard-border);
+    color: var(--text-color);
+    background: var(--button-bgcolor);
+    padding: var(--gap-l);
+    text-decoration: none;
+}
+
+.account-card:hover,
+.account-card:focus {
+    background: var(--hover-bgcolor);
+    color: var(--hover-color);
+}
+
+.account-name {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.account-action {
+    color: var(--muted-text-color);
+}
+
+.account-card:hover .account-action,
+.account-card:focus .account-action {
+    color: inherit;
 }

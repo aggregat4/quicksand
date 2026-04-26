@@ -10,6 +10,7 @@ Current verified baseline (validated 2026-04-26):
 - Spotless with `google-java-format` and `removeUnusedImports` is wired into the Maven validate phase
 - Error Prone is wired as a warning-only correctness check with a small selected rule set
 - demo mail server and demo account are opt-in
+- the home route has deliberate account-state handling: zero accounts render an empty state, one account redirects to that mailbox, and multiple accounts render a large account picker
 - account and folder pages render from the local SQLite mirror
 - account-wide message search runs against a local SQLite FTS index with paging, reset, server-rendered highlighting, and HTML body match highlighting inside sanitized viewer content
 - persisted message viewer routes load real stored messages
@@ -23,19 +24,9 @@ Current verified baseline (validated 2026-04-26):
 
 ## Current Backlog
 
-### 1. Home Page
+### 1. Runtime And Storage Hardening
 
-The home route is real, but the template is still placeholder content.
-
-Needed:
-
-- replace `Hello World!` with intentional behavior
-- handle zero, one, and multiple account states deliberately
-- for the common one-account case, consider redirecting or linking directly to the account mailbox
-
-### 2. Runtime And Storage Hardening
-
-Recent work improved logging, sync behavior, paging, grouping, deterministic test setup, and build hygiene, but a few hardening tasks remain.
+Recent work improved logging, sync behavior, paging, grouping, deterministic test setup, build hygiene, and home-page routing, but a few hardening tasks remain.
 
 Needed:
 
@@ -44,7 +35,7 @@ Needed:
 - review account credential storage before treating the app as anything beyond a local prototype
 - keep expanding regression coverage as new persisted flows land
 
-### 3. Mailbox Interaction Gaps
+### 2. Mailbox Interaction Gaps
 
 Several UI affordances exist before their backing behavior is complete.
 
@@ -59,8 +50,8 @@ Needed:
 
 If picking one product-facing task next:
 
-1. replace the placeholder home page with deliberate account-state handling
-2. then choose one mailbox action slice and wire it through repository/service/SSR routes
-3. keep runtime/storage hardening incremental and tied to concrete persisted flows
+1. choose one mailbox action slice and wire it through repository/service/SSR routes
+2. keep runtime/storage hardening incremental and tied to concrete persisted flows
+3. expand home-page coverage for zero-account and multi-account startup configurations when config-driven web test coverage is broadened
 
 Developer linting/tooling is sufficient for now; do not make tooling the next primary slice unless a new build pain appears.

@@ -69,15 +69,15 @@ async function collectSubjectsAcrossPages(page, startUrl) {
   throw new Error('paging did not terminate within the expected number of pages');
 }
 
-test('home page renders and static assets are reachable', async ({ page, request }) => {
+test('home redirects to the only configured account and static assets are reachable', async ({ page, request }) => {
   const cssResponse = await request.get('/css/base.css');
   expect(cssResponse.ok()).toBeTruthy();
 
   await page.goto('/');
 
-  await expect(page).toHaveTitle(/Quicksand/);
-  await expect(page.locator('#apptitle')).toHaveText('Quicksand E-Mail Home');
-  await expect(page.locator('main')).toContainText('Hello World!');
+  await expect(page).toHaveURL(/\/accounts\/1$/);
+  await expect(page).toHaveTitle(/Greenmail Test Account/);
+  await expect(page.locator('#apptitle')).toHaveText('E-Mail for Greenmail Test Account');
 });
 
 test('missing viewer ids return 404', async ({ request }) => {

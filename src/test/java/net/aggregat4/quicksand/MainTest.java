@@ -1,5 +1,6 @@
 package net.aggregat4.quicksand;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.helidon.webserver.WebServer;
@@ -35,10 +36,10 @@ class MainTest {
   }
 
   @Test
-  void homePageRenders() throws IOException, InterruptedException {
-    String response = get("/");
-    assertTrue(response.contains("Quicksand E-Mail Home"));
-    assertTrue(response.contains("Hello World!"));
+  void homePageRedirectsToOnlyConfiguredAccount() throws IOException, InterruptedException {
+    HttpResponse<String> response = getResponse("/");
+    assertEquals(302, response.statusCode());
+    assertEquals("/accounts/1", response.headers().firstValue("location").orElseThrow());
   }
 
   @Test
@@ -51,12 +52,17 @@ class MainTest {
   }
 
   private static String get(String path) throws IOException, InterruptedException {
+    return getResponse(path).body();
+  }
+
+  private static HttpResponse<String> getResponse(String path)
+      throws IOException, InterruptedException {
     HttpRequest request =
         HttpRequest.newBuilder(
                 URI.create(
                     "http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME) + path))
             .GET()
             .build();
-    return httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
+    return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
   }
 }
