@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory;
 public class MailFetcher {
   private static final Logger LOGGER = LoggerFactory.getLogger(MailFetcher.class);
 
-  private static final long INITIAL_DELAY_SECONDS = 0;
   private final long fetchPeriodInSeconds;
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
   private final DbAccountRepository accountRepository;
@@ -38,7 +37,7 @@ public class MailFetcher {
 
   public void start() {
     this.scheduler.scheduleWithFixedDelay(
-        this::fetch, INITIAL_DELAY_SECONDS, fetchPeriodInSeconds, TimeUnit.SECONDS);
+        this::fetch, fetchPeriodInSeconds, fetchPeriodInSeconds, TimeUnit.SECONDS);
   }
 
   public void fetchNow() {
@@ -51,7 +50,8 @@ public class MailFetcher {
 
   /** Package private for testing. */
   void fetch() {
-    LOGGER.debug("Fetching mail for configured accounts");
+    long fetchStarted = System.nanoTime();
+    LOGGER.info("Starting mail fetch for configured accounts");
     checkAndInitializeStores();
     for (Map.Entry<Account, Store> entry : accountStores.entrySet()) {
       Store store = entry.getValue();
@@ -69,8 +69,14 @@ public class MailFetcher {
         }
         LOGGER.info("Opened IMAP connection for account {}", account.name());
       }
+      long accountFetchStarted = System.nanoTime();
       ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
+      LOGGER.info(
+          "Finished mail fetch for account {} in {} ms",
+          account.name(),
+          elapsedMillis(accountFetchStarted));
     }
+    LOGGER.info("Finished mail fetch in {} ms", elapsedMillis(fetchStarted));
   }
 
   /** Checks whether we have an active session for each account and if not creates a new session. */
@@ -94,5 +100,9 @@ public class MailFetcher {
 
   public void invalidateSessions() {
     this.accountStores.clear();
+  }
+
+  private static long elapsedMillis(long startedNanos) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
   }
 }

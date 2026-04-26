@@ -102,6 +102,11 @@ class InMemoryEmailRepository implements EmailRepository {
   }
 
   @Override
+  public void addMessages(int folderId, List<Email> emails) {
+    messages.computeIfAbsent(folderId, k -> new ArrayList<>()).addAll(emails);
+  }
+
+  @Override
   public EmailPage getMessages(
       int folderId,
       int pageSize,

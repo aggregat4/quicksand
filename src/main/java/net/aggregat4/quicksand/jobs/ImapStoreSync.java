@@ -9,6 +9,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.Multipart;
 import jakarta.mail.Part;
 import jakarta.mail.Store;
+import jakarta.mail.UIDFolder;
 import jakarta.mail.internet.InternetAddress;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Actor;
 import net.aggregat4.quicksand.domain.ActorType;
@@ -29,6 +31,8 @@ import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import org.eclipse.angus.mail.imap.IMAPFolder;
 import org.eclipse.angus.mail.imap.IMAPMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // first sync all folders: add non existent and remove any non present ones (also removing emails)
 // then sync all emails in all folders
@@ -45,6 +49,8 @@ import org.eclipse.angus.mail.imap.IMAPMessage;
 // disconnected IMAP client
 // we can skip the client actions for now and try the server to client sync first
 public class ImapStoreSync {
+  private static final Logger LOGGER = LoggerFactory.getLogger(ImapStoreSync.class);
+
   private record StoredBody(String body, boolean plainText, String excerpt) {}
 
   public static void syncImapFolders(
@@ -52,10 +58,17 @@ public class ImapStoreSync {
       Store store,
       FolderRepository folderRepository,
       EmailRepository messageRepository) {
+    long syncStarted = System.nanoTime();
     try {
       // we filter by '*' as that seems to indicate that we want all folders not just toplevel
       // folders
+      long listFoldersStarted = System.nanoTime();
       Folder[] folders = store.getDefaultFolder().list("*");
+      LOGGER.info(
+          "Listed {} remote folders for account {} in {} ms",
+          folders.length,
+          account.name(),
+          elapsedMillis(listFoldersStarted));
       Set<NamedFolder> seenFolders = new HashSet<>();
       List<NamedFolder> localFolders = folderRepository.getFolders(account.id());
       for (Folder folder : folders) {
@@ -68,13 +81,21 @@ public class ImapStoreSync {
                   .findFirst()
                   .orElseGet(() -> folderRepository.createFolder(account, folder.getFullName()));
           seenFolders.add(localFolder);
+          long folderSyncStarted = System.nanoTime();
           syncImapFolder(localFolder, folder, messageRepository);
+          LOGGER.info(
+              "Synced folder {} for account {} in {} ms",
+              folder.getFullName(),
+              account.name(),
+              elapsedMillis(folderSyncStarted));
         }
       }
       // remove any folders that are not present on the server
       localFolders.stream()
           .filter(f -> !seenFolders.contains(f))
           .forEach(folderRepository::deleteFolder);
+      LOGGER.info(
+          "Synced all folders for account {} in {} ms", account.name(), elapsedMillis(syncStarted));
     } catch (MessagingException e) {
       // TODO: proper error handling
       throw new RuntimeException(e);
@@ -94,7 +115,13 @@ public class ImapStoreSync {
       throw new IllegalStateException(
           "Expected IMAPFolder but got " + remoteFolder.getClass().getName());
     }
+    long openStarted = System.nanoTime();
     imapFolder.open(Folder.READ_ONLY);
+    LOGGER.info(
+        "Opened remote folder {} with {} messages in {} ms",
+        imapFolder.getFullName(),
+        imapFolder.getMessageCount(),
+        elapsedMillis(openStarted));
     naiveFolderSync(localFolder, imapFolder, messageRepository);
     //        try {
     //            // TODO: purge deleted messages
@@ -117,19 +144,50 @@ public class ImapStoreSync {
       throws MessagingException {
     // TODO: verify that all messages already have their UID set since we use that below
     Set<Long> remoteUids = new HashSet<>();
+    long updateStarted = System.nanoTime();
     List<IMAPMessage> messagesToDownload =
         updateLocalMessages(imapFolder, messageRepository, remoteUids);
+    LOGGER.info(
+        "Checked {} remote messages in folder {}; {} new messages need download; took {} ms",
+        remoteUids.size(),
+        imapFolder.getFullName(),
+        messagesToDownload.size(),
+        elapsedMillis(updateStarted));
+    long deleteStarted = System.nanoTime();
     deleteExpungedMessages(localFolder, messageRepository, remoteUids);
+    LOGGER.info(
+        "Deleted expunged local messages for folder {} in {} ms",
+        imapFolder.getFullName(),
+        elapsedMillis(deleteStarted));
+    long downloadStarted = System.nanoTime();
     downloadNewMessages(localFolder, imapFolder, messageRepository, messagesToDownload);
+    LOGGER.info(
+        "Downloaded {} new messages for folder {} in {} ms",
+        messagesToDownload.size(),
+        imapFolder.getFullName(),
+        elapsedMillis(downloadStarted));
   }
 
   private static List<IMAPMessage> updateLocalMessages(
       IMAPFolder imapFolder, EmailRepository messageRepository, Set<Long> remoteUids)
       throws MessagingException {
+    long getMessagesStarted = System.nanoTime();
     var remoteMessages = imapFolder.getMessages();
+    LOGGER.info(
+        "Loaded {} remote message handles for folder {} in {} ms",
+        remoteMessages.length,
+        imapFolder.getFullName(),
+        elapsedMillis(getMessagesStarted));
     FetchProfile fp = new FetchProfile();
     fp.add(FetchProfile.Item.FLAGS);
+    fp.add(UIDFolder.FetchProfileItem.UID);
+    long fetchMetadataStarted = System.nanoTime();
     imapFolder.fetch(remoteMessages, fp);
+    LOGGER.info(
+        "Fetched flags and UIDs for {} messages in folder {} in {} ms",
+        remoteMessages.length,
+        imapFolder.getFullName(),
+        elapsedMillis(fetchMetadataStarted));
     ArrayList<IMAPMessage> messagesToDownload = new ArrayList<>();
     for (Message msg : remoteMessages) {
       IMAPMessage imapMessage = (IMAPMessage) msg;
@@ -174,8 +232,17 @@ public class ImapStoreSync {
     FetchProfile newMessageProfile = new FetchProfile();
     newMessageProfile.add(FetchProfile.Item.ENVELOPE);
     newMessageProfile.add(FetchProfile.Item.CONTENT_INFO);
+    newMessageProfile.add(UIDFolder.FetchProfileItem.UID);
     IMAPMessage[] messageToDownloadArray = messagesToDownload.toArray(new IMAPMessage[0]);
+    long fetchNewMetadataStarted = System.nanoTime();
     imapFolder.fetch(messageToDownloadArray, newMessageProfile);
+    LOGGER.info(
+        "Fetched envelope/content metadata for {} new messages in folder {} in {} ms",
+        messagesToDownload.size(),
+        imapFolder.getFullName(),
+        elapsedMillis(fetchNewMetadataStarted));
+    List<Email> newEmails = new ArrayList<>();
+    int downloadedCount = 0;
     for (IMAPMessage newMessage : messagesToDownload) {
       List<Actor> actors = getActorsForImapMessage(newMessage);
       addSenderIfPresent(newMessage, actors);
@@ -202,8 +269,23 @@ public class ImapStoreSync {
               storedBody.plainText(),
               storedBody.body(),
               Collections.emptyList() /* TODO attachment handling */);
-      emailRepository.addMessage(localFolder.id(), newEmail);
+      newEmails.add(newEmail);
+      downloadedCount++;
+      if (downloadedCount % 50 == 0 || downloadedCount == messagesToDownload.size()) {
+        LOGGER.info(
+            "Prepared {}/{} new messages for folder {}",
+            downloadedCount,
+            messagesToDownload.size(),
+            imapFolder.getFullName());
+      }
     }
+    long storeMessagesStarted = System.nanoTime();
+    emailRepository.addMessages(localFolder.id(), newEmails);
+    LOGGER.info(
+        "Stored {} new messages for folder {} in {} ms",
+        newEmails.size(),
+        imapFolder.getFullName(),
+        elapsedMillis(storeMessagesStarted));
   }
 
   private static StoredBody extractStoredBody(Part part) throws MessagingException {
@@ -331,5 +413,9 @@ public class ImapStoreSync {
         .filter(InternetAddress.class::isInstance)
         .map(InternetAddress.class::cast)
         .toArray(InternetAddress[]::new);
+  }
+
+  private static long elapsedMillis(long startedNanos) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
   }
 }

@@ -14,6 +14,7 @@ import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
+import org.eclipse.angus.mail.imap.IMAPFolder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -40,10 +41,9 @@ public class ImapStoreSyncTest {
     NamedFolder inbox = folderRepository.getFolders(account.id()).get(0);
     assertEquals("INBOX", inbox.name());
     assertEquals(1, messageRepository.getAllMessageIds(inbox.id()).size());
-    Email email =
-        messageRepository
-            .findByMessageUid(messageRepository.getAllMessageIds(inbox.id()).iterator().next())
-            .orElseThrow();
+    long storedUid = messageRepository.getAllMessageIds(inbox.id()).iterator().next();
+    assertTrue(storedUid > 0);
+    Email email = messageRepository.findByMessageUid(storedUid).orElseThrow();
     assertEquals(subject, email.header().subject());
     assertTrue(email.plainText());
     assertTrue(email.body().contains(body));
@@ -58,6 +58,7 @@ public class ImapStoreSyncTest {
     // delete all messages in the inbox
     imapFolder.open(Folder.READ_WRITE);
     Message message = imapFolder.getMessage(1);
+    assertEquals(storedUid, ((IMAPFolder) imapFolder).getUID(message));
 
     // mark the message as read
     message.setFlag(Flags.Flag.SEEN, true);
@@ -65,12 +66,11 @@ public class ImapStoreSyncTest {
     ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
     // the INBOX folder can not be deleted
     assertEquals(1, folderRepository.getFolders(account.id()).size());
-    // but the messages should all be gone
+    // the local message should still be tracked by the same server UID
     assertEquals(1, messageRepository.getAllMessageIds(inbox.id()).size());
-    email =
-        messageRepository
-            .findByMessageUid(messageRepository.getAllMessageIds(inbox.id()).iterator().next())
-            .orElseThrow();
+    long updatedStoredUid = messageRepository.getAllMessageIds(inbox.id()).iterator().next();
+    assertEquals(storedUid, updatedStoredUid);
+    email = messageRepository.findByMessageUid(updatedStoredUid).orElseThrow();
     assertTrue(email.header().read());
 
     // mark the message as deleted

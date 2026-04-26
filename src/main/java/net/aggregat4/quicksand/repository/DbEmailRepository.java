@@ -1,7 +1,10 @@
 package net.aggregat4.quicksand.repository;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -31,11 +34,9 @@ public class DbEmailRepository implements EmailRepository {
   private static final String MESSAGE_VIEWER_COLUMNS =
       MESSAGE_HEADER_COLUMNS + ", body, plain_text";
   private final DataSource ds;
-  private final DbActorRepository actorRepository;
 
   public DbEmailRepository(DataSource ds, DbActorRepository actorRepository) {
     this.ds = ds;
-    this.actorRepository = actorRepository;
   }
 
   @Override
@@ -177,39 +178,96 @@ public class DbEmailRepository implements EmailRepository {
 
   @Override
   public int addMessage(int folderId, Email email) {
-    return DbUtil.withPreparedStmtFunction(
+    return DbUtil.withConFunction(
         ds,
-        """
+        con -> {
+          boolean previousAutoCommit = con.getAutoCommit();
+          con.setAutoCommit(false);
+          try {
+            int messageId = insertMessage(con, folderId, email);
+            con.commit();
+            return messageId;
+          } catch (SQLException | RuntimeException e) {
+            con.rollback();
+            throw e;
+          } finally {
+            con.setAutoCommit(previousAutoCommit);
+          }
+        });
+  }
+
+  @Override
+  public void addMessages(int folderId, List<Email> emails) {
+    if (emails.isEmpty()) {
+      return;
+    }
+    DbUtil.withConConsumer(
+        ds,
+        con -> {
+          boolean previousAutoCommit = con.getAutoCommit();
+          con.setAutoCommit(false);
+          try {
+            for (Email email : emails) {
+              insertMessage(con, folderId, email);
+            }
+            con.commit();
+          } catch (SQLException | RuntimeException e) {
+            con.rollback();
+            throw e;
+          } finally {
+            con.setAutoCommit(previousAutoCommit);
+          }
+        });
+  }
+
+  private int insertMessage(Connection con, int folderId, Email email) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
                 INSERT INTO messages (folder_id, imap_uid, subject, sent_date, sent_date_epoch_s, received_date, received_date_epoch_s, body_excerpt, starred, read, body, plain_text)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-        stmt -> {
-          stmt.setInt(1, folderId);
-          stmt.setLong(2, email.header().imapUid());
-          stmt.setString(3, email.header().subject());
-          stmt.setString(4, toISOString(email.header().sentDateTime()));
-          stmt.setLong(5, email.header().sentDateTimeEpochSeconds());
-          stmt.setString(6, toISOString(email.header().receivedDateTime()));
-          stmt.setLong(7, email.header().receivedDateTimeEpochSeconds());
-          stmt.setString(8, email.header().bodyExcerpt());
-          stmt.setInt(9, email.header().starred() ? 1 : 0);
-          stmt.setInt(10, email.header().read() ? 1 : 0);
-          stmt.setString(11, email.body());
-          stmt.setInt(12, email.plainText() ? 1 : 0);
-          stmt.executeUpdate();
-          try (ResultSet keyRs = stmt.getGeneratedKeys(); ) {
-            if (!keyRs.next()) {
-              throw new IllegalStateException(
-                  "We are expecting to get the generated keys when inserting a new message");
-            }
-            int messageId = keyRs.getInt(1);
-            for (Actor actor : email.header().actors()) {
-              actorRepository.saveActor(messageId, actor);
-            }
-            indexSearchDocument(messageId, email);
-            return messageId;
-          }
-        });
+            Statement.RETURN_GENERATED_KEYS)) {
+      stmt.setInt(1, folderId);
+      stmt.setLong(2, email.header().imapUid());
+      stmt.setString(3, email.header().subject());
+      stmt.setString(4, toISOString(email.header().sentDateTime()));
+      stmt.setLong(5, email.header().sentDateTimeEpochSeconds());
+      stmt.setString(6, toISOString(email.header().receivedDateTime()));
+      stmt.setLong(7, email.header().receivedDateTimeEpochSeconds());
+      stmt.setString(8, email.header().bodyExcerpt());
+      stmt.setInt(9, email.header().starred() ? 1 : 0);
+      stmt.setInt(10, email.header().read() ? 1 : 0);
+      stmt.setString(11, email.body());
+      stmt.setInt(12, email.plainText() ? 1 : 0);
+      stmt.executeUpdate();
+      try (ResultSet keyRs = stmt.getGeneratedKeys()) {
+        if (!keyRs.next()) {
+          throw new IllegalStateException(
+              "We are expecting to get the generated keys when inserting a new message");
+        }
+        int messageId = keyRs.getInt(1);
+        for (Actor actor : email.header().actors()) {
+          saveActor(con, messageId, actor);
+        }
+        indexSearchDocument(con, messageId, email);
+        return messageId;
+      }
+    }
+  }
+
+  private static void saveActor(Connection con, int messageId, Actor actor) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                INSERT INTO actors (message_id, type, name, email_address) VALUES (?, ?, ?, ?)
+                """)) {
+      stmt.setInt(1, messageId);
+      stmt.setInt(2, actor.type().getValue());
+      stmt.setString(3, actor.name().orElseGet(() -> null));
+      stmt.setString(4, actor.emailAddress());
+      stmt.executeUpdate();
+    }
   }
 
   @Override
@@ -474,21 +532,21 @@ public class DbEmailRepository implements EmailRepository {
     stmt.setInt(5, limit);
   }
 
-  private void indexSearchDocument(int messageId, Email email) {
-    DbUtil.withPreparedStmtConsumer(
-        ds,
-        """
+  private static void indexSearchDocument(Connection con, int messageId, Email email)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
                 INSERT INTO message_search(rowid, subject, body_excerpt, body, actors)
                 VALUES (?, ?, ?, ?, ?)
-                """,
-        stmt -> {
-          stmt.setInt(1, messageId);
-          stmt.setString(2, Optional.ofNullable(email.header().subject()).orElse(""));
-          stmt.setString(3, Optional.ofNullable(email.header().bodyExcerpt()).orElse(""));
-          stmt.setString(4, Optional.ofNullable(email.body()).orElse(""));
-          stmt.setString(5, formatSearchActors(email.header().actors()));
-          stmt.executeUpdate();
-        });
+                """)) {
+      stmt.setInt(1, messageId);
+      stmt.setString(2, Optional.ofNullable(email.header().subject()).orElse(""));
+      stmt.setString(3, Optional.ofNullable(email.header().bodyExcerpt()).orElse(""));
+      stmt.setString(4, Optional.ofNullable(email.body()).orElse(""));
+      stmt.setString(5, formatSearchActors(email.header().actors()));
+      stmt.executeUpdate();
+    }
   }
 
   private static String formatSearchActors(List<Actor> actors) {
