@@ -6,21 +6,6 @@ if (document.readyState !== 'loading') {
 }
 
 function init() {
-    const messagepreview = document.getElementById("emailbodyframe")
-    if (messagepreview) {
-        const iframeDoc = messagepreview.contentDocument || messagepreview.contentWindow.document
-        if (iframeDoc.readyState === 'complete') {
-            setHeightToContent(messagepreview)
-        } else {
-            messagepreview.addEventListener("load", () => {
-                setHeightToContent(messagepreview)
-            })
-        }
-    }
-}
-
-function setHeightToContent(iframe) {
-    iframe.height = Math.max( iframe.contentWindow.document.body.scrollHeight, iframe.contentWindow.document.body.offsetHeight, iframe.contentWindow.document.documentElement.clientHeight, iframe.contentWindow.document.documentElement.scrollHeight, iframe.contentWindow.document.documentElement.offsetHeight ) + 'px';
 }
 
 function replyToEmail(emailId) {

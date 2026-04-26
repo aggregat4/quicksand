@@ -359,6 +359,18 @@ test('descending inbox shows all temporal groups and seeded HTML examples', asyn
   await expect(viewerFrame.locator('#emailimages')).toHaveText('Enable Images');
   await expect(viewerFrame.locator('#emailbodyframe')).toBeVisible();
 
+  const htmlViewerLayout = await page.frame({ name: 'emailviewer' }).evaluate(() => {
+    const body = document.querySelector('#emailbody').getBoundingClientRect();
+    const frame = document.querySelector('#emailbodyframe').getBoundingClientRect();
+    return {
+      bodyHeight: body.height,
+      frameHeight: frame.height
+    };
+  });
+  expect(htmlViewerLayout.bodyHeight).toBeGreaterThan(300);
+  expect(htmlViewerLayout.frameHeight).toBeGreaterThan(300);
+  expect(htmlViewerLayout.frameHeight).toBeGreaterThan(htmlViewerLayout.bodyHeight - 40);
+
   const htmlBodyFrame = viewerFrame.frameLocator('#emailbodyframe');
   await expect(htmlBodyFrame.locator('h1')).toHaveText('Launch Digest');
   await expect(htmlBodyFrame.locator('body')).toContainText('Migration window: Tuesday 09:00 UTC');

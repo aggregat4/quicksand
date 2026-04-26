@@ -1,5 +1,11 @@
 /* email viewer ------------ */
 
+html,
+body.emailviewer {
+    height: 100%;
+    overflow: hidden;
+}
+
 body {
     background-color: var(--highlighted-bgcolor);
 }
@@ -7,7 +13,9 @@ body {
 .emailviewer main {
     display: grid;
     grid-template-columns: 1fr;
-    grid-template-rows: min-content min-content min-content min-content min-content min-content min-content;
+    grid-template-rows: min-content min-content min-content min-content minmax(0, 1fr) min-content min-content;
+    min-height: 100%;
+    height: 100%;
     row-gap: var(--gap-m);
     padding: var(--gap-l);
 }
@@ -115,6 +123,10 @@ body {
     grid-row-start: 5;
     grid-row-end: 6;
 
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: auto;
     border-top: 1px solid lightgray;
     border-bottom: 1px solid lightgray;
     width: 100%;
@@ -133,10 +145,12 @@ body {
 }
 
 #emailbody > iframe {
+    flex: 1;
     width: 100%;
+    min-height: 0;
     max-width: 66ch;
     background-color: var(--highlighted-bgcolor);
-    margin: auto;
+    margin: 0 auto;
     overflow: hidden;
     border: none;
 }
