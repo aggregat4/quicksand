@@ -95,6 +95,13 @@ test('account page supports message preview and composer dialogs', async ({ page
   const messagePreview = page.locator('#messagepreview');
   await expect(messagePreview).toBeVisible();
 
+  const folderListBox = await page.locator('#folderlist').boundingBox();
+  const messageListBox = await page.locator('#messagelist').boundingBox();
+  const messagePreviewBox = await messagePreview.boundingBox();
+  expect(folderListBox?.x).toBeGreaterThanOrEqual(0);
+  expect(messageListBox?.x).toBeGreaterThanOrEqual((folderListBox?.x ?? 0) + (folderListBox?.width ?? 0));
+  expect(messagePreviewBox?.x).toBeGreaterThanOrEqual((messageListBox?.x ?? 0) + (messageListBox?.width ?? 0));
+
   const viewerFrame = page.frameLocator('iframe[name="emailviewer"]');
   await expect(viewerFrame.locator('#emailsubject h1')).toBeVisible();
   await expect(viewerFrame.locator('#emailsubject h1')).toHaveText(selectedSubject ?? '');
