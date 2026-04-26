@@ -343,7 +343,7 @@ public class GreenmailUtils {
                         </body>
                         </html>
                         """,
-            lastThreeMonthsStart.minusDays(7)),
+            todayStart.plusMinutes(10)),
         seed(
             "HTML demo: Your flight confirmation QR4217",
             "bookings@airline.example",
@@ -428,7 +428,7 @@ public class GreenmailUtils {
                         </body>
                         </html>
                         """,
-            lastThreeMonthsStart.minusDays(14)),
+            todayStart.plusMinutes(15)),
         seed(
             "HTML demo: Monthly invoice — Acme Corp",
             "billing@acme.example",
@@ -536,7 +536,7 @@ public class GreenmailUtils {
                         </body>
                         </html>
                         """,
-            lastThreeMonthsStart.minusDays(21)),
+            weekStart.plusMinutes(5)),
         seed(
             "HTML demo: Security alert — new device sign-in",
             "security@cloudsync.example",
@@ -602,7 +602,7 @@ public class GreenmailUtils {
                         </body>
                         </html>
                         """,
-            lastThreeMonthsStart.minusDays(28)));
+            weekStart.plusMinutes(10)));
   }
 
   private static DemoMessageSeed seed(
