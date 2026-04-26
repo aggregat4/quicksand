@@ -2,7 +2,6 @@ package net.aggregat4.quicksand.webservice;
 
 import io.helidon.http.HttpMediaType;
 import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -29,16 +28,16 @@ public class MockEmailData {
   public static final ZonedDateTime EMAIL1_RECEIVEDDATE =
       ZonedDateTime.now(ApplicationClock.current());
   public static final ZonedDateTime EMAIL1_SENTDATE =
-      ZonedDateTime.now(ApplicationClock.current()).minus(5, ChronoUnit.MINUTES);
+      ZonedDateTime.now(ApplicationClock.current()).minusMinutes(5);
   public static final Actor EMAIL2_SENDER =
       new Actor(ActorType.SENDER, "foo@bar.net", Optional.empty());
   public static final Actor EMAIL2_RECIPIENT =
       new Actor(ActorType.TO, "me@example.org", Optional.of("Doe, Me"));
   public static final String EMAIL2_SUBJECT = "Foo du fafa";
   public static final ZonedDateTime EMAIL2_RECEIVEDDATE =
-      ZonedDateTime.now(ApplicationClock.current()).minus(3, ChronoUnit.MINUTES);
+      ZonedDateTime.now(ApplicationClock.current()).minusMinutes(3);
   public static final ZonedDateTime EMAIL2_SENTDATE =
-      ZonedDateTime.now(ApplicationClock.current()).minus(13, ChronoUnit.MINUTES);
+      ZonedDateTime.now(ApplicationClock.current()).minusMinutes(13);
   static final Attachment ATTACHMENT1 =
       new Attachment(1, "sounds and music.mp3", 43534555, HttpMediaType.create("audio/mpeg"));
   static final String sampleMp3Resource = "/sample-3s.mp3";
@@ -116,7 +115,7 @@ public class MockEmailData {
 
   private static String quoteEmailBody(String body) {
     return body.lines()
-        // empty quoted lines do not get a space added and if the line is already quoted we just
+        // empty quoted lines do not get a space added, and if the line is already quoted, we just
         // increase the quote level
         // all other lines have '> ' prefixed
         // see also https://en.wikipedia.org/wiki/Posting_style
