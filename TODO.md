@@ -25,18 +25,7 @@ Current verified baseline (validated 2026-04-26):
 
 ## Current Backlog
 
-### 1. Runtime And Storage Hardening
-
-Recent work improved logging, sync behavior, paging, grouping, deterministic test setup, build hygiene, home-page routing, and first-sync startup performance, but a few hardening tasks remain.
-
-Needed:
-
-- tighten runtime configuration defaults where local safety matters
-- revisit SQLite details such as indices and schema constraints as the model solidifies
-- review account credential storage before treating the app as anything beyond a local prototype
-- keep expanding regression coverage as new persisted flows land
-
-### 2. Mailbox Interaction Gaps
+### 1. Mailbox Interaction Gaps
 
 Several UI affordances exist before their backing behavior is complete.
 
@@ -47,7 +36,7 @@ Needed:
 - extract and persist incoming message attachments during IMAP sync
 - improve IMAP sync beyond the current naive folder/message scan when performance or correctness requires it
 
-### 3. IMAP Sync Follow-ups
+### 2. IMAP Sync Follow-ups
 
 The first-sync performance refactor is complete enough for the demo and current tests, but a few follow-ups remain.
 
@@ -58,12 +47,27 @@ Needed:
 - add more malformed/edge-case MIME fixtures as real messages expose gaps
 - eventually persist incoming attachment metadata/content rather than only ignoring attachments during body selection
 
+### 3. Runtime, Schema, And Storage Hardening
+
+The current defaults are acceptable for a local prototype, but they should be made explicit before treating Quicksand as a non-local or long-lived mail client.
+
+Needed:
+
+- decide safe default bind behavior for local runs versus Docker; `0.0.0.0` is convenient for containers but broad for direct local use
+- resolve the SQLite/Hikari pooling question in `Main.createDataSource` or document the intended connection setup
+- add indexes for the query paths now known to matter, including IMAP UID lookup, folder paging/sorting, actor lookup by message, and queued outbound retry scanning
+- revisit folder uniqueness; folder names should likely be unique per account rather than globally unique
+- store IMAP UIDVALIDITY and make UID lookups folder/validity-aware before relying on UIDs as durable identity
+- add `NOT NULL`, uniqueness, and foreign-key cascade constraints where application invariants are now clear
+- replace plaintext account password storage with an explicit local secret-storage strategy before non-local use; recoverable mail credentials cannot simply be bcrypt-hashed
+- add targeted regression coverage for schema constraints, multi-account folders, IMAP UID behavior, and deletion/cascade behavior
+
 ## Recommended Next Slice
 
 If picking one product-facing task next:
 
 1. choose one mailbox action slice and wire it through repository/service/SSR routes
-2. keep runtime/storage hardening incremental and tied to concrete persisted flows
-3. expand home-page coverage for zero-account and multi-account startup configurations when config-driven web test coverage is broadened
+2. keep IMAP sync follow-ups tied to real messages or measurable performance/correctness needs
+3. handle runtime/schema/storage hardening incrementally after product-facing mailbox behavior, unless a concrete persistence issue appears
 
 Developer linting/tooling is sufficient for now; do not make tooling the next primary slice unless a new build pain appears.
