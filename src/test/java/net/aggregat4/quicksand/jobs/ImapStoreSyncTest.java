@@ -8,7 +8,15 @@ import jakarta.mail.Flags;
 import jakarta.mail.Folder;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
+import jakarta.mail.Part;
+import jakarta.mail.Session;
 import jakarta.mail.Store;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
+import java.nio.charset.StandardCharsets;
+import java.util.Properties;
 import net.aggregat4.quicksand.GreenmailTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Email;
@@ -19,6 +27,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class ImapStoreSyncTest {
+  private static final String TEST_ADDRESS = "testuser@localhost";
+  private static final String TEST_USERNAME = "testuser";
+  private static final String TEST_PASSWORD = "testpassword";
 
   @RegisterExtension
   static GreenMailExtension greenMail = GreenmailTestUtils.configureTestGreenMailExtension();
@@ -82,5 +93,99 @@ public class ImapStoreSyncTest {
     assertEquals(1, folderRepository.getFolders(account.id()).size());
     // but the messages should all be gone
     assertEquals(0, messageRepository.getAllMessageIds(inbox.id()).size());
+  }
+
+  @Test
+  public void syncStoresHtmlOnlyMessageBody() throws MessagingException {
+    String htmlBody = "<html><body><h1>HTML only body</h1><p>html-only-token</p></body></html>";
+    MimeMessage message = createBaseMessage("HTML only subject");
+    message.setContent(htmlBody, "text/html; charset=UTF-8");
+    message.saveChanges();
+    deliver(message);
+
+    Email email = syncOnlyMessage();
+
+    assertFalse(email.plainText());
+    assertTrue(email.body().contains("html-only-token"));
+    assertTrue(email.header().bodyExcerpt().contains("html-only-token"));
+  }
+
+  @Test
+  public void syncPrefersHtmlFromMultipartAlternative() throws MessagingException {
+    MimeMessage message = createBaseMessage("Alternative subject");
+    MimeMultipart alternative = new MimeMultipart("alternative");
+
+    MimeBodyPart plainPart = new MimeBodyPart();
+    plainPart.setText("plain alternative body", StandardCharsets.UTF_8.name());
+    alternative.addBodyPart(plainPart);
+
+    MimeBodyPart htmlPart = new MimeBodyPart();
+    htmlPart.setContent(
+        "<html><body><p>html alternative body</p></body></html>", "text/html; charset=UTF-8");
+    alternative.addBodyPart(htmlPart);
+
+    message.setContent(alternative);
+    message.saveChanges();
+    deliver(message);
+
+    Email email = syncOnlyMessage();
+
+    assertFalse(email.plainText());
+    assertTrue(email.body().contains("html alternative body"));
+    assertFalse(email.body().contains("plain alternative body"));
+  }
+
+  @Test
+  public void syncIgnoresAttachmentBodyInMultipartMixed() throws MessagingException {
+    MimeMessage message = createBaseMessage("Mixed subject");
+    MimeMultipart mixed = new MimeMultipart("mixed");
+
+    MimeBodyPart textPart = new MimeBodyPart();
+    textPart.setText("real message body", StandardCharsets.UTF_8.name());
+    mixed.addBodyPart(textPart);
+
+    MimeBodyPart attachmentPart = new MimeBodyPart();
+    attachmentPart.setText("attachment body must not be indexed", StandardCharsets.UTF_8.name());
+    attachmentPart.setFileName("note.txt");
+    attachmentPart.setDisposition(Part.ATTACHMENT);
+    mixed.addBodyPart(attachmentPart);
+
+    message.setContent(mixed);
+    message.saveChanges();
+    deliver(message);
+
+    Email email = syncOnlyMessage();
+
+    assertTrue(email.plainText());
+    assertTrue(email.body().contains("real message body"));
+    assertFalse(email.body().contains("attachment body must not be indexed"));
+    assertTrue(email.header().bodyExcerpt().contains("real message body"));
+    assertFalse(email.header().bodyExcerpt().contains("attachment body must not be indexed"));
+  }
+
+  private static Email syncOnlyMessage() throws MessagingException {
+    Store store = GreenmailUtils.getImapStore(greenMail);
+    InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
+    InMemoryEmailRepository messageRepository = new InMemoryEmailRepository();
+    Account account = GreenmailUtils.getAccount();
+
+    ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
+
+    NamedFolder inbox = folderRepository.getFolders(account.id()).getFirst();
+    assertEquals(1, messageRepository.getAllMessageIds(inbox.id()).size());
+    long storedUid = messageRepository.getAllMessageIds(inbox.id()).iterator().next();
+    return messageRepository.findByMessageUid(storedUid).orElseThrow();
+  }
+
+  private static MimeMessage createBaseMessage(String subject) throws MessagingException {
+    MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
+    message.setFrom(new InternetAddress("from@foo.bar"));
+    message.setRecipient(Message.RecipientType.TO, new InternetAddress("to@foo.bar"));
+    message.setSubject(subject, StandardCharsets.UTF_8.name());
+    return message;
+  }
+
+  private static void deliver(MimeMessage message) {
+    greenMail.setUser(TEST_ADDRESS, TEST_USERNAME, TEST_PASSWORD).deliver(message);
   }
 }

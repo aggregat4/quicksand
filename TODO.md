@@ -30,28 +30,29 @@ Initial IMAP sync now fetches metadata quickly and stores new messages transacti
 
 Implementation checklist:
 
-- [ ] inspect Angus IMAP APIs for body structure traversal and `BODY.PEEK[section]`-style selected-part fetches
-- [ ] move current body extraction out of `ImapStoreSync` into a focused IMAP body extraction component
-- [ ] preserve current behavior behind the new component before changing fetch semantics
-- [ ] implement MIME body selection rules:
-  - [ ] use direct `text/plain` messages
-  - [ ] use direct `text/html` messages
-  - [ ] prefer HTML over plain text inside `multipart/alternative`
-  - [ ] recursively handle nested multipart containers
-  - [ ] ignore attachment-disposition parts for message body selection
-  - [ ] avoid treating attachment contents as searchable/viewer body text
-- [ ] fetch the selected text/html or text/plain body part with a non-mutating IMAP fetch so messages are not marked read
-- [ ] decode selected body content with the declared charset and transfer encoding
-- [ ] preserve stored `plainText`, body, excerpt, actors, dates, flags, and UID behavior
+- [x] inspect Angus IMAP APIs for body structure traversal and `BODY.PEEK[section]`-style selected-part fetches
+- [x] move current body extraction out of `ImapStoreSync` into a focused IMAP body extraction component
+- [x] preserve current behavior behind the new component before changing fetch semantics
+- [x] implement MIME body selection rules:
+  - [x] use direct `text/plain` messages
+  - [x] use direct `text/html` messages
+  - [x] prefer HTML over plain text inside `multipart/alternative`
+  - [x] recursively handle nested multipart containers
+  - [x] ignore attachment-disposition parts for message body selection
+  - [x] avoid treating attachment contents as searchable/viewer body text
+- [x] fetch the selected text/html or text/plain body part with a non-mutating IMAP fetch so messages are not marked read
+- [x] decode selected body content with the declared charset and transfer encoding
+- [x] preserve stored `plainText`, body, excerpt, actors, dates, flags, and UID behavior
 - [ ] add GreenMail-backed coverage for:
-  - [ ] plain text messages
-  - [ ] HTML-only messages
-  - [ ] multipart alternative plain+HTML messages
-  - [ ] multipart mixed body+attachment messages
+  - [x] plain text messages
+  - [x] HTML-only messages
+  - [x] multipart alternative plain+HTML messages
+  - [x] multipart mixed body+attachment messages
   - [ ] nested mixed/alternative messages
-  - [ ] attachment content not becoming the stored body or excerpt
-  - [ ] UID stability across sync and flag updates
-- [ ] rerun `./scripts/start-test-server.sh` and verify the preparation phase no longer scales with one slow body fetch per message
+  - [x] attachment content not becoming the stored body or excerpt
+  - [x] UID stability across sync and flag updates
+- [x] rerun `npm run test:e2e` and verify the preparation phase no longer scales with one slow body fetch per message
+- [ ] rerun `./scripts/start-test-server.sh` manually and verify startup time outside the browser test harness
 - [ ] decide which temporary sync timing logs should remain at info level, move to debug, or be removed
 
 ### 2. Runtime And Storage Hardening
