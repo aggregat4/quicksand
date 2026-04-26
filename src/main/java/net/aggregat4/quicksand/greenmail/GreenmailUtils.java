@@ -271,7 +271,338 @@ public class GreenmailUtils {
                           </body>
                         </html>
                         """,
-            lastThreeMonthsStart.minusDays(3)));
+            lastThreeMonthsStart.minusDays(3)),
+        seed(
+            "HTML demo: Summer Sale — up to 50% off",
+            "promo@shop.example",
+            """
+                        Summer Sale
+
+                        Up to 50% off selected items. Free shipping over $50.
+                        """,
+            """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+                        </head>
+                        <body style="margin:0;padding:0;background-color:#f4f4f4;">
+                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td align="center" style="padding:20px 0;">
+                                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;">
+                                  <tr>
+                                    <td style="padding:20px;text-align:center;">
+                                      <img src="https://via.placeholder.com/200x60/ff6b6b/ffffff?text=SHOP+EXAMPLE" alt="Shop Example" width="200" style="display:block;margin:0 auto;">
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:0 20px 20px;text-align:center;">
+                                      <h1 style="font-family:Arial,sans-serif;font-size:32px;color:#ff6b6b;margin:0;">SUMMER SALE</h1>
+                                      <p style="font-family:Arial,sans-serif;font-size:18px;color:#333333;">Up to <strong>50% off</strong> selected styles</p>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:0 20px;">
+                                      <table width="100%" cellpadding="10" cellspacing="0" border="0">
+                                        <tr>
+                                          <td width="33%" style="text-align:center;">
+                                            <img src="https://via.placeholder.com/160x200/ff6b6b/ffffff?text=Item+1" alt="Product 1" width="160" style="display:block;margin:0 auto;">
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;">Sunglasses</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#ff6b6b;"><strong>$29.99</strong> <span style="text-decoration:line-through;color:#999999;">$59.99</span></p>
+                                          </td>
+                                          <td width="33%" style="text-align:center;">
+                                            <img src="https://via.placeholder.com/160x200/4ecdc4/ffffff?text=Item+2" alt="Product 2" width="160" style="display:block;margin:0 auto;">
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;">Swimwear</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#ff6b6b;"><strong>$34.99</strong> <span style="text-decoration:line-through;color:#999999;">$69.99</span></p>
+                                          </td>
+                                          <td width="33%" style="text-align:center;">
+                                            <img src="https://via.placeholder.com/160x200/ffe66d/333333?text=Item+3" alt="Product 3" width="160" style="display:block;margin:0 auto;">
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;">Sandals</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#ff6b6b;"><strong>$19.99</strong> <span style="text-decoration:line-through;color:#999999;">$39.99</span></p>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:20px;text-align:center;">
+                                      <a href="https://shop.example/sale" style="display:inline-block;padding:15px 40px;background-color:#ff6b6b;color:#ffffff;font-family:Arial,sans-serif;font-size:16px;text-decoration:none;border-radius:4px;">Shop Now</a>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:20px;border-top:1px solid #eeeeee;text-align:center;">
+                                      <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;">Free shipping on orders over $50. Sale ends Sunday.</p>
+                                      <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;"><a href="https://shop.example/unsubscribe" style="color:#999999;">Unsubscribe</a> | <a href="https://shop.example/privacy" style="color:#999999;">Privacy Policy</a></p>
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                          </table>
+                        </body>
+                        </html>
+                        """,
+            lastThreeMonthsStart.minusDays(7)),
+        seed(
+            "HTML demo: Your flight confirmation QR4217",
+            "bookings@airline.example",
+            """
+                        Flight Confirmation QR4217
+
+                        Departure: 10:45 from JFK Terminal 4
+                        Arrival: 22:30 at LHR Terminal 5
+                        """,
+            """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+                        </head>
+                        <body style="margin:0;padding:0;background-color:#e8f4f8;">
+                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td align="center" style="padding:20px 0;">
+                                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;">
+                                  <tr>
+                                    <td style="background-color:#003366;padding:30px 20px;text-align:center;">
+                                      <img src="https://via.placeholder.com/120x40/003366/ffffff?text=SKY+AIR" alt="Sky Air" width="120" style="display:block;margin:0 auto;">
+                                      <h1 style="font-family:Arial,sans-serif;font-size:24px;color:#ffffff;margin:15px 0 0;">Your Booking is Confirmed</h1>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:30px 20px;">
+                                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                          <td width="50%" style="padding:10px;border-bottom:1px solid #eeeeee;">
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;margin:0;">Flight</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:18px;color:#003366;margin:5px 0 0;"><strong>QR4217</strong></p>
+                                          </td>
+                                          <td width="50%" style="padding:10px;border-bottom:1px solid #eeeeee;">
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;margin:0;">Date</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:18px;color:#003366;margin:5px 0 0;"><strong>14 Aug 2026</strong></p>
+                                          </td>
+                                        </tr>
+                                        <tr>
+                                          <td width="50%" style="padding:10px;border-bottom:1px solid #eeeeee;">
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;margin:0;">Departure</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:16px;color:#333333;margin:5px 0 0;"><strong>JFK</strong> 10:45</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#666666;margin:2px 0 0;">Terminal 4</p>
+                                          </td>
+                                          <td width="50%" style="padding:10px;border-bottom:1px solid #eeeeee;">
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;margin:0;">Arrival</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:16px;color:#333333;margin:5px 0 0;"><strong>LHR</strong> 22:30</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#666666;margin:2px 0 0;">Terminal 5</p>
+                                          </td>
+                                        </tr>
+                                        <tr>
+                                          <td colspan="2" style="padding:10px;border-bottom:1px solid #eeeeee;">
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;margin:0;">Passengers</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;margin:5px 0 0;">Jane Doe (1 checked bag)</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;margin:2px 0 0;">John Doe (2 checked bags)</p>
+                                          </td>
+                                        </tr>
+                                        <tr>
+                                          <td colspan="2" style="padding:10px;">
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;margin:0;">Seat selection</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;margin:5px 0 0;">12A, 12B (Extra legroom)</p>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:0 20px 30px;text-align:center;">
+                                      <a href="https://airline.example/checkin" style="display:inline-block;padding:15px 40px;background-color:#003366;color:#ffffff;font-family:Arial,sans-serif;font-size:16px;text-decoration:none;border-radius:4px;">Online Check-in</a>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:20px;background-color:#f8f8f8;text-align:center;">
+                                      <p style="font-family:Arial,sans-serif;font-size:11px;color:#999999;">Check-in opens 24 hours before departure. Download our app for real-time updates.</p>
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                          </table>
+                        </body>
+                        </html>
+                        """,
+            lastThreeMonthsStart.minusDays(14)),
+        seed(
+            "HTML demo: Monthly invoice — Acme Corp",
+            "billing@acme.example",
+            """
+                        Invoice #INV-2026-0842
+
+                        Total due: $4,250.00
+                        Due date: 31 Aug 2026
+                        """,
+            """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+                        </head>
+                        <body style="margin:0;padding:0;background-color:#f9f9f9;">
+                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td align="center" style="padding:20px 0;">
+                                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;">
+                                  <tr>
+                                    <td style="padding:30px 20px;border-bottom:3px solid #2d5f8a;">
+                                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                          <td>
+                                            <h1 style="font-family:Arial,sans-serif;font-size:20px;color:#2d5f8a;margin:0;">INVOICE</h1>
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#666666;margin:5px 0 0;">#INV-2026-0842</p>
+                                          </td>
+                                          <td style="text-align:right;">
+                                            <img src="https://via.placeholder.com/80x40/2d5f8a/ffffff?text=ACME" alt="Acme Corp" width="80" style="display:block;margin-left:auto;">
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:20px;">
+                                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                          <td style="padding-bottom:20px;">
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;margin:0;">Billed to</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;margin:5px 0 0;"><strong>Example Client Ltd</strong></p>
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#666666;margin:2px 0 0;">123 Business Street, Suite 400<br>London, EC1A 1BB</p>
+                                          </td>
+                                          <td style="text-align:right;">
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;margin:0;">Invoice date</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;margin:5px 0 0;"><strong>1 Aug 2026</strong></p>
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#999999;margin:15px 0 0;">Due date</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;margin:5px 0 0;"><strong>31 Aug 2026</strong></p>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:0 20px;">
+                                      <table width="100%" cellpadding="10" cellspacing="0" border="0" style="border-top:1px solid #eeeeee;">
+                                        <tr style="background-color:#f5f5f5;">
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;"><strong>Description</strong></td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;"><strong>Qty</strong></td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;"><strong>Rate</strong></td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;"><strong>Amount</strong></td>
+                                        </tr>
+                                        <tr>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;border-bottom:1px solid #eeeeee;">Professional services — August 2026</td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;border-bottom:1px solid #eeeeee;">80</td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;border-bottom:1px solid #eeeeee;">$50.00</td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;border-bottom:1px solid #eeeeee;">$4,000.00</td>
+                                        </tr>
+                                        <tr>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;border-bottom:1px solid #eeeeee;">Software license renewal</td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;border-bottom:1px solid #eeeeee;">1</td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;border-bottom:1px solid #eeeeee;">$250.00</td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;border-bottom:1px solid #eeeeee;">$250.00</td>
+                                        </tr>
+                                        <tr>
+                                          <td colspan="3" style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;padding-top:10px;"><strong>Subtotal</strong></td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;padding-top:10px;">$4,250.00</td>
+                                        </tr>
+                                        <tr>
+                                          <td colspan="3" style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;"><strong>VAT (0%)</strong></td>
+                                          <td style="font-family:Arial,sans-serif;font-size:12px;color:#333333;text-align:right;">$0.00</td>
+                                        </tr>
+                                        <tr>
+                                          <td colspan="3" style="font-family:Arial,sans-serif;font-size:16px;color:#2d5f8a;text-align:right;padding-top:10px;"><strong>Total Due</strong></td>
+                                          <td style="font-family:Arial,sans-serif;font-size:16px;color:#2d5f8a;text-align:right;padding-top:10px;"><strong>$4,250.00</strong></td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:20px;text-align:center;">
+                                      <a href="https://acme.example/pay/INV-2026-0842" style="display:inline-block;padding:15px 40px;background-color:#2d5f8a;color:#ffffff;font-family:Arial,sans-serif;font-size:16px;text-decoration:none;border-radius:4px;">Pay Invoice</a>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:20px;border-top:1px solid #eeeeee;">
+                                      <p style="font-family:Arial,sans-serif;font-size:11px;color:#999999;text-align:center;">Questions? Contact billing@acme.example</p>
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                          </table>
+                        </body>
+                        </html>
+                        """,
+            lastThreeMonthsStart.minusDays(21)),
+        seed(
+            "HTML demo: Security alert — new device sign-in",
+            "security@cloudsync.example",
+            """
+                        Security Alert
+
+                        A new device signed in to your CloudSync account from Berlin, DE.
+                        If this was you, no action is needed.
+                        """,
+            """
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+                        </head>
+                        <body style="margin:0;padding:0;background-color:#fafafa;">
+                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                              <td align="center" style="padding:20px 0;">
+                                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border:1px solid #e0e0e0;">
+                                  <tr>
+                                    <td style="padding:30px 20px;text-align:center;border-bottom:1px solid #e0e0e0;">
+                                      <img src="https://via.placeholder.com/64x64/d32f2f/ffffff?text=!" alt="Alert" width="64" style="display:block;margin:0 auto;">
+                                      <h1 style="font-family:Arial,sans-serif;font-size:22px;color:#d32f2f;margin:15px 0 0;">New Device Sign-in Detected</h1>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:20px;">
+                                      <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;line-height:1.6;">Hi there,</p>
+                                      <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;line-height:1.6;">We noticed a new sign-in to your CloudSync account on a device we don't recognize.</p>
+                                      <table width="100%" cellpadding="15" cellspacing="0" border="0" style="background-color:#fff3e0;border-left:4px solid #ff9800;margin:20px 0;">
+                                        <tr>
+                                          <td>
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#666666;margin:0;"><strong>When</strong></p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;margin:5px 0 15px;">26 Apr 2026 at 14:32 UTC</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#666666;margin:0;"><strong>Where</strong></p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;margin:5px 0 15px;">Berlin, Germany (IP: 203.0.113.42)</p>
+                                            <p style="font-family:Arial,sans-serif;font-size:12px;color:#666666;margin:0;"><strong>Device</strong></p>
+                                            <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;margin:5px 0 0;">Chrome on macOS</p>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                      <p style="font-family:Arial,sans-serif;font-size:14px;color:#333333;line-height:1.6;"><strong>Was this you?</strong></p>
+                                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                                        <tr>
+                                          <td style="padding:10px 0;text-align:center;">
+                                            <a href="https://cloudsync.example/verify" style="display:inline-block;padding:12px 30px;background-color:#4caf50;color:#ffffff;font-family:Arial,sans-serif;font-size:14px;text-decoration:none;border-radius:4px;margin-right:10px;">Yes, it was me</a>
+                                            <a href="https://cloudsync.example/secure" style="display:inline-block;padding:12px 30px;background-color:#d32f2f;color:#ffffff;font-family:Arial,sans-serif;font-size:14px;text-decoration:none;border-radius:4px;">No, secure my account</a>
+                                          </td>
+                                        </tr>
+                                      </table>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding:20px;border-top:1px solid #e0e0e0;text-align:center;">
+                                      <p style="font-family:Arial,sans-serif;font-size:11px;color:#999999;">You received this email because you have security alerts enabled. <a href="https://cloudsync.example/settings" style="color:#999999;">Manage preferences</a></p>
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                          </table>
+                        </body>
+                        </html>
+                        """,
+            lastThreeMonthsStart.minusDays(28)));
   }
 
   private static DemoMessageSeed seed(
