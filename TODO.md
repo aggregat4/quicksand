@@ -33,21 +33,10 @@ Needed:
 
 - implement or deliberately hide unsupported bulk message actions such as archive, delete, mark read/unread, spam, and move
 - decide how much IMAP server-side state should be updated from local mailbox actions
-- extract and persist incoming message attachments during IMAP sync
-- improve IMAP sync beyond the current naive folder/message scan when performance or correctness requires it
+- extract and persist incoming message attachments during IMAP sync so stored messages can expose real downloaded attachments
+- improve IMAP sync beyond the current naive folder/message scan only when real accounts expose measurable performance or correctness problems
 
-### 2. IMAP Sync Follow-ups
-
-The first-sync performance refactor is complete enough for the demo and current tests, but a few follow-ups remain.
-
-Needed:
-
-- rerun `./scripts/start-test-server.sh` manually when changing sync behavior and keep startup responsive
-- keep detailed sync timings at debug level unless actively diagnosing startup or sync performance
-- add more malformed/edge-case MIME fixtures as real messages expose gaps
-- eventually persist incoming attachment metadata/content rather than only ignoring attachments during body selection
-
-### 3. Runtime, Schema, And Storage Hardening
+### 2. Runtime, Schema, And Storage Hardening
 
 The current defaults are acceptable for a local prototype, but they should be made explicit before treating Quicksand as a non-local or long-lived mail client.
 
@@ -67,7 +56,7 @@ Needed:
 If picking one product-facing task next:
 
 1. choose one mailbox action slice and wire it through repository/service/SSR routes
-2. keep IMAP sync follow-ups tied to real messages or measurable performance/correctness needs
+2. add incoming attachment extraction/persistence when message attachments become the next mail-reading slice
 3. handle runtime/schema/storage hardening incrementally after product-facing mailbox behavior, unless a concrete persistence issue appears
 
 Developer linting/tooling is sufficient for now; do not make tooling the next primary slice unless a new build pain appears.
