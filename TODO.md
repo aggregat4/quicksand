@@ -1,6 +1,6 @@
 # TODO
 
-Current verified baseline (validated 2026-04-26):
+## Verified Baseline (2026-04-26)
 
 - Java 25 application on Helidon 4
 - runnable JVM artifact is `target/quicksand.jar`
@@ -22,6 +22,8 @@ Current verified baseline (validated 2026-04-26):
 - send creates real outbound messages in a synthetic Outbox folder
 - outbound messages are delivered through SMTP with persisted status and retry state
 - browser and GreenMail-backed integration coverage covers draft send, attachment handoff, SMTP delivery, retry scheduling, IMAP round-trips, targeted search highlighting regressions, and common MIME body-selection shapes
+- **HTML email sanitization** is covered by unit tests against realistic fixtures (newsletter, malicious vectors, styled inline CSS) and exercised end-to-end through demo inbox HTML emails
+- **rich HTML demo emails** are available in demo mode for manual viewer testing (product launch digest, summer sale, flight confirmation, monthly invoice, security alert)
 
 ## Current Backlog
 
@@ -29,34 +31,39 @@ Current verified baseline (validated 2026-04-26):
 
 Several UI affordances exist before their backing behavior is complete.
 
-Needed:
+**Confirmed still needed:**
 
-- implement or deliberately hide unsupported bulk message actions such as archive, delete, mark read/unread, spam, and move
-- decide how much IMAP server-side state should be updated from local mailbox actions
-- extract and persist incoming message attachments during IMAP sync so stored messages can expose real downloaded attachments
-- improve IMAP sync beyond the current naive folder/message scan only when real accounts expose measurable performance or correctness problems
+- **implement or deliberately hide unsupported bulk message actions** (archive, delete, mark read/unread, spam, move). The toolbar buttons and viewer action forms render, but `EmailWebService.emailActionHandler` only logs the action and redirects without touching any state.
+- **decide how much IMAP server-side state should be updated from local mailbox actions**. Currently no local action propagates back to the IMAP server.
+- **extract and persist incoming message attachments during IMAP sync**. `ImapStoreSync.downloadNewMessages` hardcodes `Collections.emptyList()` for attachments and skips `Part.ATTACHMENT` dispositions in `ImapBodyExtractor`. Stored messages therefore never expose real downloaded attachments.
+- **improve IMAP sync beyond the current naive folder/message scan**. The codebase has commented-out QRESYNC/CONDSTORE paths and TODOs for `UIDVALIDITY` tracking, but only the naive UID scan is active.
 
 ### 2. Runtime, Schema, And Storage Hardening
 
 The current defaults are acceptable for a local prototype, but they should be made explicit before treating Quicksand as a non-local or long-lived mail client.
 
-Needed:
+**Confirmed still needed:**
 
-- decide safe default bind behavior for local runs versus Docker; `0.0.0.0` is convenient for containers but broad for direct local use
-- resolve the SQLite/Hikari pooling question in `Main.createDataSource` or document the intended connection setup
-- add indexes for the query paths now known to matter, including IMAP UID lookup, folder paging/sorting, actor lookup by message, and queued outbound retry scanning
-- revisit folder uniqueness; folder names should likely be unique per account rather than globally unique
-- store IMAP UIDVALIDITY and make UID lookups folder/validity-aware before relying on UIDs as durable identity
-- add `NOT NULL`, uniqueness, and foreign-key cascade constraints where application invariants are now clear
-- replace plaintext account password storage with an explicit local secret-storage strategy before non-local use; recoverable mail credentials cannot simply be bcrypt-hashed
-- add targeted regression coverage for schema constraints, multi-account folders, IMAP UID behavior, and deletion/cascade behavior
+- **decide safe default bind behavior** for local runs versus Docker. `application.conf` sets `host: "0.0.0.0"`, which is convenient for containers but broad for direct local use.
+- **resolve the SQLite/Hikari pooling question** in `Main.createDataSource` or document the intended connection setup. The commented-out `SQLiteDataSource` path and the `TODO` are still there.
+- **add indexes** for the query paths now known to matter. `QuicksandMigrations` has an explicit `TODO index on imap_uid since we do lookups there`. Other hot paths include folder paging/sorting (`received_date_epoch_s, id`), actor lookup by message, and queued outbound retry scanning.
+- **revisit folder uniqueness**. The schema declares `folders(name TEXT UNIQUE)`, making folder names globally unique rather than per-account unique.
+- **store IMAP UIDVALIDITY** and make UID lookups folder/validity-aware before relying on UIDs as durable identity. Currently `last_seen_uid` is stored per folder but `UIDVALIDITY` is not.
+- **add `NOT NULL`, uniqueness, and foreign-key cascade constraints** where application invariants are now clear. The migration has a `TODO consider adding NOT NULL constraints`. Some tables (e.g. `messages.folder_id`, `messages.imap_uid`) still allow NULLs that the application never expects.
+- **replace plaintext account password storage** with an explicit local secret-storage strategy before non-local use. `QuicksandMigrations` has `TODO: Store password bcrypt encrypted and salted`. Recoverable mail credentials cannot simply be bcrypt-hashed, so this needs a real design (e.g. OS keychain, master-password-encrypted store).
+- **add targeted regression coverage** for schema constraints, multi-account folders, IMAP UID behavior, and deletion/cascade behavior.
+
+## Recently Completed (since last review)
+
+1. **HTML sanitization test coverage** — `HtmlSearchHighlighterTest` expanded from 2 → 8 tests with three realistic fixture files (`newsletter.html`, `malicious.html`, `styled.html`). New `EmailWebServiceSanitizationTest` exercises the production `NO_IMAGES_POLICY` and `IMAGES_POLICY` against real HTML.
+2. **Rich HTML demo emails** — four new visually complex demo emails added to `GreenmailUtils` boundary seeds (summer sale, flight confirmation, monthly invoice, security alert). They use table-based layouts, inline CSS, and placeholder images for end-to-end viewer testing.
 
 ## Recommended Next Slice
 
 If picking one product-facing task next:
 
-1. choose one mailbox action slice and wire it through repository/service/SSR routes
-2. add incoming attachment extraction/persistence when message attachments become the next mail-reading slice
-3. handle runtime/schema/storage hardening incrementally after product-facing mailbox behavior, unless a concrete persistence issue appears
+1. **choose one mailbox action slice** and wire it through repository/service/SSR routes (e.g. mark read/unread is the smallest surface area)
+2. **add incoming attachment extraction/persistence** when message attachments become the next mail-reading slice
+3. **handle runtime/schema/storage hardening incrementally** after product-facing mailbox behavior, unless a concrete persistence issue appears
 
 Developer linting/tooling is sufficient for now; do not make tooling the next primary slice unless a new build pain appears.

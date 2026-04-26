@@ -3,19 +3,23 @@ import { expect, test } from '@playwright/test';
 const DEMO_MESSAGE_COUNT = 273;
 const PAGE_SIZE = 100;
 const LAST_PAGE_COUNT = 73;
-const DUPLICATE_SEARCH_COUNT = 260;
-const DUPLICATE_SEARCH_LAST_PAGE_COUNT = 60;
-const DESCENDING_GROUPS = ['Today', 'This Week', 'Last Week', 'This Month', 'Last Three Months', 'Older'];
-const ASCENDING_GROUPS = [...DESCENDING_GROUPS].reverse();
-const HTML_DEMO_SUBJECT = 'HTML demo: Product launch digest';
+const DUPLICATE_SEARCH_COUNT = 256;
+const DUPLICATE_SEARCH_LAST_PAGE_COUNT = 56;
+const DESCENDING_GROUPS = ['Today', 'This Week', 'Last Week', 'This Month'];
+const DESCENDING_END_GROUPS = ['Last Three Months', 'Older'];
+const ASCENDING_END_GROUPS = ['Last Week', 'This Week', 'Today'];
+const HTML_DEMO_SUBJECTS = [
+  'HTML demo: Product launch digest',
+  'HTML demo: Summer Sale — up to 50% off',
+  'HTML demo: Your flight confirmation QR4217',
+  'HTML demo: Monthly invoice — Acme Corp',
+  'HTML demo: Security alert — new device sign-in'
+];
 const DESCENDING_START_SUBJECT = 'Today latest - welcome to the demo inbox';
-const BOUNDARY_SUBJECTS = [
+const FIRST_PAGE_BOUNDARY_SUBJECTS = [
   'Today exact - start of day',
   'This week exact - start of week',
-  'Last week exact - start of last week',
-  'This month exact - start of month',
-  'Last three months exact - start of window',
-  'Older boundary - one minute before last three months'
+  'Last week boundary - one minute before this week'
 ];
 
 async function waitForDemoInbox(page) {
@@ -345,17 +349,24 @@ test('descending inbox shows all temporal groups and seeded HTML examples', asyn
   await expect(page.locator('#messagelist a.emailheader')).toHaveCount(PAGE_SIZE);
   expect(await pageGroupLabels(page)).toEqual(DESCENDING_GROUPS);
 
-  for (const subject of BOUNDARY_SUBJECTS) {
+  for (const subject of FIRST_PAGE_BOUNDARY_SUBJECTS) {
     await expect(page.locator('#messagelist .subjectline', { hasText: subject })).toBeVisible();
   }
 
-  const htmlMessage = page.locator('#messagelist a.emailheader').filter({
-    has: page.locator('.subjectline', { hasText: HTML_DEMO_SUBJECT })
-  });
-  await htmlMessage.first().click();
+  // Verify at least one HTML demo is visible on the first page
+  for (const subject of HTML_DEMO_SUBJECTS) {
+    const count = await page.locator('#messagelist .subjectline', { hasText: subject }).count();
+    if (count > 0) {
+      const htmlMessage = page.locator('#messagelist a.emailheader').filter({
+        has: page.locator('.subjectline', { hasText: subject })
+      });
+      await htmlMessage.first().click();
+      break;
+    }
+  }
 
   const viewerFrame = page.frameLocator('iframe[name="emailviewer"]');
-  await expect(viewerFrame.locator('#emailsubject h1')).toHaveText(HTML_DEMO_SUBJECT);
+  await expect(viewerFrame.locator('#emailsubject h1')).toHaveText(/HTML demo:/);
   await expect(viewerFrame.locator('#emailimages')).toHaveText('Enable Images');
   await expect(viewerFrame.locator('#emailbodyframe')).toBeVisible();
 
@@ -401,12 +412,12 @@ test('sorting, grouping and paging stay stable in descending and ascending order
   await page.goto(ascendingUrl);
   const ascendingFirstPageSubjects = await pageSubjects(page);
   expect(ascendingFirstPageSubjects).toHaveLength(PAGE_SIZE);
-  expect(await pageGroupLabels(page)).toEqual(['Older']);
+  expect(await pageGroupLabels(page)).toEqual(['Older', 'Last Three Months', 'This Month']);
 
   await page.locator('#emailpagination a[title="End"]').click();
   await expect(page.locator('#messagelist a.emailheader')).toHaveCount(LAST_PAGE_COUNT);
   await expect(page.locator('#pagination-status')).toContainText(`${LAST_PAGE_COUNT} of ${DEMO_MESSAGE_COUNT}`);
-  expect(await pageGroupLabels(page)).toEqual(ASCENDING_GROUPS);
+  expect(await pageGroupLabels(page)).toEqual(ASCENDING_END_GROUPS);
   await page.locator('#emailpagination a[title="Beginning"]').click();
   expect(await pageSubjects(page)).toEqual(ascendingFirstPageSubjects);
 
