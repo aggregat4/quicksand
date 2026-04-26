@@ -130,6 +130,26 @@ test('account page supports message preview and composer dialogs', async ({ page
   await expect(composerFrame.locator('.info-notification')).toContainText('queued');
 });
 
+test('narrow account layout keeps message rows readable with preview open', async ({ page }) => {
+  await page.setViewportSize({ width: 700, height: 800 });
+  await waitForDemoInbox(page);
+
+  await page.locator('#messagelist a.emailheader').first().click();
+  await expect(page.locator('#messagepreview')).toBeVisible();
+
+  const messageListBox = await page.locator('#messagelist').boundingBox();
+  const messagePreviewBox = await page.locator('#messagepreview').boundingBox();
+  const firstRowBox = await page.locator('#messagelist a.emailheader').first().boundingBox();
+  const firstDateBox = await page.locator('#messagelist a.emailheader .date-and-actions').first().boundingBox();
+
+  expect(messageListBox?.x).toBeGreaterThanOrEqual(0);
+  expect(firstRowBox?.x).toBeGreaterThanOrEqual(messageListBox?.x ?? 0);
+  expect(firstRowBox?.width).toBeLessThanOrEqual(messageListBox?.width ?? 0);
+  expect(firstDateBox?.x).toBeGreaterThanOrEqual(firstRowBox?.x ?? 0);
+  expect(firstDateBox?.x + firstDateBox?.width).toBeLessThanOrEqual(firstRowBox?.x + firstRowBox?.width);
+  expect(messagePreviewBox?.y).toBeGreaterThanOrEqual((messageListBox?.y ?? 0) + (messageListBox?.height ?? 0));
+});
+
 test('reply and forward create persisted drafts with derived defaults', async ({ page }) => {
   await waitForDemoInbox(page);
 

@@ -34,6 +34,7 @@ main {
     grid-column: 2 / 3;
     grid-row: 2 / 3;
 
+    container-type: inline-size;
     overflow-y: scroll;
     min-width: 21rem;
     border: var(--standard-border);
@@ -259,11 +260,7 @@ main {
     font-weight: bold;
 }
 
-/* Double media query coming up: since we don't have container queries in Firefox
-   yet I need to set a special class on the messagelist when the message preview
-   is shown so we can do two separate media queries: one to determine when to show
-   one line message headers when the preview is showing and one where it isn't showing. */
-@media screen and (min-width: 1200px) {
+@container (min-width: 42rem) {
     .emailheader {
         grid-template-columns: min-content min-content min-content min-content 1fr min-content;
         grid-template-rows: min-content;
@@ -303,46 +300,31 @@ main {
 
 }
 
-@media screen and (min-width: 800px) {
-    .emailheader {
-        grid-template-columns: min-content min-content min-content min-content 1fr min-content;
-        grid-template-rows: min-content;
+@media screen and (max-width: 900px) {
+    main:has(#messagepreview[open]) {
+        grid-template-columns: min-content minmax(0, 1fr);
+        grid-template-rows: min-content minmax(0, 1fr) minmax(16rem, 45%);
     }
 
-    .emailheader  .emailselection {
-        grid-column: 1 / 2;
-        grid-row: 1 / 2;
-    }
-
-    .emailheader .emailstar {
+    main:has(#messagepreview[open]) #accountnav {
         grid-column: 2 / 3;
-        grid-row: 1 / 2;
     }
 
-    .emailheader .fromname {
-        grid-column: 3 / 4;
-        grid-row: 1 / 2;
-
-        width: 11rem;
+    main:has(#messagepreview[open]) #folderlist {
+        grid-row: 2 / 4;
     }
 
-    .emailheader .subjectline {
-        grid-column: 4 / 5;
-        grid-row: 1 / 2;
+    main:has(#messagepreview[open]) #messagelist {
+        min-width: 0;
     }
 
-    .emailheader .bodyline {
-        grid-column: 5 / 6;
-        grid-row: 1 / 2;
+    main:has(#messagepreview[open]) #messagepreview {
+        grid-column: 2 / 3;
+        grid-row: 3 / 4;
+        width: auto;
+        min-width: 0;
     }
-
-    .emailheader .date-and-actions {
-        grid-column: 6 / 7;
-        grid-row: 1 / 2;
-    }
-
 }
-
 
 #messagepreview {
     position: relative;
