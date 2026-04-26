@@ -56,6 +56,7 @@ main {
     justify-content: space-between;
     align-items: center;
     gap: var(--gap-m);
+    min-height: 2rem;
 }
 /* This trick makes the last element in the flex container be right aligned as its left margin will expand to take up available space */
 #emailcontrols #email-paging-controls {
