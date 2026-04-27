@@ -16,7 +16,7 @@ import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.repository.EmailRepository;
 
-class InMemoryEmailRepository implements EmailRepository {
+public class InMemoryEmailRepository implements EmailRepository {
 
   private final Map<Integer, List<Email>> messages = new HashMap<>();
 
@@ -63,6 +63,36 @@ class InMemoryEmailRepository implements EmailRepository {
                       email.header().receivedDateTimeEpochSeconds(),
                       email.header().bodyExcerpt(),
                       messageStarred,
+                      email.header().attachment(),
+                      messageRead),
+                  email.plainText(),
+                  email.body(),
+                  email.attachments()));
+          return;
+        }
+      }
+    }
+  }
+
+  @Override
+  public void updateRead(int id, boolean messageRead) {
+    for (List<Email> emails : messages.values()) {
+      for (Email email : emails) {
+        if (email.header().id() == id) {
+          emails.remove(email);
+          emails.add(
+              new Email(
+                  new EmailHeader(
+                      email.header().id(),
+                      email.header().imapUid(),
+                      email.header().actors(),
+                      email.header().subject(),
+                      email.header().sentDateTime(),
+                      email.header().sentDateTimeEpochSeconds(),
+                      email.header().receivedDateTime(),
+                      email.header().receivedDateTimeEpochSeconds(),
+                      email.header().bodyExcerpt(),
+                      email.header().starred(),
                       email.header().attachment(),
                       messageRead),
                   email.plainText(),

@@ -58,6 +58,11 @@
                 {{ submitButton(true, 'archive',    false, 'email_action_archive', 'Archive') }}
                 {{ submitButton(true, null,         false, 'email_action_mark_spam', 'Mark Spam') }}
                 {{ submitButton(true, 'delete',     false, 'email_action_delete', 'Delete') }}
+                {% if email.header.read %}
+                    {{ submitButton(true, 'markunread', false, 'email_action_mark_unread', 'Mark Unread') }}
+                {% else %}
+                    {{ submitButton(true, 'markread',   false, 'email_action_mark_read', 'Mark Read') }}
+                {% endif %}
             </form>
             {% endif %}
         </div>

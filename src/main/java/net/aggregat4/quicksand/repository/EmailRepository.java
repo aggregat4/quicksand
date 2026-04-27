@@ -16,6 +16,8 @@ public interface EmailRepository {
 
   void updateFlags(int id, boolean messageStarred, boolean messageRead);
 
+  void updateRead(int id, boolean messageRead);
+
   /** Returns a mutable HashSet that can be modified by the client. */
   Set<Long> getAllMessageIds(int folderId);
 

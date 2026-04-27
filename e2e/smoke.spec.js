@@ -387,6 +387,40 @@ test('descending inbox shows all temporal groups and seeded HTML examples', asyn
   await expect(htmlBodyFrame.locator('body')).toContainText('Migration window: Tuesday 09:00 UTC');
 });
 
+test('bulk mark read and unread updates row styling', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  const firstRow = page.locator('#messagelist a.emailheader').first();
+  await expect(firstRow).not.toHaveClass(/read/);
+
+  await firstRow.locator('.emailselection input[type="checkbox"]').check();
+  await page.locator('#selected-email-actions button[name="email_action_mark_read"]').click();
+  await expect(page).toHaveURL(/\/accounts\/1/);
+  await expect(firstRow).toHaveClass(/read/);
+
+  await firstRow.locator('.emailselection input[type="checkbox"]').check();
+  await page.locator('#selected-email-actions button[name="email_action_mark_unread"]').click();
+  await expect(page).toHaveURL(/\/accounts\/1/);
+  await expect(firstRow).not.toHaveClass(/read/);
+});
+
+test('per-email mark read and unread updates row styling', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  const firstRow = page.locator('#messagelist a.emailheader').first();
+  await expect(firstRow).not.toHaveClass(/read/);
+
+  await firstRow.hover();
+  await firstRow.locator('button[name="email_action_mark_read"]').click();
+  await expect(page).toHaveURL(/\/accounts\/1/);
+  await expect(firstRow).toHaveClass(/read/);
+
+  await firstRow.hover();
+  await firstRow.locator('button[name="email_action_mark_unread"]').click();
+  await expect(page).toHaveURL(/\/accounts\/1/);
+  await expect(firstRow).not.toHaveClass(/read/);
+});
+
 test('sorting, grouping and paging stay stable in descending and ascending order', async ({ page }) => {
   await waitForDemoInbox(page);
   const inbox = await inboxPath(page);

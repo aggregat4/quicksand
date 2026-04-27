@@ -49,4 +49,8 @@ public class EmailService {
   public int getSearchMessageCount(int accountId, String query) {
     return emailRepository.getSearchMessageCount(accountId, query);
   }
+
+  public void updateRead(int id, boolean read) {
+    emailRepository.updateRead(id, read);
+  }
 }

@@ -140,6 +140,19 @@ public class DbEmailRepository implements EmailRepository {
           stmt.setInt(1, messageStarred ? 1 : 0);
           stmt.setInt(2, messageRead ? 1 : 0);
           stmt.setInt(3, id);
+          stmt.executeUpdate();
+        });
+  }
+
+  @Override
+  public void updateRead(int id, boolean messageRead) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        "UPDATE messages SET read = ? WHERE id = ?",
+        stmt -> {
+          stmt.setInt(1, messageRead ? 1 : 0);
+          stmt.setInt(2, id);
+          stmt.executeUpdate();
         });
   }
 
@@ -418,7 +431,7 @@ public class DbEmailRepository implements EmailRepository {
                 }
                 boolean hasMoreResults = messages.size() > pageSize;
                 if (hasMoreResults) {
-                  messages.remove(messages.size() - 1);
+                  messages.removeLast();
                 }
                 if (direction == PageDirection.LEFT) {
                   Collections.reverse(messages);

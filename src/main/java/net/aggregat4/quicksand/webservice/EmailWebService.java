@@ -143,8 +143,8 @@ public class EmailWebService implements HttpService {
 
   private void emailActionHandler(ServerRequest request, ServerResponse response) {
     Map<String, List<String>> formParams =
-        request.content().as(new io.helidon.common.GenericType<Map<String, List<String>>>() {});
-    var action = "undefined";
+        parseFormEncodedMulti(request.content().as(String.class));
+    String action = "undefined";
     for (Map.Entry<String, List<String>> param : formParams.entrySet()) {
       if (param.getKey().startsWith("email_action_")) {
         action = param.getKey();
@@ -152,6 +152,12 @@ public class EmailWebService implements HttpService {
     }
     List<String> selectionIds = formParams.getOrDefault("email_select", Collections.emptyList());
     LOGGER.info("Selection action {} for emails {}", action, selectionIds);
+    List<Integer> emailIds = selectionIds.stream().map(Integer::parseInt).toList();
+    switch (action) {
+      case "email_action_mark_read" -> emailIds.forEach(id -> emailService.updateRead(id, true));
+      case "email_action_mark_unread" -> emailIds.forEach(id -> emailService.updateRead(id, false));
+      default -> LOGGER.info("Unimplemented action {}", action);
+    }
     // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local
     // applications
     // it is no problem
@@ -346,6 +352,24 @@ public class EmailWebService implements HttpService {
       String value =
           keyValue.length > 1 ? URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8) : "";
       params.put(key, value);
+    }
+    return params;
+  }
+
+  private static Map<String, List<String>> parseFormEncodedMulti(String body) {
+    Map<String, List<String>> params = new HashMap<>();
+    if (body == null || body.isBlank()) {
+      return params;
+    }
+    for (String pair : body.split("&")) {
+      if (pair.isEmpty()) {
+        continue;
+      }
+      String[] keyValue = pair.split("=", 2);
+      String key = URLDecoder.decode(keyValue[0], StandardCharsets.UTF_8);
+      String value =
+          keyValue.length > 1 ? URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8) : "";
+      params.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
     }
     return params;
   }

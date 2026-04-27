@@ -33,7 +33,7 @@ Several UI affordances exist before their backing behavior is complete.
 
 **Confirmed still needed:**
 
-- **implement or deliberately hide unsupported bulk message actions** (archive, delete, mark read/unread, spam, move). The toolbar buttons and viewer action forms render, but `EmailWebService.emailActionHandler` only logs the action and redirects without touching any state.
+- **implement or deliberately hide remaining unsupported bulk message actions** (archive, delete, spam, move). The toolbar buttons and viewer action forms render, but `EmailWebService.emailActionHandler` only handles mark read/unread and logs everything else.
 - **decide how much IMAP server-side state should be updated from local mailbox actions**. Currently no local action propagates back to the IMAP server.
 - **extract and persist incoming message attachments during IMAP sync**. `ImapStoreSync.downloadNewMessages` hardcodes `Collections.emptyList()` for attachments and skips `Part.ATTACHMENT` dispositions in `ImapBodyExtractor`. Stored messages therefore never expose real downloaded attachments.
 - **improve IMAP sync beyond the current naive folder/message scan**. The codebase has commented-out QRESYNC/CONDSTORE paths and TODOs for `UIDVALIDITY` tracking, but only the naive UID scan is active.
@@ -55,8 +55,11 @@ The current defaults are acceptable for a local prototype, but they should be ma
 
 ## Recently Completed (since last review)
 
-1. **HTML sanitization test coverage** — `HtmlSearchHighlighterTest` expanded from 2 → 8 tests with three realistic fixture files (`newsletter.html`, `malicious.html`, `styled.html`). New `EmailWebServiceSanitizationTest` exercises the production `NO_IMAGES_POLICY` and `IMAGES_POLICY` against real HTML.
-2. **Rich HTML demo emails** — four new visually complex demo emails added to `GreenmailUtils` boundary seeds (summer sale, flight confirmation, monthly invoice, security alert). They use table-based layouts, inline CSS, and placeholder images for end-to-end viewer testing.
+1. **Mark read/unread wired end-to-end** — `EmailRepository.updateRead`, `EmailService.updateRead`, and `EmailWebService.emailActionHandler` now handle `email_action_mark_read` / `email_action_mark_unread` for both per-email and bulk selection. Template names normalized across `emailheader.peb`, `account.peb`, and `emailviewer.peb`. Viewer toolbar now shows the correct read/unread button based on current state. `InMemoryEmailRepository` made public for reuse; new `EmailServiceTest` verifies the flag flip leaves `starred` untouched.
+2. **Bug fix: missing `executeUpdate()` in `DbEmailRepository.updateFlags` and `updateRead`** — `withPreparedStmtConsumer` requires the consumer to call `executeUpdate()`, which was omitted in both flag update methods. This was caught by the new integration test and fixed before production use.
+3. **Test coverage for mark read/unread** — New `EmailWebServiceActionTest` integration test starts a minimal Helidon server, seeds emails in SQLite, and verifies that POSTs to `/emails/selection` return 303 redirects and actually update the `read` column for single and bulk selections. Two new Playwright e2e tests verify bulk toolbar and per-email hover actions update the `.read` CSS class after redirect.
+4. **HTML sanitization test coverage** — `HtmlSearchHighlighterTest` expanded from 2 → 8 tests with three realistic fixture files (`newsletter.html`, `malicious.html`, `styled.html`). New `EmailWebServiceSanitizationTest` exercises the production `NO_IMAGES_POLICY` and `IMAGES_POLICY` against real HTML.
+5. **Rich HTML demo emails** — four new visually complex demo emails added to `GreenmailUtils` boundary seeds (summer sale, flight confirmation, monthly invoice, security alert). They use table-based layouts, inline CSS, and placeholder images for end-to-end viewer testing.
 
 ## Recommended Next Slice
 
