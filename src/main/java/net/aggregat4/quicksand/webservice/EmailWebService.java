@@ -156,12 +156,19 @@ public class EmailWebService implements HttpService {
     switch (action) {
       case "email_action_mark_read" -> emailIds.forEach(id -> emailService.updateRead(id, true));
       case "email_action_mark_unread" -> emailIds.forEach(id -> emailService.updateRead(id, false));
+      case "email_action_delete" -> emailIds.forEach(id -> emailService.deleteMessage(id));
       default -> LOGGER.info("Unimplemented action {}", action);
     }
     // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local
     // applications
     // it is no problem
-    URI location = request.headers().referer().orElse(URI.create("/"));
+    URI referer = request.headers().referer().orElse(URI.create("/"));
+    URI location =
+        "email_action_delete".equals(action)
+                && referer.getPath() != null
+                && referer.getPath().contains("/viewer")
+            ? URI.create("/")
+            : referer;
     ResponseUtils.redirectAfterPost(response, location);
   }
 

@@ -126,6 +126,13 @@ public class InMemoryEmailRepository implements EmailRepository {
   }
 
   @Override
+  public void deleteById(int id) {
+    for (List<Email> emails : messages.values()) {
+      emails.removeIf(email -> email.header().id() == id);
+    }
+  }
+
+  @Override
   public int addMessage(int folderId, Email email) {
     messages.computeIfAbsent(folderId, k -> new ArrayList<>()).add(email);
     return -1;

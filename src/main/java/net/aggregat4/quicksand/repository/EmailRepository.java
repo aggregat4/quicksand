@@ -25,6 +25,8 @@ public interface EmailRepository {
 
   void removeBatchByUid(List<Long> batch);
 
+  void deleteById(int id);
+
   int addMessage(int folderId, Email email);
 
   void addMessages(int folderId, List<Email> emails);

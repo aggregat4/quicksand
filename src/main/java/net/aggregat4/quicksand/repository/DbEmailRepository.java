@@ -517,6 +517,45 @@ public class DbEmailRepository implements EmailRepository {
         });
   }
 
+  @Override
+  public void deleteById(int id) {
+    DbUtil.withConConsumer(
+        ds,
+        con -> {
+          boolean previousAutoCommit = con.getAutoCommit();
+          con.setAutoCommit(false);
+          try {
+            DbUtil.withPreparedStmtConsumer(
+                con,
+                "DELETE FROM message_search WHERE rowid = ?",
+                stmt -> {
+                  stmt.setInt(1, id);
+                  stmt.executeUpdate();
+                });
+            DbUtil.withPreparedStmtConsumer(
+                con,
+                "DELETE FROM actors WHERE message_id = ?",
+                stmt -> {
+                  stmt.setInt(1, id);
+                  stmt.executeUpdate();
+                });
+            DbUtil.withPreparedStmtConsumer(
+                con,
+                "DELETE FROM messages WHERE id = ?",
+                stmt -> {
+                  stmt.setInt(1, id);
+                  stmt.executeUpdate();
+                });
+            con.commit();
+          } catch (SQLException | RuntimeException e) {
+            con.rollback();
+            throw e;
+          } finally {
+            con.setAutoCommit(previousAutoCommit);
+          }
+        });
+  }
+
   private static String toISOString(ZonedDateTime dateTime) {
     return dateTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
   }

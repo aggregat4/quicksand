@@ -53,4 +53,8 @@ public class EmailService {
   public void updateRead(int id, boolean read) {
     emailRepository.updateRead(id, read);
   }
+
+  public void deleteMessage(int id) {
+    emailRepository.deleteById(id);
+  }
 }

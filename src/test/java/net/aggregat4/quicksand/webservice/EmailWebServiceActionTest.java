@@ -152,6 +152,44 @@ class EmailWebServiceActionTest {
   }
 
   @Test
+  void deleteRemovesMessageAndRedirectsToReferer() throws IOException, InterruptedException {
+    assertTrue(emailRepository.findById(firstMessageId).isPresent());
+
+    HttpRequest delete =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Referer", baseUrl + "/accounts/1")
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    "email_select=" + firstMessageId + "&email_action_delete=Delete"))
+            .build();
+    HttpResponse<String> response = httpClient.send(delete, HttpResponse.BodyHandlers.ofString());
+    assertEquals(303, response.statusCode());
+    assertEquals(baseUrl + "/accounts/1", response.headers().firstValue("location").orElseThrow());
+
+    assertTrue(emailRepository.findById(firstMessageId).isEmpty());
+  }
+
+  @Test
+  void deleteFromViewerRedirectsToHome() throws IOException, InterruptedException {
+    assertTrue(emailRepository.findById(secondMessageId).isPresent());
+
+    HttpRequest delete =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Referer", baseUrl + "/emails/" + secondMessageId + "/viewer")
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    "email_select=" + secondMessageId + "&email_action_delete=Delete"))
+            .build();
+    HttpResponse<String> response = httpClient.send(delete, HttpResponse.BodyHandlers.ofString());
+    assertEquals(303, response.statusCode());
+    assertEquals("/", response.headers().firstValue("location").orElseThrow());
+
+    assertTrue(emailRepository.findById(secondMessageId).isEmpty());
+  }
+
+  @Test
   void bulkMarkReadUpdatesMultipleEmails() throws IOException, InterruptedException {
     assertFalse(emailRepository.findById(firstMessageId).orElseThrow().header().read());
     assertTrue(emailRepository.findById(secondMessageId).orElseThrow().header().read());
