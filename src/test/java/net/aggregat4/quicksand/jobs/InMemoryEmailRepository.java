@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
 import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
@@ -134,6 +135,22 @@ public class InMemoryEmailRepository implements EmailRepository {
   public MailboxSyncStatus getMailboxSyncStatus(int accountId) {
     return new MailboxSyncStatus(0, 0, 0, 0, false, List.of());
   }
+
+  @Override
+  public List<MailboxActionQueueRow> claimDueMailboxActions(
+      java.time.ZonedDateTime now, int limit) {
+    return List.of();
+  }
+
+  @Override
+  public void markMailboxActionSucceeded(int id, java.time.ZonedDateTime now) {}
+
+  @Override
+  public void markMailboxActionRetry(
+      int id, String error, java.time.ZonedDateTime nextAttempt, java.time.ZonedDateTime now) {}
+
+  @Override
+  public void markMailboxActionConflict(int id, String error, java.time.ZonedDateTime now) {}
 
   @Override
   public void removeAllByUid(Collection<Long> localMessageIds) {

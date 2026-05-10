@@ -2,6 +2,7 @@ package net.aggregat4.quicksand.domain;
 
 public record MailboxActionQueueRow(
     int id,
+    int accountId,
     String messageSubject,
     String actionType,
     String sourceRemoteName,

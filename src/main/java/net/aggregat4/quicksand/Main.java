@@ -21,6 +21,7 @@ import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.jobs.MailSender;
+import net.aggregat4.quicksand.jobs.MailboxActionSync;
 import net.aggregat4.quicksand.repository.AccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DatabaseMaintenance;
@@ -59,6 +60,7 @@ public final class Main {
 
   private static MailFetcher mailFetcher;
   private static MailSender mailSender;
+  private static MailboxActionSync mailboxActionSync;
   private static GreenMail greenMail;
 
   public static void main(final String[] args) throws IOException {
@@ -134,6 +136,23 @@ public final class Main {
       mailSender.start();
     } else if (mailSenderEnabled) {
       LOGGER.info("Mail sender was enabled, but no accounts are configured. Skipping startup.");
+    }
+
+    boolean mailboxActionSyncEnabled =
+        config.get("mailbox_action_sync.enabled").asBoolean().orElse(demoEnabled);
+    if (mailboxActionSyncEnabled && !accounts.isEmpty()) {
+      long syncPeriodInSeconds =
+          config.get("mailbox_action_sync.period_seconds").asLong().orElse(15L);
+      long retryDelaySeconds =
+          config.get("mailbox_action_sync.retry_delay_seconds").asLong().orElse(60L);
+      mailboxActionSync =
+          new MailboxActionSync(
+              accountRepository, messageRepository, clock, syncPeriodInSeconds, retryDelaySeconds);
+      mailboxActionSync.syncNow();
+      mailboxActionSync.start();
+    } else if (mailboxActionSyncEnabled) {
+      LOGGER.info(
+          "Mailbox action sync was enabled, but no accounts are configured. Skipping startup.");
     }
 
     FolderService folderService = new FolderService(folderRepository);

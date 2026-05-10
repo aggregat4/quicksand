@@ -267,6 +267,107 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
+  public List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit) {
+    return DbUtil.withConFunction(
+        ds,
+        con -> {
+          boolean previousAutoCommit = con.getAutoCommit();
+          con.setAutoCommit(false);
+          try {
+            List<MailboxActionQueueRow> actions = findDueMailboxActions(con, now, limit);
+            for (MailboxActionQueueRow action : actions) {
+              try (PreparedStatement stmt =
+                  con.prepareStatement(
+                      """
+                          UPDATE mailbox_action_queue
+                          SET status = 'APPLYING',
+                              updated_at = ?
+                          WHERE id = ?
+                            AND status IN ('PENDING', 'FAILED_RETRYABLE')""")) {
+                stmt.setString(1, toISOString(now));
+                stmt.setInt(2, action.id());
+                stmt.executeUpdate();
+              }
+            }
+            con.commit();
+            return actions;
+          } catch (SQLException | RuntimeException e) {
+            con.rollback();
+            throw e;
+          } finally {
+            con.setAutoCommit(previousAutoCommit);
+          }
+        });
+  }
+
+  @Override
+  public void markMailboxActionSucceeded(int id, ZonedDateTime now) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        """
+            UPDATE mailbox_action_queue
+            SET status = 'SUCCEEDED',
+                execution_state = 'CONFIRMED_APPLIED',
+                updated_at = ?,
+                succeeded_at = ?,
+                last_error = NULL
+            WHERE id = ?""",
+        stmt -> {
+          stmt.setString(1, toISOString(now));
+          stmt.setString(2, toISOString(now));
+          stmt.setInt(3, id);
+          stmt.executeUpdate();
+        });
+  }
+
+  @Override
+  public void markMailboxActionRetry(
+      int id, String error, ZonedDateTime nextAttempt, ZonedDateTime now) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        """
+            UPDATE mailbox_action_queue
+            SET status = 'FAILED_RETRYABLE',
+                execution_state = 'ATTEMPTED_UNKNOWN',
+                attempt_count = attempt_count + 1,
+                next_attempt_at = ?,
+                next_attempt_at_epoch_s = ?,
+                last_error = ?,
+                updated_at = ?
+            WHERE id = ?""",
+        stmt -> {
+          stmt.setString(1, toISOString(nextAttempt));
+          stmt.setLong(2, nextAttempt.toEpochSecond());
+          stmt.setString(3, error);
+          stmt.setString(4, toISOString(now));
+          stmt.setInt(5, id);
+          stmt.executeUpdate();
+        });
+  }
+
+  @Override
+  public void markMailboxActionConflict(int id, String error, ZonedDateTime now) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        """
+            UPDATE mailbox_action_queue
+            SET status = 'CONFLICT',
+                execution_state = 'ATTEMPTED_UNKNOWN',
+                attempt_count = attempt_count + 1,
+                last_error = ?,
+                updated_at = ?,
+                resolved_at = ?
+            WHERE id = ?""",
+        stmt -> {
+          stmt.setString(1, error);
+          stmt.setString(2, toISOString(now));
+          stmt.setString(3, toISOString(now));
+          stmt.setInt(4, id);
+          stmt.executeUpdate();
+        });
+  }
+
+  @Override
   public void removeAllByUid(Collection<Long> localMessageIds) {
     List<Long> batch = new ArrayList<>();
     for (Long messageId : localMessageIds) {
@@ -868,6 +969,7 @@ public class DbEmailRepository implements EmailRepository {
             """
                 SELECT
                   q.id,
+                  q.account_id,
                   COALESCE(m.subject, ''),
                   q.action_type,
                   q.source_remote_name,
@@ -904,28 +1006,74 @@ public class DbEmailRepository implements EmailRepository {
       try (ResultSet rs = stmt.executeQuery()) {
         List<MailboxActionQueueRow> rows = new ArrayList<>();
         while (rs.next()) {
-          rows.add(
-              new MailboxActionQueueRow(
-                  rs.getInt(1),
-                  rs.getString(2),
-                  rs.getString(3),
-                  rs.getString(4),
-                  getNullableLong(rs, 5),
-                  getNullableLong(rs, 6),
-                  rs.getString(7),
-                  rs.getString(8),
-                  rs.getString(9),
-                  rs.getString(10),
-                  rs.getString(11),
-                  rs.getInt(12),
-                  rs.getString(13),
-                  rs.getString(14),
-                  rs.getString(15),
-                  rs.getString(16)));
+          rows.add(toMailboxActionQueueRow(rs));
         }
         return rows;
       }
     }
+  }
+
+  private static List<MailboxActionQueueRow> findDueMailboxActions(
+      Connection con, ZonedDateTime now, int limit) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                SELECT
+                  q.id,
+                  q.account_id,
+                  COALESCE(m.subject, ''),
+                  q.action_type,
+                  q.source_remote_name,
+                  q.source_uidvalidity,
+                  q.source_uid,
+                  q.target_remote_name,
+                  q.target_special_use,
+                  q.status,
+                  q.execution_state,
+                  q.resolution_type,
+                  q.attempt_count,
+                  q.next_attempt_at,
+                  q.last_error,
+                  q.created_at,
+                  q.updated_at
+                FROM mailbox_action_queue q
+                LEFT JOIN messages m ON m.id = q.message_id
+                WHERE q.status IN ('PENDING', 'FAILED_RETRYABLE')
+                  AND q.action_type IN ('MARK_READ', 'MARK_UNREAD')
+                  AND (q.next_attempt_at_epoch_s IS NULL OR q.next_attempt_at_epoch_s <= ?)
+                ORDER BY q.created_at, q.id
+                LIMIT ?""")) {
+      stmt.setLong(1, now.toEpochSecond());
+      stmt.setInt(2, limit);
+      try (ResultSet rs = stmt.executeQuery()) {
+        List<MailboxActionQueueRow> rows = new ArrayList<>();
+        while (rs.next()) {
+          rows.add(toMailboxActionQueueRow(rs));
+        }
+        return rows;
+      }
+    }
+  }
+
+  private static MailboxActionQueueRow toMailboxActionQueueRow(ResultSet rs) throws SQLException {
+    return new MailboxActionQueueRow(
+        rs.getInt(1),
+        rs.getInt(2),
+        rs.getString(3),
+        rs.getString(4),
+        rs.getString(5),
+        getNullableLong(rs, 6),
+        getNullableLong(rs, 7),
+        rs.getString(8),
+        rs.getString(9),
+        rs.getString(10),
+        rs.getString(11),
+        rs.getString(12),
+        rs.getInt(13),
+        rs.getString(14),
+        rs.getString(15),
+        rs.getString(16),
+        rs.getString(17));
   }
 
   private record MessageActionContext(

@@ -1,11 +1,13 @@
 package net.aggregat4.quicksand.repository;
 
+import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
 import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
@@ -28,6 +30,14 @@ public interface EmailRepository {
       int accountId, String sourceRemoteName, Long sourceUidValidity);
 
   MailboxSyncStatus getMailboxSyncStatus(int accountId);
+
+  List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit);
+
+  void markMailboxActionSucceeded(int id, ZonedDateTime now);
+
+  void markMailboxActionRetry(int id, String error, ZonedDateTime nextAttempt, ZonedDateTime now);
+
+  void markMailboxActionConflict(int id, String error, ZonedDateTime now);
 
   void removeAllByUid(Collection<Long> localMessageIds);
 
