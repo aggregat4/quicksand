@@ -88,7 +88,7 @@ public class ImapStoreSync {
                   localFolder, remoteName, specialUse, localFolder.uidValidity());
           seenFolders.add(localFolder);
           long folderSyncStarted = System.nanoTime();
-          syncImapFolder(localFolder, folder, folderRepository, messageRepository);
+          syncImapFolder(account.id(), localFolder, folder, folderRepository, messageRepository);
           LOGGER.debug(
               "Synced folder {} for account {} in {} ms",
               remoteName,
@@ -115,6 +115,7 @@ public class ImapStoreSync {
    * CONDSTORE that we definitely need to implement
    */
   private static void syncImapFolder(
+      int accountId,
       NamedFolder localFolder,
       Folder remoteFolder,
       FolderRepository folderRepository,
@@ -137,7 +138,7 @@ public class ImapStoreSync {
             imapFolder.getFullName(),
             localFolder.specialUse(),
             imapFolder.getUIDValidity());
-    naiveFolderSync(localFolder, imapFolder, messageRepository);
+    naiveFolderSync(accountId, localFolder, imapFolder, messageRepository);
     //        try {
     //            // TODO: purge deleted messages
     //
@@ -155,13 +156,19 @@ public class ImapStoreSync {
   }
 
   private static void naiveFolderSync(
-      NamedFolder localFolder, IMAPFolder imapFolder, EmailRepository messageRepository)
+      int accountId,
+      NamedFolder localFolder,
+      IMAPFolder imapFolder,
+      EmailRepository messageRepository)
       throws MessagingException {
     // TODO: verify that all messages already have their UID set since we use that below
     Set<Long> remoteUids = new HashSet<>();
+    Set<Long> pendingMoveLikeSourceUids =
+        messageRepository.getPendingMoveLikeActionSourceUids(
+            accountId, localFolder.remoteName(), localFolder.uidValidity());
     long updateStarted = System.nanoTime();
     List<IMAPMessage> messagesToDownload =
-        updateLocalMessages(imapFolder, messageRepository, remoteUids);
+        updateLocalMessages(imapFolder, messageRepository, remoteUids, pendingMoveLikeSourceUids);
     LOGGER.debug(
         "Checked {} remote messages in folder {}; {} new messages need download; took {} ms",
         remoteUids.size(),
@@ -184,7 +191,10 @@ public class ImapStoreSync {
   }
 
   private static List<IMAPMessage> updateLocalMessages(
-      IMAPFolder imapFolder, EmailRepository messageRepository, Set<Long> remoteUids)
+      IMAPFolder imapFolder,
+      EmailRepository messageRepository,
+      Set<Long> remoteUids,
+      Set<Long> pendingMoveLikeSourceUids)
       throws MessagingException {
     long getMessagesStarted = System.nanoTime();
     var remoteMessages = imapFolder.getMessages();
@@ -225,7 +235,9 @@ public class ImapStoreSync {
         }
       } else {
         // Add new messages to our list of messages to download
-        messagesToDownload.add(imapMessage);
+        if (!pendingMoveLikeSourceUids.contains(uid)) {
+          messagesToDownload.add(imapMessage);
+        }
       }
     }
     return messagesToDownload;

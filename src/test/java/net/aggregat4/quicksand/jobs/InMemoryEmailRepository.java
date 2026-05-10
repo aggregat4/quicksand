@@ -19,6 +19,7 @@ import net.aggregat4.quicksand.repository.EmailRepository;
 public class InMemoryEmailRepository implements EmailRepository {
 
   private final Map<Integer, List<Email>> messages = new HashMap<>();
+  private final Set<Long> pendingMoveLikeActionSourceUids = new HashSet<>();
 
   @Override
   public Optional<Email> findById(int id) {
@@ -116,6 +117,16 @@ public class InMemoryEmailRepository implements EmailRepository {
       return new HashSet<>();
     }
     return emails.stream().map(Email::header).map(EmailHeader::imapUid).collect(Collectors.toSet());
+  }
+
+  @Override
+  public Set<Long> getPendingMoveLikeActionSourceUids(
+      int accountId, String sourceRemoteName, Long sourceUidValidity) {
+    return new HashSet<>(pendingMoveLikeActionSourceUids);
+  }
+
+  public void addPendingMoveLikeActionSourceUid(long uid) {
+    pendingMoveLikeActionSourceUids.add(uid);
   }
 
   @Override

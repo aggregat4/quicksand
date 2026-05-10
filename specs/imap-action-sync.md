@@ -659,7 +659,7 @@ initially. A narrower per-folder reset can be added later.
 - [x] Add account setup blocker when required mappings are missing.
 - [x] Change local actions to block when required mappings are missing.
 - [x] Change local actions to enqueue queue rows transactionally.
-- [ ] Teach inbound sync to ignore source UIDs covered by pending move/delete/archive/spam actions.
+- [x] Teach inbound sync to ignore source UIDs covered by pending move/delete/archive/spam actions.
 - [ ] Add sync status/error view.
 - [ ] Implement remote read/unread sync.
 - [ ] Implement remote move to configured folders using `UID MOVE`.

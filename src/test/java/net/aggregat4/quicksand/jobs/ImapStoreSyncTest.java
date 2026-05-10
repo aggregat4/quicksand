@@ -113,6 +113,30 @@ public class ImapStoreSyncTest {
   }
 
   @Test
+  public void syncDoesNotDownloadSourceUidCoveredByPendingMoveLikeAction()
+      throws MessagingException {
+    String subject = GreenMailUtil.random();
+    String body = GreenMailUtil.random();
+    GreenmailUtils.deliverOneMessage(greenMail, subject, body, "from@foo.bar", "to@foo.bar");
+    Store store = GreenmailUtils.getImapStore(greenMail);
+    IMAPFolder imapFolder = (IMAPFolder) store.getFolder("INBOX");
+    imapFolder.open(Folder.READ_ONLY);
+    long pendingSourceUid = imapFolder.getUID(imapFolder.getMessage(1));
+    imapFolder.close();
+
+    InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
+    InMemoryEmailRepository messageRepository = new InMemoryEmailRepository();
+    messageRepository.addPendingMoveLikeActionSourceUid(pendingSourceUid);
+
+    Account account = GreenmailUtils.getAccount();
+    ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
+
+    NamedFolder inbox = folderRepository.getFolders(account.id()).getFirst();
+    assertEquals("INBOX", inbox.remoteName());
+    assertEquals(0, messageRepository.getAllMessageIds(inbox.id()).size());
+  }
+
+  @Test
   public void syncStoresHtmlOnlyMessageBody() throws MessagingException {
     String htmlBody = "<html><body><h1>HTML only body</h1><p>html-only-token</p></body></html>";
     MimeMessage message = createBaseMessage("HTML only subject");

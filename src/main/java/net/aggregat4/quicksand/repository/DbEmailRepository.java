@@ -215,6 +215,39 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
+  public Set<Long> getPendingMoveLikeActionSourceUids(
+      int accountId, String sourceRemoteName, Long sourceUidValidity) {
+    return DbUtil.withPreparedStmtFunction(
+        ds,
+        """
+            SELECT source_uid
+            FROM mailbox_action_queue
+            WHERE account_id = ?
+              AND source_remote_name = ?
+              AND source_uidvalidity IS ?
+              AND action_type IN ('MOVE', 'DELETE', 'ARCHIVE', 'MARK_SPAM')
+              AND status IN ('PENDING', 'APPLYING', 'FAILED_RETRYABLE')""",
+        stmt -> {
+          stmt.setInt(1, accountId);
+          stmt.setString(2, sourceRemoteName);
+          if (sourceUidValidity == null) {
+            stmt.setNull(3, java.sql.Types.BIGINT);
+          } else {
+            stmt.setLong(3, sourceUidValidity);
+          }
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                HashSet<Long> sourceUids = new HashSet<>();
+                while (rs.next()) {
+                  sourceUids.add(rs.getLong(1));
+                }
+                return sourceUids;
+              });
+        });
+  }
+
+  @Override
   public void removeAllByUid(Collection<Long> localMessageIds) {
     List<Long> batch = new ArrayList<>();
     for (Long messageId : localMessageIds) {

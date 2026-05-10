@@ -23,6 +23,9 @@ public interface EmailRepository {
   /** Returns a mutable HashSet that can be modified by the client. */
   Set<Long> getAllMessageIds(int folderId);
 
+  Set<Long> getPendingMoveLikeActionSourceUids(
+      int accountId, String sourceRemoteName, Long sourceUidValidity);
+
   void removeAllByUid(Collection<Long> localMessageIds);
 
   void removeBatchByUid(List<Long> batch);
