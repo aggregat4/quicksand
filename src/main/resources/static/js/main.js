@@ -49,6 +49,7 @@ function init() {
         });
     });
     initSelectedDraftComposer()
+    initSelectedEmailActions()
 }
 
 /*
@@ -63,7 +64,7 @@ function onChangeEmailSelection() {
             anyMailsSelected ||= node.checked
             allMailsSelected &&= node.checked
         })
-    updateActionButtons(anyMailsSelected)
+    updateActionButtons(hasSelectedEmailActionTarget(anyMailsSelected))
     const allEmailSelectionCheckBox = document.getElementById('select-all-mail-checkbox')
     if (allMailsSelected) {
         allEmailSelectionCheckBox.setAttribute('aria-checked', 'true')
@@ -79,6 +80,40 @@ function updateActionButtons(anyMailsSelected) {
         .forEach((button) => button.disabled = !anyMailsSelected)
 }
 
+function initSelectedEmailActions() {
+    const actionForm = document.getElementById('selected-email-actions')
+    if (!actionForm) {
+        return
+    }
+    actionForm.addEventListener('submit', prepareSelectedEmailActionSubmit)
+    updateActionButtons(hasSelectedEmailActionTarget(hasCheckedEmailSelection()))
+}
+
+function prepareSelectedEmailActionSubmit() {
+    const fallbackSelection = document.getElementById('current-email-action-selection')
+    if (!fallbackSelection) {
+        return
+    }
+    const checkedSelectionPresent = hasCheckedEmailSelection()
+    const selectedEmailId = getActiveEmailId()
+    fallbackSelection.disabled = checkedSelectionPresent || !selectedEmailId
+    fallbackSelection.value = checkedSelectionPresent || !selectedEmailId ? '' : selectedEmailId
+}
+
+function hasSelectedEmailActionTarget(anyMailsSelected = hasCheckedEmailSelection()) {
+    return anyMailsSelected || !!getActiveEmailId()
+}
+
+function hasCheckedEmailSelection() {
+    return Array.from(document.querySelectorAll('.emailselection input[type=checkbox]'))
+        .some(node => node.checked)
+}
+
+function getActiveEmailId() {
+    const activeEmail = document.querySelector('#messagelist a.emailheader.active')
+    return activeEmail ? getEmailIdFromNode(activeEmail) : ''
+}
+
 function onClickSelectAllEmails() {
     const allEmailSelectionCheckBox = document.getElementById('select-all-mail-checkbox')
     const ariaCheckedState = allEmailSelectionCheckBox.getAttribute('aria-checked')
@@ -90,7 +125,7 @@ function onClickSelectAllEmails() {
         allEmailSelectionCheckBox.setAttribute('aria-checked', 'true')
         changeSelectionOfEmails(true)
     }
-    updateActionButtons(!anySelectionPresent)
+    updateActionButtons(hasSelectedEmailActionTarget(!anySelectionPresent))
 }
 
 function changeSelectionOfEmails(selectAll) {
@@ -106,6 +141,7 @@ function onEmailHeaderClick(event) {
     const emailIdAttribute = event.currentTarget.getAttribute('id')
     const prefixLength = 'email'.length
     const emailId = emailIdAttribute.substring(prefixLength)
+    updateActionButtons(hasSelectedEmailActionTarget())
     const url = new URL(window.location.href)
     url.searchParams.delete('selectedEmailId')
     url.searchParams.append('selectedEmailId', emailId)
@@ -119,6 +155,7 @@ function markAllEmailHeadersInactive() {
 
 function onCloseMessagePreview() {
     markAllEmailHeadersInactive()
+    updateActionButtons(hasSelectedEmailActionTarget())
     const url = new URL(window.location.href)
     url.searchParams.delete('selectedEmailId')
     history.pushState(null, '', url.toString())

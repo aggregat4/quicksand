@@ -80,6 +80,8 @@ public class AccountWebService implements HttpService {
 
   private void getAccountHandler(ServerRequest request, ServerResponse response) {
     int accountId = RequestUtils.intPathParam(request, "accountId");
+    Optional<Integer> selectedEmailId =
+        request.query().first("selectedEmailId").map(Integer::parseInt);
     List<NamedFolder> folders = folderService.getFolders(accountId);
     PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
     if (!folders.isEmpty()) {
@@ -108,7 +110,7 @@ public class AccountWebService implements HttpService {
           firstFolder,
           emailPage,
           pagination,
-          Optional.empty(),
+          selectedEmailId,
           Optional.empty());
     } else {
       renderDraftsAccount(response, accountId, Optional.empty());

@@ -404,6 +404,29 @@ test('bulk mark read and unread updates row styling', async ({ page }) => {
   await expect(firstRow).not.toHaveClass(/read/);
 });
 
+test('toolbar actions apply to open message when no checkbox is selected', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  const firstRow = page.locator('#messagelist a.emailheader').first();
+  const firstRowCheckbox = firstRow.locator('.emailselection input[type="checkbox"]');
+  await expect(firstRow).not.toHaveClass(/read/);
+
+  await firstRow.click();
+  await expect(page.locator('#messagepreview')).toBeVisible();
+  await expect(firstRowCheckbox).not.toBeChecked();
+  await expect(page.locator('#selected-email-actions button[name="email_action_mark_read"]')).toBeEnabled();
+
+  await page.locator('#selected-email-actions button[name="email_action_mark_read"]').click();
+  await expect(page).toHaveURL(/selectedEmailId=/);
+  await expect(firstRow).toHaveClass(/read/);
+  await expect(firstRowCheckbox).not.toBeChecked();
+
+  await expect(page.locator('#selected-email-actions button[name="email_action_mark_unread"]')).toBeEnabled();
+  await page.locator('#selected-email-actions button[name="email_action_mark_unread"]').click();
+  await expect(page).toHaveURL(/selectedEmailId=/);
+  await expect(firstRow).not.toHaveClass(/read/);
+});
+
 test('per-email mark read and unread updates row styling', async ({ page }) => {
   await waitForDemoInbox(page);
 

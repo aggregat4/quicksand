@@ -18,6 +18,7 @@
                         {{ svgIcon('allselected')  | raw }}
                     </div>
                     <form id="selected-email-actions" method="POST" action="/emails/selection">
+                        <input id="current-email-action-selection" type="hidden" name="email_select" value="" disabled>
                         {{ submitButton(true, 'archive',    true, 'email_action_archive', 'Archive', classes = 'emailaction') }}
                         {{ submitButton(true, null,         true, 'email_action_mark_spam', 'Mark Spam', classes = 'emailaction') }}
                         {{ submitButton(true, 'delete',     true, 'email_action_delete', 'Delete', classes = 'emailaction') }}
