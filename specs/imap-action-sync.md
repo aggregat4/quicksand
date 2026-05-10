@@ -649,22 +649,23 @@ initially. A narrower per-folder reset can be added later.
 
 ## Implementation Plan
 
-1. Add schema support for folder remote metadata, account folder mappings, and mailbox action queue.
-2. Teach folder sync to capture UIDVALIDITY and special-use metadata.
-3. Add account folder mapping repository/service/settings UI, including explicit remote folder
-   creation.
-4. Add account setup blocker when required mappings are missing.
-5. Change local actions to block when required mappings are missing.
-6. Change local actions to enqueue queue rows transactionally.
-7. Teach inbound sync to ignore source UIDs covered by pending move/delete/archive/spam actions.
-8. Add sync status/error view.
-9. Implement remote read/unread sync.
-10. Implement remote move to configured folders using `UID MOVE`.
-11. Add safe COPY/delete/UID-expunge fallback only where UIDPLUS support makes it safe.
-12. Add Sent append sync.
-13. Add Drafts sync with debounced/coalesced queued updates.
-14. Add integration tests with GreenMail for read/unread, move, delete-as-trash, retry, folder
-    mapping, remote folder creation, pending-action inbound sync suppression, Sent, and Drafts.
+- [x] Add schema support for folder remote metadata, account folder mappings, and mailbox action
+  queue. Initial v3 migration adds the new columns/tables/indexes and focused schema coverage.
+- [ ] Teach folder sync to capture UIDVALIDITY and special-use metadata.
+- [ ] Add account folder mapping repository/service/settings UI, including explicit remote folder
+  creation.
+- [ ] Add account setup blocker when required mappings are missing.
+- [ ] Change local actions to block when required mappings are missing.
+- [ ] Change local actions to enqueue queue rows transactionally.
+- [ ] Teach inbound sync to ignore source UIDs covered by pending move/delete/archive/spam actions.
+- [ ] Add sync status/error view.
+- [ ] Implement remote read/unread sync.
+- [ ] Implement remote move to configured folders using `UID MOVE`.
+- [ ] Add safe COPY/delete/UID-expunge fallback only where UIDPLUS support makes it safe.
+- [ ] Add Sent append sync.
+- [ ] Add Drafts sync with debounced/coalesced queued updates.
+- [ ] Add integration tests with GreenMail for read/unread, move, delete-as-trash, retry, folder
+  mapping, remote folder creation, pending-action inbound sync suppression, Sent, and Drafts.
 
 ## Open Questions
 

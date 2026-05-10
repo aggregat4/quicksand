@@ -153,13 +153,104 @@ public class QuicksandMigrations implements Migrations {
         return 2;
       };
 
+  private static final Function<Connection, Integer> v3Migration =
+      (con) -> {
+        executeUpdate(con, "ALTER TABLE folders ADD COLUMN remote_name TEXT");
+        executeUpdate(con, "ALTER TABLE folders ADD COLUMN special_use TEXT");
+        executeUpdate(con, "ALTER TABLE folders ADD COLUMN uidvalidity INTEGER");
+        executeUpdate(
+            con, "ALTER TABLE folders ADD COLUMN sync_enabled INTEGER NOT NULL DEFAULT 1");
+        executeUpdate(
+            con, "ALTER TABLE folders ADD COLUMN mapping_status TEXT NOT NULL DEFAULT 'MISSING'");
+        executeUpdate(
+            con,
+            """
+                CREATE TABLE account_folder_mappings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                special_use TEXT NOT NULL,
+                folder_id INTEGER,
+                remote_name TEXT,
+                status TEXT NOT NULL DEFAULT 'MISSING',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (account_id) REFERENCES accounts(id),
+                FOREIGN KEY (folder_id) REFERENCES folders(id),
+                UNIQUE (account_id, special_use))""");
+        executeUpdate(
+            con,
+            """
+                CREATE TABLE mailbox_action_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                message_id INTEGER,
+                action_type TEXT NOT NULL,
+                source_folder_id INTEGER,
+                source_remote_name TEXT,
+                source_uidvalidity INTEGER,
+                source_uid INTEGER,
+                target_folder_id INTEGER,
+                target_remote_name TEXT,
+                target_special_use TEXT,
+                payload_json TEXT,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                execution_state TEXT NOT NULL DEFAULT 'NOT_ATTEMPTED',
+                resolution_type TEXT,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at TEXT,
+                next_attempt_at_epoch_s INTEGER,
+                last_error TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                succeeded_at TEXT,
+                resolved_at TEXT,
+                dismissed_at TEXT,
+                abandoned_at TEXT,
+                FOREIGN KEY (account_id) REFERENCES accounts(id),
+                FOREIGN KEY (message_id) REFERENCES messages(id),
+                FOREIGN KEY (source_folder_id) REFERENCES folders(id),
+                FOREIGN KEY (target_folder_id) REFERENCES folders(id))""");
+        executeUpdate(
+            con, "CREATE UNIQUE INDEX folders_account_name_idx ON folders(account_id, name)");
+        executeUpdate(
+            con,
+            """
+                CREATE UNIQUE INDEX folders_account_remote_name_idx
+                ON folders(account_id, remote_name)
+                WHERE remote_name IS NOT NULL""");
+        executeUpdate(
+            con,
+            "CREATE INDEX folders_account_special_use_idx ON folders(account_id, special_use)");
+        executeUpdate(
+            con,
+            "CREATE INDEX account_folder_mappings_account_status_idx ON account_folder_mappings(account_id, status)");
+        executeUpdate(
+            con,
+            "CREATE INDEX mailbox_action_queue_status_next_attempt_idx ON mailbox_action_queue(status, next_attempt_at_epoch_s)");
+        executeUpdate(
+            con,
+            "CREATE INDEX mailbox_action_queue_account_status_idx ON mailbox_action_queue(account_id, status)");
+        executeUpdate(
+            con,
+            "CREATE INDEX mailbox_action_queue_message_status_idx ON mailbox_action_queue(message_id, status)");
+        executeUpdate(
+            con,
+            """
+                CREATE INDEX mailbox_action_queue_source_identity_status_idx
+                ON mailbox_action_queue(account_id, source_remote_name, source_uidvalidity, source_uid, status)""");
+        executeUpdate(
+            con,
+            "CREATE INDEX mailbox_action_queue_resolution_resolved_idx ON mailbox_action_queue(resolution_type, resolved_at)");
+        return 3;
+      };
+
   @Override
   public Map<Integer, Function<Connection, Integer>> getMigrations() {
-    return Map.of(2, v2Migration);
+    return Map.of(2, v2Migration, 3, v3Migration);
   }
 
   @Override
   public int getCurrentVersion() {
-    return 2;
+    return 3;
   }
 }
