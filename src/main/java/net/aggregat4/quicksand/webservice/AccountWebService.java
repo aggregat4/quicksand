@@ -95,6 +95,9 @@ public class AccountWebService implements HttpService {
     Optional<Integer> selectedEmailId =
         request.query().first("selectedEmailId").map(Integer::parseInt);
     List<NamedFolder> folders = folderService.getFolders(accountId);
+    if (redirectToFolderSetupWhenNeeded(response, accountId, folders)) {
+      return;
+    }
     PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
     if (!folders.isEmpty()) {
       NamedFolder firstFolder = folders.getFirst();
@@ -131,6 +134,9 @@ public class AccountWebService implements HttpService {
 
   private void getFolderHandler(ServerRequest request, ServerResponse response) {
     int accountId = RequestUtils.intPathParam(request, "accountId");
+    if (redirectToFolderSetupWhenNeeded(response, accountId)) {
+      return;
+    }
     int folderId = RequestUtils.intPathParam(request, "folderId");
     Optional<Long> offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
     Optional<Integer> offsetMessageId = parseOffsetMessageid(request);
@@ -162,6 +168,9 @@ public class AccountWebService implements HttpService {
 
   private void getDraftsHandler(ServerRequest request, ServerResponse response) {
     int accountId = RequestUtils.intPathParam(request, "accountId");
+    if (redirectToFolderSetupWhenNeeded(response, accountId)) {
+      return;
+    }
     Optional<Integer> selectedEmailId =
         request.query().first("selectedEmailId").map(Integer::parseInt);
     renderDraftsAccount(response, accountId, selectedEmailId);
@@ -169,6 +178,9 @@ public class AccountWebService implements HttpService {
 
   private void getOutboxHandler(ServerRequest request, ServerResponse response) {
     int accountId = RequestUtils.intPathParam(request, "accountId");
+    if (redirectToFolderSetupWhenNeeded(response, accountId)) {
+      return;
+    }
     Optional<Integer> selectedEmailId =
         request.query().first("selectedEmailId").map(Integer::parseInt);
     renderOutboxAccount(response, accountId, selectedEmailId);
@@ -232,6 +244,9 @@ public class AccountWebService implements HttpService {
 
   private void getSearchHandler(ServerRequest request, ServerResponse response) {
     int accountId = RequestUtils.intPathParam(request, "accountId");
+    if (redirectToFolderSetupWhenNeeded(response, accountId)) {
+      return;
+    }
     Optional<Long> offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
     Optional<Integer> offsetMessageId = parseOffsetMessageid(request);
     PageParams pageParams = parseEmailPageParams(request);
@@ -387,12 +402,13 @@ public class AccountWebService implements HttpService {
             : EmailGroup.createEmailGroups(
                 emailHeaders, clock, pagination.pageParams().sortOrder());
     EmailGroupPage emailGroupPage = new EmailGroupPage(emailGroups, pagination);
+    List<NamedFolder> mailboxNavigationFolders = mailboxNavigationFolders(folders);
     Map<String, Object> context = new HashMap<>();
     context.put("bodyclass", "accountpage");
     context.put("currentAccount", accountService.getAccount(accountId));
     context.put("accounts", accountService.getAccounts());
-    context.put("moveFolders", folders);
-    context.put("sidebarFolders", toSidebarFolders(accountId, folders, folder));
+    context.put("moveFolders", mailboxNavigationFolders);
+    context.put("sidebarFolders", toSidebarFolders(accountId, mailboxNavigationFolders, folder));
     context.put("emailGroupPage", emailGroupPage);
     context.put("currentFolder", folder);
     context.put("currentFolderIsDrafts", folder instanceof DraftsFolder);
@@ -431,11 +447,20 @@ public class AccountWebService implements HttpService {
     return links;
   }
 
+  private List<NamedFolder> mailboxNavigationFolders(List<NamedFolder> folders) {
+    return folders.stream()
+        .filter(folder -> folder.specialUse() != FolderSpecialUse.DRAFTS)
+        .toList();
+  }
+
   private void emailCreationHandler(ServerRequest request, ServerResponse response) {
     boolean redirect = Boolean.parseBoolean(request.query().first("redirect").orElse("true"));
     Optional<Integer> replyEmailId = request.query().first("replyEmail").map(Integer::valueOf);
     Optional<Integer> forwardEmailId = request.query().first("forwardEmail").map(Integer::valueOf);
     int accountId = RequestUtils.intPathParam(request, "accountId");
+    if (redirectToFolderSetupWhenNeeded(response, accountId)) {
+      return;
+    }
     Optional<Integer> newEmailId =
         replyEmailId.isPresent()
             ? draftService
@@ -468,6 +493,21 @@ public class AccountWebService implements HttpService {
 
   private NamedFolder findFolder(int folderId) {
     return folderService.getFolder(folderId);
+  }
+
+  private boolean redirectToFolderSetupWhenNeeded(ServerResponse response, int accountId) {
+    return redirectToFolderSetupWhenNeeded(
+        response, accountId, folderService.getFolders(accountId));
+  }
+
+  private boolean redirectToFolderSetupWhenNeeded(
+      ServerResponse response, int accountId, List<NamedFolder> folders) {
+    if (folders.isEmpty() || accountFolderMappingService.hasRequiredMappings(accountId)) {
+      return false;
+    }
+    ResponseUtils.redirectAfterPost(
+        response, URI.create("/accounts/%s/settings/folders".formatted(accountId)));
+    return true;
   }
 
   private static Map<String, String> parseFormEncoded(String body) {

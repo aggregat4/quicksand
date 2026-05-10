@@ -38,6 +38,88 @@ import org.junit.jupiter.api.Test;
 class AccountFolderSettingsWebServiceTest {
 
   @Test
+  void redirectsMailboxToFolderSettingsWhenRequiredMappingsAreMissing() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Blocked", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    int inboxFolderId =
+        folderRepository.createFolder(account, "Inbox", "INBOX", FolderSpecialUse.INBOX, 1L).id();
+    folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 2L);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+
+    WebServer webServer = startServer(ds, accountRepository, folderRepository, mappingRepository);
+    try {
+      String baseUrl = "http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME);
+      HttpClient client = HttpClient.newHttpClient();
+
+      HttpResponse<String> accountResponse =
+          client.send(
+              HttpRequest.newBuilder(URI.create(baseUrl + "/accounts/" + account.id()))
+                  .GET()
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      HttpResponse<String> folderResponse =
+          client.send(
+              HttpRequest.newBuilder(
+                      URI.create(
+                          baseUrl + "/accounts/" + account.id() + "/folders/" + inboxFolderId))
+                  .GET()
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+
+      assertEquals(303, accountResponse.statusCode());
+      assertEquals(
+          "/accounts/" + account.id() + "/settings/folders",
+          accountResponse.headers().firstValue("location").orElseThrow());
+      assertEquals(303, folderResponse.statusCode());
+      assertEquals(
+          "/accounts/" + account.id() + "/settings/folders",
+          folderResponse.headers().firstValue("location").orElseThrow());
+    } finally {
+      webServer.stop();
+    }
+  }
+
+  @Test
+  void rendersMailboxWhenRequiredMappingsAreConfigured() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Configured", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    folderRepository.createFolder(account, "Inbox", "INBOX", FolderSpecialUse.INBOX, 1L);
+    createRequiredSpecialUseFolders(account, folderRepository);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+
+    WebServer webServer = startServer(ds, accountRepository, folderRepository, mappingRepository);
+    try {
+      String baseUrl = "http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME);
+      HttpClient client = HttpClient.newHttpClient();
+
+      HttpResponse<String> response =
+          client.send(
+              HttpRequest.newBuilder(URI.create(baseUrl + "/accounts/" + account.id()))
+                  .GET()
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+
+      assertEquals(200, response.statusCode());
+      assertTrue(response.body().contains("Configured"));
+      assertTrue(response.body().contains("Inbox"));
+      assertTrue(response.body().contains("Sent"));
+      assertEquals(1, countOccurrences(response.body(), "title=\"Drafts\""));
+    } finally {
+      webServer.stop();
+    }
+  }
+
+  @Test
   void rendersAndSavesFolderMappings() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
@@ -135,5 +217,24 @@ class AccountFolderSettingsWebServiceTest {
                     outboundMessageService,
                     Clock.systemDefaultZone()));
     return WebServer.builder().port(0).host("127.0.0.1").routing(routing).build().start();
+  }
+
+  private static void createRequiredSpecialUseFolders(
+      Account account, DbFolderRepository folderRepository) {
+    folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 2L);
+    folderRepository.createFolder(account, "Trash", "Trash", FolderSpecialUse.TRASH, 3L);
+    folderRepository.createFolder(account, "Junk", "Junk", FolderSpecialUse.JUNK, 4L);
+    folderRepository.createFolder(account, "Sent", "Sent", FolderSpecialUse.SENT, 5L);
+    folderRepository.createFolder(account, "Drafts", "Drafts", FolderSpecialUse.DRAFTS, 6L);
+  }
+
+  private static int countOccurrences(String input, String needle) {
+    int count = 0;
+    int index = 0;
+    while ((index = input.indexOf(needle, index)) >= 0) {
+      count++;
+      index += needle.length();
+    }
+    return count;
   }
 }
