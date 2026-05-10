@@ -12,6 +12,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.ZonedDateTime;
@@ -53,6 +56,7 @@ class EmailWebServiceActionTest {
 
   private static WebServer webServer;
   private static HttpClient httpClient;
+  private static DataSource dataSource;
   private static DbEmailRepository emailRepository;
   private static int firstMessageId;
   private static int secondMessageId;
@@ -63,21 +67,22 @@ class EmailWebServiceActionTest {
   private static int otherAccountId;
   private static int inboxFolderId;
   private static int targetFolderId;
+  private static int trashFolderId;
   private static int otherAccountFolderId;
   private static DbAccountFolderMappingRepository mappingRepository;
   private static String baseUrl;
 
   @BeforeAll
   static void startServer() throws IOException, SQLException {
-    DataSource ds = DbTestUtils.getTempSqlite();
-    migrateDb(ds);
+    dataSource = DbTestUtils.getTempSqlite();
+    migrateDb(dataSource);
 
-    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(dataSource);
     Account account = new Account(-1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p");
     accountRepository.createAccountIfNew(account);
     accountId = accountRepository.getAccounts().getFirst().id();
 
-    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(dataSource);
     Account savedAccount = accountRepository.getAccount(accountId);
     NamedFolder folder = folderRepository.createFolder(savedAccount, "INBOX");
     inboxFolderId = folder.id();
@@ -86,13 +91,13 @@ class EmailWebServiceActionTest {
         folderRepository
             .createFolder(savedAccount, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 1L)
             .id();
-    int trashFolderId =
+    trashFolderId =
         folderRepository
             .createFolder(savedAccount, "Trash", "Trash", FolderSpecialUse.TRASH, 2L)
             .id();
     int junkFolderId =
         folderRepository.createFolder(savedAccount, "Spam", "Spam", FolderSpecialUse.JUNK, 3L).id();
-    mappingRepository = new DbAccountFolderMappingRepository(ds);
+    mappingRepository = new DbAccountFolderMappingRepository(dataSource);
     mappingRepository.save(
         accountId,
         FolderSpecialUse.ARCHIVE,
@@ -121,8 +126,8 @@ class EmailWebServiceActionTest {
             .createFolder(accountRepository.getAccount(otherAccountId), "Other INBOX")
             .id();
 
-    DbActorRepository actorRepository = new DbActorRepository(ds);
-    emailRepository = new DbEmailRepository(ds, actorRepository);
+    DbActorRepository actorRepository = new DbActorRepository(dataSource);
+    emailRepository = new DbEmailRepository(dataSource, actorRepository);
 
     List<Actor> actors = List.of(new Actor(ActorType.SENDER, "a@b.com", Optional.of("A")));
     ZonedDateTime now = ZonedDateTime.now();
@@ -156,19 +161,20 @@ class EmailWebServiceActionTest {
     Email email5 = new Email(header5, true, "Body 5", Collections.emptyList());
     fifthMessageId = emailRepository.addMessage(folder.id(), email5);
 
-    DbDraftRepository draftRepository = new DbDraftRepository(ds);
-    AttachmentService attachmentService = new AttachmentService(new DbAttachmentRepository(ds));
+    DbDraftRepository draftRepository = new DbDraftRepository(dataSource);
+    AttachmentService attachmentService =
+        new AttachmentService(new DbAttachmentRepository(dataSource));
     EmailService emailService = new EmailService(emailRepository);
     DraftService draftService =
         new DraftService(
             draftRepository, emailRepository, attachmentService, Clock.systemDefaultZone());
     OutboundMessageService outboundMessageService =
         new OutboundMessageService(
-            ds,
+            dataSource,
             accountRepository,
             draftRepository,
-            new DbAttachmentRepository(ds),
-            new DbOutboundMessageRepository(ds),
+            new DbAttachmentRepository(dataSource),
+            new DbOutboundMessageRepository(dataSource),
             Clock.systemDefaultZone());
     AccountFolderMappingService accountFolderMappingService =
         new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
@@ -284,6 +290,7 @@ class EmailWebServiceActionTest {
     assertTrue(emailRepository.findById(fifthMessageId).isPresent());
     assertEquals(inboxCountBefore - 2, emailRepository.getMessageCount(accountId, inboxFolderId));
     assertEquals(targetCountBefore + 2, emailRepository.getMessageCount(accountId, targetFolderId));
+    assertEquals(2, queuedActionCountForType("MOVE"));
   }
 
   @Test
@@ -317,8 +324,9 @@ class EmailWebServiceActionTest {
 
   @Test
   @Order(7)
-  void deleteRemovesMessageAndRedirectsToReferer() throws IOException, InterruptedException {
+  void deleteMovesMessageToTrashAndRedirectsToReferer() throws IOException, InterruptedException {
     assertTrue(emailRepository.findById(firstMessageId).isPresent());
+    int trashCountBefore = emailRepository.getMessageCount(accountId, trashFolderId);
 
     HttpRequest delete =
         HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
@@ -332,7 +340,9 @@ class EmailWebServiceActionTest {
     assertEquals(303, response.statusCode());
     assertEquals(baseUrl + "/accounts/1", response.headers().firstValue("location").orElseThrow());
 
-    assertTrue(emailRepository.findById(firstMessageId).isEmpty());
+    assertTrue(emailRepository.findById(firstMessageId).isPresent());
+    assertEquals(trashCountBefore + 1, emailRepository.getMessageCount(accountId, trashFolderId));
+    assertEquals(1, queuedActionCountForType("DELETE"));
   }
 
   @Test
@@ -352,7 +362,7 @@ class EmailWebServiceActionTest {
     assertEquals(303, response.statusCode());
     assertEquals("/", response.headers().firstValue("location").orElseThrow());
 
-    assertTrue(emailRepository.findById(secondMessageId).isEmpty());
+    assertTrue(emailRepository.findById(secondMessageId).isPresent());
   }
 
   @Test
@@ -401,6 +411,7 @@ class EmailWebServiceActionTest {
 
     assertTrue(emailRepository.findById(firstMessageId).isPresent());
     assertEquals(inboxCountBefore - 1, emailRepository.getMessageCount(accountId, inboxFolderId));
+    assertTrue(queuedActionCountForType("ARCHIVE") >= 1);
   }
 
   @Test
@@ -453,5 +464,20 @@ class EmailWebServiceActionTest {
         "/accounts/" + otherAccountId + "/settings/folders?required=TRASH",
         response.headers().firstValue("location").orElseThrow());
     assertTrue(emailRepository.findById(messageId).isPresent());
+    assertEquals(2, queuedActionCountForType("DELETE"));
+  }
+
+  private static int queuedActionCountForType(String actionType) {
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement(
+                "SELECT COUNT(*) FROM mailbox_action_queue WHERE action_type = ?")) {
+      stmt.setString(1, actionType);
+      try (ResultSet rs = stmt.executeQuery()) {
+        return rs.next() ? rs.getInt(1) : 0;
+      }
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
   }
 }

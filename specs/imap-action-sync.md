@@ -658,7 +658,7 @@ initially. A narrower per-folder reset can be added later.
   unambiguous special-use folders, and explicitly create-and-map remote IMAP folders.
 - [x] Add account setup blocker when required mappings are missing.
 - [x] Change local actions to block when required mappings are missing.
-- [ ] Change local actions to enqueue queue rows transactionally.
+- [x] Change local actions to enqueue queue rows transactionally.
 - [ ] Teach inbound sync to ignore source UIDs covered by pending move/delete/archive/spam actions.
 - [ ] Add sync status/error view.
 - [ ] Implement remote read/unread sync.

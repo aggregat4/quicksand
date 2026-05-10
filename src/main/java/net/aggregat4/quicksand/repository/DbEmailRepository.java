@@ -164,13 +164,34 @@ public class DbEmailRepository implements EmailRepository {
 
   @Override
   public void updateRead(int id, boolean messageRead) {
-    DbUtil.withPreparedStmtConsumer(
+    DbUtil.withConConsumer(
         ds,
-        "UPDATE messages SET read = ? WHERE id = ?",
-        stmt -> {
-          stmt.setInt(1, messageRead ? 1 : 0);
-          stmt.setInt(2, id);
-          stmt.executeUpdate();
+        con -> {
+          boolean previousAutoCommit = con.getAutoCommit();
+          con.setAutoCommit(false);
+          try {
+            Optional<MessageActionContext> context = findMessageActionContext(con, id);
+            if (context.isEmpty()) {
+              con.rollback();
+              return;
+            }
+            DbUtil.withPreparedStmtConsumer(
+                con,
+                "UPDATE messages SET read = ? WHERE id = ?",
+                stmt -> {
+                  stmt.setInt(1, messageRead ? 1 : 0);
+                  stmt.setInt(2, id);
+                  stmt.executeUpdate();
+                });
+            enqueueAction(
+                con, context.get(), messageRead ? "MARK_READ" : "MARK_UNREAD", null, null, null);
+            con.commit();
+          } catch (SQLException | RuntimeException e) {
+            con.rollback();
+            throw e;
+          } finally {
+            con.setAutoCommit(previousAutoCommit);
+          }
         });
   }
 
@@ -537,51 +558,17 @@ public class DbEmailRepository implements EmailRepository {
 
   @Override
   public void deleteById(int id) {
-    DbUtil.withConConsumer(
-        ds,
-        con -> {
-          boolean previousAutoCommit = con.getAutoCommit();
-          con.setAutoCommit(false);
-          try {
-            DbUtil.withPreparedStmtConsumer(
-                con,
-                "DELETE FROM message_search WHERE rowid = ?",
-                stmt -> {
-                  stmt.setInt(1, id);
-                  stmt.executeUpdate();
-                });
-            DbUtil.withPreparedStmtConsumer(
-                con,
-                "DELETE FROM actors WHERE message_id = ?",
-                stmt -> {
-                  stmt.setInt(1, id);
-                  stmt.executeUpdate();
-                });
-            DbUtil.withPreparedStmtConsumer(
-                con,
-                "DELETE FROM messages WHERE id = ?",
-                stmt -> {
-                  stmt.setInt(1, id);
-                  stmt.executeUpdate();
-                });
-            con.commit();
-          } catch (SQLException | RuntimeException e) {
-            con.rollback();
-            throw e;
-          } finally {
-            con.setAutoCommit(previousAutoCommit);
-          }
-        });
+    moveToMappedSpecialFolderById(id, "DELETE", "TRASH");
   }
 
   @Override
   public void archiveById(int id) {
-    moveToNamedFolderById(id, "Archive");
+    moveToMappedSpecialFolderById(id, "ARCHIVE", "ARCHIVE");
   }
 
   @Override
   public void markSpamById(int id) {
-    moveToNamedFolderById(id, "Spam");
+    moveToMappedSpecialFolderById(id, "MARK_SPAM", "JUNK");
   }
 
   @Override
@@ -601,7 +588,15 @@ public class DbEmailRepository implements EmailRepository {
               return;
             }
 
+            Optional<MessageActionContext> context = findMessageActionContext(con, id);
+            Optional<TargetFolderContext> target = findTargetFolderContext(con, targetFolderId);
+            if (context.isEmpty() || target.isEmpty()) {
+              con.rollback();
+              return;
+            }
+
             moveMessageToFolder(con, id, targetFolderId);
+            enqueueAction(con, context.get(), "MOVE", target.get(), null, null);
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -612,20 +607,26 @@ public class DbEmailRepository implements EmailRepository {
         });
   }
 
-  private void moveToNamedFolderById(int id, String folderName) {
+  private void moveToMappedSpecialFolderById(int id, String actionType, String specialUse) {
     DbUtil.withConConsumer(
         ds,
         con -> {
           boolean previousAutoCommit = con.getAutoCommit();
           con.setAutoCommit(false);
           try {
-            Optional<Integer> accountId = findMessageAccountId(con, id);
-            if (accountId.isEmpty()) {
+            Optional<MessageActionContext> context = findMessageActionContext(con, id);
+            if (context.isEmpty()) {
               con.rollback();
               return;
             }
-            int targetFolderId = findOrCreateFolderId(con, accountId.get(), folderName);
-            moveMessageToFolder(con, id, targetFolderId);
+            Optional<TargetFolderContext> target =
+                findMappedTargetFolderContext(con, context.get().accountId(), specialUse);
+            if (target.isEmpty()) {
+              con.rollback();
+              return;
+            }
+            moveMessageToFolder(con, id, target.get().folderId());
+            enqueueAction(con, context.get(), actionType, target.get(), specialUse, null);
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -665,33 +666,104 @@ public class DbEmailRepository implements EmailRepository {
     }
   }
 
-  private static int findOrCreateFolderId(Connection con, int accountId, String folderName)
-      throws SQLException {
+  private static Optional<MessageActionContext> findMessageActionContext(
+      Connection con, int messageId) throws SQLException {
     try (PreparedStatement stmt =
-        con.prepareStatement("SELECT id FROM folders WHERE account_id = ? AND name = ?")) {
-      stmt.setInt(1, accountId);
-      stmt.setString(2, folderName);
+        con.prepareStatement(
+            """
+                SELECT f.account_id, m.folder_id, f.remote_name, f.uidvalidity, m.imap_uid
+                FROM messages m
+                JOIN folders f ON m.folder_id = f.id
+                WHERE m.id = ?""")) {
+      stmt.setInt(1, messageId);
       try (ResultSet rs = stmt.executeQuery()) {
-        if (rs.next()) {
-          return rs.getInt(1);
+        if (!rs.next()) {
+          return Optional.empty();
         }
+        return Optional.of(
+            new MessageActionContext(
+                messageId,
+                rs.getInt(1),
+                rs.getInt(2),
+                rs.getString(3),
+                getNullableLong(rs, 4),
+                rs.getLong(5)));
       }
     }
+  }
 
-    try (PreparedStatement insert =
+  private static Optional<TargetFolderContext> findMappedTargetFolderContext(
+      Connection con, int accountId, String specialUse) throws SQLException {
+    try (PreparedStatement stmt =
         con.prepareStatement(
-            "INSERT INTO folders (account_id, name, last_seen_uid) VALUES (?, ?, ?)",
-            Statement.RETURN_GENERATED_KEYS)) {
-      insert.setInt(1, accountId);
-      insert.setString(2, folderName);
-      insert.setLong(3, 0);
-      insert.executeUpdate();
-      try (ResultSet keys = insert.getGeneratedKeys()) {
-        if (!keys.next()) {
-          throw new IllegalStateException("Expected generated keys after inserting folder");
+            """
+                SELECT folder_id, remote_name, special_use
+                FROM account_folder_mappings
+                WHERE account_id = ? AND special_use = ?
+                  AND folder_id IS NOT NULL AND remote_name IS NOT NULL
+                  AND status IN ('AUTO_DETECTED', 'USER_CONFIRMED')""")) {
+      stmt.setInt(1, accountId);
+      stmt.setString(2, specialUse);
+      try (ResultSet rs = stmt.executeQuery()) {
+        if (!rs.next()) {
+          return Optional.empty();
         }
-        return keys.getInt(1);
+        return Optional.of(new TargetFolderContext(rs.getInt(1), rs.getString(2), rs.getString(3)));
       }
+    }
+  }
+
+  private static Optional<TargetFolderContext> findTargetFolderContext(Connection con, int folderId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement("SELECT id, remote_name, special_use FROM folders WHERE id = ?")) {
+      stmt.setInt(1, folderId);
+      try (ResultSet rs = stmt.executeQuery()) {
+        if (!rs.next()) {
+          return Optional.empty();
+        }
+        return Optional.of(new TargetFolderContext(rs.getInt(1), rs.getString(2), rs.getString(3)));
+      }
+    }
+  }
+
+  private static void enqueueAction(
+      Connection con,
+      MessageActionContext source,
+      String actionType,
+      TargetFolderContext target,
+      String targetSpecialUse,
+      String payloadJson)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                INSERT INTO mailbox_action_queue (
+                  account_id, message_id, action_type,
+                  source_folder_id, source_remote_name, source_uidvalidity, source_uid,
+                  target_folder_id, target_remote_name, target_special_use, payload_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
+      stmt.setInt(1, source.accountId());
+      stmt.setInt(2, source.messageId());
+      stmt.setString(3, actionType);
+      stmt.setInt(4, source.sourceFolderId());
+      stmt.setString(5, source.sourceRemoteName());
+      if (source.sourceUidValidity() == null) {
+        stmt.setNull(6, java.sql.Types.BIGINT);
+      } else {
+        stmt.setLong(6, source.sourceUidValidity());
+      }
+      stmt.setLong(7, source.sourceUid());
+      if (target == null) {
+        stmt.setNull(8, java.sql.Types.INTEGER);
+        stmt.setNull(9, java.sql.Types.VARCHAR);
+      } else {
+        stmt.setInt(8, target.folderId());
+        stmt.setString(9, target.remoteName());
+      }
+      stmt.setString(10, targetSpecialUse);
+      stmt.setString(11, payloadJson);
+      stmt.executeUpdate();
     }
   }
 
@@ -704,6 +776,21 @@ public class DbEmailRepository implements EmailRepository {
       stmt.executeUpdate();
     }
   }
+
+  private static Long getNullableLong(ResultSet rs, int columnIndex) throws SQLException {
+    long value = rs.getLong(columnIndex);
+    return rs.wasNull() ? null : value;
+  }
+
+  private record MessageActionContext(
+      int messageId,
+      int accountId,
+      int sourceFolderId,
+      String sourceRemoteName,
+      Long sourceUidValidity,
+      long sourceUid) {}
+
+  private record TargetFolderContext(int folderId, String remoteName, String specialUse) {}
 
   private static String toISOString(ZonedDateTime dateTime) {
     return dateTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
