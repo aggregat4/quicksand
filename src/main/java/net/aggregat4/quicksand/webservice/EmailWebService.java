@@ -23,8 +23,10 @@ import java.util.Optional;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.Email;
+import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import net.aggregat4.quicksand.search.HtmlSearchHighlighter;
+import net.aggregat4.quicksand.service.AccountFolderMappingService;
 import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
@@ -70,16 +72,19 @@ public class EmailWebService implements HttpService {
   private final DraftService draftService;
   private final AttachmentService attachmentService;
   private final OutboundMessageService outboundMessageService;
+  private final AccountFolderMappingService accountFolderMappingService;
 
   public EmailWebService(
       EmailService emailService,
       DraftService draftService,
       AttachmentService attachmentService,
-      OutboundMessageService outboundMessageService) {
+      OutboundMessageService outboundMessageService,
+      AccountFolderMappingService accountFolderMappingService) {
     this.emailService = emailService;
     this.draftService = draftService;
     this.attachmentService = attachmentService;
     this.outboundMessageService = outboundMessageService;
+    this.accountFolderMappingService = accountFolderMappingService;
   }
 
   @Override
@@ -153,6 +158,11 @@ public class EmailWebService implements HttpService {
     List<String> selectionIds = formParams.getOrDefault("email_select", Collections.emptyList());
     LOGGER.info("Selection action {} for emails {}", action, selectionIds);
     List<Integer> emailIds = selectionIds.stream().map(Integer::parseInt).toList();
+    Optional<URI> missingMappingRedirect = missingMappingRedirect(action, emailIds);
+    if (missingMappingRedirect.isPresent()) {
+      ResponseUtils.redirectAfterPost(response, missingMappingRedirect.get());
+      return;
+    }
     // TODO: local mailbox actions do not propagate back to IMAP yet. Decide whether to push flags,
     // deletes, and moves to the server so sync does not conflict with user actions.
     switch (action) {
@@ -186,6 +196,34 @@ public class EmailWebService implements HttpService {
             || "email_action_move".equals(action);
     URI location = (actionLeavesFolder && fromViewer) ? URI.create("/") : referer;
     ResponseUtils.redirectAfterPost(response, location);
+  }
+
+  private Optional<URI> missingMappingRedirect(String action, List<Integer> emailIds) {
+    Optional<FolderSpecialUse> requiredSpecialUse = requiredSpecialUse(action);
+    if (requiredSpecialUse.isEmpty() || emailIds.isEmpty()) {
+      return Optional.empty();
+    }
+    for (int emailId : emailIds) {
+      Optional<Integer> accountId = emailService.getMessageAccountId(emailId);
+      if (accountId.isPresent()
+          && !accountFolderMappingService.hasConfiguredMapping(
+              accountId.get(), requiredSpecialUse.get())) {
+        return Optional.of(
+            URI.create(
+                "/accounts/%s/settings/folders?required=%s"
+                    .formatted(accountId.get(), requiredSpecialUse.get().name())));
+      }
+    }
+    return Optional.empty();
+  }
+
+  private Optional<FolderSpecialUse> requiredSpecialUse(String action) {
+    return switch (action) {
+      case "email_action_archive" -> Optional.of(FolderSpecialUse.ARCHIVE);
+      case "email_action_delete" -> Optional.of(FolderSpecialUse.TRASH);
+      case "email_action_mark_spam" -> Optional.of(FolderSpecialUse.JUNK);
+      default -> Optional.empty();
+    };
   }
 
   private void emailComposerHandler(ServerRequest request, ServerResponse response) {

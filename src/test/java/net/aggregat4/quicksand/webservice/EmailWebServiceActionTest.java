@@ -25,7 +25,10 @@ import net.aggregat4.quicksand.domain.Actor;
 import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
+import net.aggregat4.quicksand.domain.FolderMappingStatus;
+import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
+import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
@@ -33,6 +36,7 @@ import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
 import net.aggregat4.quicksand.repository.DbFolderRepository;
 import net.aggregat4.quicksand.repository.DbOutboundMessageRepository;
+import net.aggregat4.quicksand.service.AccountFolderMappingService;
 import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
@@ -60,6 +64,7 @@ class EmailWebServiceActionTest {
   private static int inboxFolderId;
   private static int targetFolderId;
   private static int otherAccountFolderId;
+  private static DbAccountFolderMappingRepository mappingRepository;
   private static String baseUrl;
 
   @BeforeAll
@@ -73,11 +78,35 @@ class EmailWebServiceActionTest {
     accountId = accountRepository.getAccounts().getFirst().id();
 
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
-    NamedFolder folder =
-        folderRepository.createFolder(accountRepository.getAccount(accountId), "INBOX");
+    Account savedAccount = accountRepository.getAccount(accountId);
+    NamedFolder folder = folderRepository.createFolder(savedAccount, "INBOX");
     inboxFolderId = folder.id();
-    targetFolderId =
-        folderRepository.createFolder(accountRepository.getAccount(accountId), "Target").id();
+    targetFolderId = folderRepository.createFolder(savedAccount, "Target").id();
+    int archiveFolderId =
+        folderRepository
+            .createFolder(savedAccount, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 1L)
+            .id();
+    int trashFolderId =
+        folderRepository
+            .createFolder(savedAccount, "Trash", "Trash", FolderSpecialUse.TRASH, 2L)
+            .id();
+    int junkFolderId =
+        folderRepository.createFolder(savedAccount, "Spam", "Spam", FolderSpecialUse.JUNK, 3L).id();
+    mappingRepository = new DbAccountFolderMappingRepository(ds);
+    mappingRepository.save(
+        accountId,
+        FolderSpecialUse.ARCHIVE,
+        archiveFolderId,
+        "Archive",
+        FolderMappingStatus.USER_CONFIRMED);
+    mappingRepository.save(
+        accountId,
+        FolderSpecialUse.TRASH,
+        trashFolderId,
+        "Trash",
+        FolderMappingStatus.USER_CONFIRMED);
+    mappingRepository.save(
+        accountId, FolderSpecialUse.JUNK, junkFolderId, "Spam", FolderMappingStatus.USER_CONFIRMED);
 
     Account otherAccount = new Account(-1, "Other", "imap", 143, "u", "p", "smtp", 587, "u", "p");
     accountRepository.createAccountIfNew(otherAccount);
@@ -141,13 +170,19 @@ class EmailWebServiceActionTest {
             new DbAttachmentRepository(ds),
             new DbOutboundMessageRepository(ds),
             Clock.systemDefaultZone());
+    AccountFolderMappingService accountFolderMappingService =
+        new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
 
     HttpRouting.Builder routing =
         HttpRouting.builder()
             .register(
                 "/emails",
                 new EmailWebService(
-                    emailService, draftService, attachmentService, outboundMessageService));
+                    emailService,
+                    draftService,
+                    attachmentService,
+                    outboundMessageService,
+                    accountFolderMappingService));
 
     webServer = WebServer.builder().port(0).host("127.0.0.1").routing(routing).build().start();
 
@@ -388,5 +423,35 @@ class EmailWebServiceActionTest {
 
     assertTrue(emailRepository.findById(secondMessageId).isPresent());
     assertEquals(inboxCountBefore - 1, emailRepository.getMessageCount(accountId, inboxFolderId));
+  }
+
+  @Test
+  @Order(9)
+  void mappedActionRedirectsToFolderSettingsWhenRequiredMappingIsMissing()
+      throws IOException, InterruptedException {
+    List<Actor> actors = List.of(new Actor(ActorType.SENDER, "a@b.com", Optional.of("A")));
+    ZonedDateTime now = ZonedDateTime.now();
+    EmailHeader header =
+        new EmailHeader(
+            -1, 6L, actors, "Subject 6", now, 0L, now, 0L, "Excerpt", false, false, true);
+    int messageId =
+        emailRepository.addMessage(
+            otherAccountFolderId, new Email(header, true, "Body 6", Collections.emptyList()));
+
+    HttpRequest delete =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Referer", baseUrl + "/accounts/" + accountId)
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    "email_select=" + messageId + "&email_action_delete=Delete"))
+            .build();
+    HttpResponse<String> response = httpClient.send(delete, HttpResponse.BodyHandlers.ofString());
+
+    assertEquals(303, response.statusCode());
+    assertEquals(
+        "/accounts/" + otherAccountId + "/settings/folders?required=TRASH",
+        response.headers().firstValue("location").orElseThrow());
+    assertTrue(emailRepository.findById(messageId).isPresent());
   }
 }

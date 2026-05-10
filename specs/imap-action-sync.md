@@ -657,7 +657,7 @@ initially. A narrower per-folder reset can be added later.
   creation. The account-scoped folder settings page can save discovered folders, auto-detect
   unambiguous special-use folders, and explicitly create-and-map remote IMAP folders.
 - [x] Add account setup blocker when required mappings are missing.
-- [ ] Change local actions to block when required mappings are missing.
+- [x] Change local actions to block when required mappings are missing.
 - [ ] Change local actions to enqueue queue rows transactionally.
 - [ ] Teach inbound sync to ignore source UIDs covered by pending move/delete/archive/spam actions.
 - [ ] Add sync status/error view.

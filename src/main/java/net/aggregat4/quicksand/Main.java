@@ -156,7 +156,11 @@ public final class Main {
             .register(
                 "/emails",
                 new EmailWebService(
-                    emailService, draftService, attachmentService, outboundMessageService))
+                    emailService,
+                    draftService,
+                    attachmentService,
+                    outboundMessageService,
+                    accountFolderMappingService))
             .register("/outbox", new OutboxWebService(outboundMessageService))
             .register("/attachments", new AttachmentWebService(attachmentService))
             .register("/", new HomeWebService(accountService));

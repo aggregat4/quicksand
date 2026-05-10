@@ -33,6 +33,11 @@ public class InMemoryEmailRepository implements EmailRepository {
   }
 
   @Override
+  public Optional<Integer> findAccountIdByMessageId(int id) {
+    throw new UnsupportedOperationException("findAccountIdByMessageId not implemented");
+  }
+
+  @Override
   public Optional<Email> findByMessageUid(long uid) {
     for (List<Email> emails : messages.values()) {
       for (Email email : emails) {

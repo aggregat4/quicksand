@@ -30,6 +30,10 @@ public class EmailService {
     return emailRepository.findById(emailId);
   }
 
+  public Optional<Integer> getMessageAccountId(int emailId) {
+    return emailRepository.findAccountIdByMessageId(emailId);
+  }
+
   public int getMessageCount(int accountId, int folderId) {
     return emailRepository.getMessageCount(accountId, folderId);
   }

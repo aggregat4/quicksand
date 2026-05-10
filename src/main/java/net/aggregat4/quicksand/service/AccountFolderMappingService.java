@@ -61,6 +61,15 @@ public class AccountFolderMappingService {
     return getSetupRows(accountId).stream().allMatch(FolderMappingSetupRow::configured);
   }
 
+  public boolean hasConfiguredMapping(int accountId, FolderSpecialUse specialUse) {
+    autoDetectMappings(accountId);
+    return mappingRepository.findByAccountId(accountId).stream()
+        .filter(mapping -> mapping.specialUse() == specialUse)
+        .findFirst()
+        .map(AccountFolderMapping::configured)
+        .orElse(false);
+  }
+
   public List<FolderSpecialUse> requiredSpecialUses() {
     return REQUIRED_SPECIAL_USES;
   }

@@ -59,6 +59,24 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
+  public Optional<Integer> findAccountIdByMessageId(int id) {
+    return DbUtil.withPreparedStmtFunction(
+        ds,
+        "SELECT f.account_id FROM messages m JOIN folders f ON m.folder_id = f.id WHERE m.id = ?",
+        stmt -> {
+          stmt.setInt(1, id);
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                if (!rs.next()) {
+                  return Optional.empty();
+                }
+                return Optional.of(rs.getInt(1));
+              });
+        });
+  }
+
+  @Override
   public Optional<Email> findByMessageUid(long uid) {
     return DbUtil.withPreparedStmtFunction(
         ds,

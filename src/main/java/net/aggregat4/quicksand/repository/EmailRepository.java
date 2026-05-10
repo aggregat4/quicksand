@@ -12,6 +12,8 @@ import net.aggregat4.quicksand.domain.SortOrder;
 public interface EmailRepository {
   Optional<Email> findById(int id);
 
+  Optional<Integer> findAccountIdByMessageId(int id);
+
   Optional<Email> findByMessageUid(long uid);
 
   void updateFlags(int id, boolean messageStarred, boolean messageRead);
