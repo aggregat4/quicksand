@@ -21,8 +21,10 @@ import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.jobs.MailSender;
+import net.aggregat4.quicksand.repository.AccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DatabaseMaintenance;
+import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
@@ -34,6 +36,7 @@ import net.aggregat4.quicksand.repository.DraftRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.repository.OutboundMessageRepository;
+import net.aggregat4.quicksand.service.AccountFolderMappingService;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
@@ -78,6 +81,8 @@ public final class Main {
     DbAccountRepository accountRepository = new DbAccountRepository(ds);
     AccountService accountService = new AccountService(accountRepository);
     FolderRepository folderRepository = new DbFolderRepository(ds);
+    AccountFolderMappingRepository accountFolderMappingRepository =
+        new DbAccountFolderMappingRepository(ds);
     DbActorRepository actorRepository = new DbActorRepository(ds);
     EmailRepository messageRepository = new DbEmailRepository(ds, actorRepository);
     DbDraftRepository dbDraftRepository = new DbDraftRepository(ds);
@@ -132,6 +137,9 @@ public final class Main {
     }
 
     FolderService folderService = new FolderService(folderRepository);
+    AccountFolderMappingService accountFolderMappingService =
+        new AccountFolderMappingService(
+            accountFolderMappingRepository, folderRepository, accountRepository);
 
     HttpRouting.Builder routing =
         HttpRouting.builder()
@@ -140,6 +148,7 @@ public final class Main {
                 new AccountWebService(
                     folderService,
                     accountService,
+                    accountFolderMappingService,
                     emailService,
                     draftService,
                     outboundMessageService,

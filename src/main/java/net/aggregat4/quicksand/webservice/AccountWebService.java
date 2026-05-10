@@ -7,8 +7,11 @@ import io.helidon.webserver.http.ServerRequest;
 import io.helidon.webserver.http.ServerResponse;
 import io.pebbletemplates.pebble.template.PebbleTemplate;
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +24,7 @@ import net.aggregat4.quicksand.domain.EmailGroupPage;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.Folder;
+import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.domain.OutboxFolder;
 import net.aggregat4.quicksand.domain.PageDirection;
@@ -31,6 +35,7 @@ import net.aggregat4.quicksand.domain.SearchFolder;
 import net.aggregat4.quicksand.domain.SidebarFolderLink;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
+import net.aggregat4.quicksand.service.AccountFolderMappingService;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
@@ -45,8 +50,11 @@ public class AccountWebService implements HttpService {
       PebbleConfig.getEngine().getTemplate("templates/account.peb");
   private static final PebbleTemplate accountWithoutFoldersTemplate =
       PebbleConfig.getEngine().getTemplate("templates/account-nofolders.peb");
+  private static final PebbleTemplate folderSettingsTemplate =
+      PebbleConfig.getEngine().getTemplate("templates/folder-settings.peb");
   private final FolderService folderService;
   private final AccountService accountService;
+  private final AccountFolderMappingService accountFolderMappingService;
 
   private final EmailService emailService;
   private final DraftService draftService;
@@ -56,12 +64,14 @@ public class AccountWebService implements HttpService {
   public AccountWebService(
       FolderService folderService,
       AccountService accountService,
+      AccountFolderMappingService accountFolderMappingService,
       EmailService emailService,
       DraftService draftService,
       OutboundMessageService outboundMessageService,
       Clock clock) {
     this.folderService = folderService;
     this.accountService = accountService;
+    this.accountFolderMappingService = accountFolderMappingService;
     this.emailService = emailService;
     this.draftService = draftService;
     this.outboundMessageService = outboundMessageService;
@@ -75,6 +85,8 @@ public class AccountWebService implements HttpService {
     rules.get("/{accountId}/drafts", this::getDraftsHandler);
     rules.get("/{accountId}/outbox", this::getOutboxHandler);
     rules.get("/{accountId}/search", this::getSearchHandler);
+    rules.get("/{accountId}/settings/folders", this::getFolderSettingsHandler);
+    rules.post("/{accountId}/settings/folders", this::postFolderSettingsHandler);
     rules.post("/{accountId}/emails", this::emailCreationHandler);
   }
 
@@ -256,6 +268,55 @@ public class AccountWebService implements HttpService {
     renderAccount(response, accountId, searchFolder, emailPage, pagination, selectedEmailId, query);
   }
 
+  private void getFolderSettingsHandler(ServerRequest request, ServerResponse response) {
+    int accountId = RequestUtils.intPathParam(request, "accountId");
+    Map<String, Object> context = new HashMap<>();
+    context.put("bodyclass", "accountpage folder-settings-page");
+    context.put("currentAccount", accountService.getAccount(accountId));
+    context.put("accounts", accountService.getAccounts());
+    context.put("mappingRows", accountFolderMappingService.getSetupRows(accountId));
+    context.put("required", request.query().first("required"));
+    context.put("saved", request.query().first("saved").isPresent());
+    context.put("error", request.query().first("error"));
+    response.headers().contentType(TEXT_HTML);
+    response.send(PebbleRenderer.renderTemplate(context, folderSettingsTemplate));
+  }
+
+  private void postFolderSettingsHandler(ServerRequest request, ServerResponse response) {
+    int accountId = RequestUtils.intPathParam(request, "accountId");
+    Map<String, String> formParams = parseFormEncoded(request.content().as(String.class));
+    try {
+      Optional<FolderSpecialUse> createSpecialUse =
+          Optional.ofNullable(formParams.get("create_special_use"))
+              .filter(value -> !value.isBlank())
+              .map(FolderSpecialUse::valueOf);
+      if (createSpecialUse.isPresent()) {
+        FolderSpecialUse specialUse = createSpecialUse.get();
+        accountFolderMappingService.createRemoteFolderAndMap(
+            accountId, specialUse, formParams.get("create_name_" + specialUse.name()));
+      } else {
+        Map<FolderSpecialUse, Integer> selectedFolderIds = new EnumMap<>(FolderSpecialUse.class);
+        for (FolderSpecialUse specialUse : accountFolderMappingService.requiredSpecialUses()) {
+          String folderIdValue = formParams.get("folder_" + specialUse.name());
+          if (folderIdValue != null && !folderIdValue.isBlank()) {
+            selectedFolderIds.put(specialUse, Integer.parseInt(folderIdValue));
+          }
+        }
+        accountFolderMappingService.saveExistingFolderMappings(accountId, selectedFolderIds);
+      }
+      ResponseUtils.redirectAfterPost(
+          response, URI.create("/accounts/%s/settings/folders?saved=true".formatted(accountId)));
+    } catch (Exception e) {
+      ResponseUtils.redirectAfterPost(
+          response,
+          URI.create(
+              "/accounts/%s/settings/folders?error=%s"
+                  .formatted(
+                      accountId,
+                      java.net.URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8))));
+    }
+  }
+
   private void renderDraftsAccount(
       ServerResponse response, int accountId, Optional<Integer> selectedEmailId) {
     List<EmailHeader> draftHeaders = draftService.getDraftHeaders(accountId);
@@ -407,5 +468,23 @@ public class AccountWebService implements HttpService {
 
   private NamedFolder findFolder(int folderId) {
     return folderService.getFolder(folderId);
+  }
+
+  private static Map<String, String> parseFormEncoded(String body) {
+    Map<String, String> params = new HashMap<>();
+    if (body == null || body.isBlank()) {
+      return params;
+    }
+    for (String pair : body.split("&")) {
+      if (pair.isEmpty()) {
+        continue;
+      }
+      String[] keyValue = pair.split("=", 2);
+      String key = URLDecoder.decode(keyValue[0], StandardCharsets.UTF_8);
+      String value =
+          keyValue.length > 1 ? URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8) : "";
+      params.put(key, value);
+    }
+    return params;
   }
 }

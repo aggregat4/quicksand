@@ -114,6 +114,18 @@ public class DbFolderRepository implements FolderRepository {
         folder.mappingStatus());
   }
 
+  @Override
+  public void updateMappingStatus(NamedFolder folder, FolderMappingStatus mappingStatus) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        "UPDATE folders SET mapping_status = ? WHERE id = ?",
+        stmt -> {
+          stmt.setString(1, mappingStatus.name());
+          stmt.setInt(2, folder.id());
+          stmt.executeUpdate();
+        });
+  }
+
   /** TODO: verify that we are cascade deleting all messages and associated things */
   @Override
   public void deleteFolder(NamedFolder folder) {

@@ -2,6 +2,7 @@ package net.aggregat4.quicksand.repository;
 
 import java.util.List;
 import net.aggregat4.quicksand.domain.Account;
+import net.aggregat4.quicksand.domain.FolderMappingStatus;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
 
@@ -21,6 +22,8 @@ public interface FolderRepository {
 
   NamedFolder updateRemoteMetadata(
       NamedFolder folder, String remoteName, FolderSpecialUse specialUse, Long uidValidity);
+
+  void updateMappingStatus(NamedFolder folder, FolderMappingStatus mappingStatus);
 
   void deleteFolder(NamedFolder folder);
 

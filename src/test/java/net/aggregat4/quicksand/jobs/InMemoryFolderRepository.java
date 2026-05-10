@@ -65,6 +65,28 @@ class InMemoryFolderRepository implements FolderRepository {
   }
 
   @Override
+  public void updateMappingStatus(NamedFolder folder, FolderMappingStatus mappingStatus) {
+    NamedFolder updated =
+        new NamedFolder(
+            folder.id(),
+            folder.name(),
+            folder.lastSeenUid(),
+            folder.remoteName(),
+            folder.specialUse(),
+            folder.uidValidity(),
+            folder.syncEnabled(),
+            mappingStatus);
+    for (List<NamedFolder> folders : foldersByAccount.values()) {
+      int index = folders.indexOf(folder);
+      if (index >= 0) {
+        folders.set(index, updated);
+        return;
+      }
+    }
+    throw new IllegalStateException("Folder not found: " + folder.id());
+  }
+
+  @Override
   public void deleteFolder(NamedFolder folder) {
     for (List<NamedFolder> folders : foldersByAccount.values()) {
       folders.remove(folder);

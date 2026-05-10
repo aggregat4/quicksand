@@ -13,6 +13,28 @@ main {
     grid-template-rows: min-content 1fr;
 }
 
+main.settings-layout {
+    display: block;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: var(--gap-xl);
+    width: 100%;
+    overflow-y: auto;
+}
+
+body.accountpage.folder-settings-page {
+    display: block;
+    height: auto;
+    min-height: 100%;
+    overflow: auto;
+}
+
+body.accountpage.folder-settings-page main.settings-layout {
+    flex: none;
+    min-height: 0;
+    overflow: visible;
+}
+
 #accountnav {
     grid-column: 2 / 4;
     grid-row: 1 / 2;
@@ -258,6 +280,101 @@ main {
 .emailheader.read .fromname,
 .emailheader.read .subjectline {
     font-weight: bold;
+}
+
+/* settings --------- */
+.settings-backlink {
+    margin-bottom: var(--gap-l);
+}
+
+.settings-header {
+    margin-bottom: var(--gap-l);
+}
+
+.settings-notice,
+.settings-error {
+    margin-top: var(--gap-m);
+    padding: var(--gap-m) var(--gap-l);
+    border: var(--standard-border);
+    background: var(--highlighted-bgcolor);
+}
+
+.settings-error {
+    border-color: #b65d5d;
+}
+
+.folder-mapping-form {
+    display: grid;
+    gap: var(--gap-l);
+}
+
+.folder-mapping-row {
+    display: grid;
+    grid-template-columns: minmax(20rem, 1fr) minmax(18rem, 0.75fr);
+    gap: var(--gap-l);
+    padding: var(--gap-l);
+    border: var(--standard-border);
+    background: var(--highlighted-bgcolor);
+}
+
+.folder-mapping-row legend {
+    padding: 0 var(--gap-s);
+    font-weight: bold;
+}
+
+.folder-mapping-row legend span {
+    margin-left: var(--gap-m);
+    color: var(--muted-text-color);
+    font-weight: normal;
+}
+
+.folder-choice-section,
+.folder-create-section {
+    display: grid;
+    align-content: start;
+    gap: var(--gap-m);
+}
+
+.folder-choice-section h3,
+.folder-create-section h3 {
+    font-size: 16px;
+}
+
+.folder-select-label {
+    display: grid;
+    gap: var(--gap-s);
+}
+
+.folder-create-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: var(--gap-m);
+    align-items: end;
+    padding: var(--gap-m);
+    border: var(--standard-border);
+}
+
+.folder-create-controls label {
+    display: grid;
+    gap: var(--gap-s);
+}
+
+.folder-mapping-row select,
+.folder-mapping-row input[type=text] {
+    width: 100%;
+    min-width: 0;
+}
+
+.settings-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+@media screen and (max-width: 900px) {
+    .folder-mapping-row,
+    .folder-create-controls {
+        grid-template-columns: 1fr;
+    }
 }
 
 @container (min-width: 42rem) {

@@ -653,8 +653,9 @@ initially. A narrower per-folder reset can be added later.
   queue. Initial v3 migration adds the new columns/tables/indexes and focused schema coverage.
 - [x] Teach folder sync to capture UIDVALIDITY and special-use metadata. Folder discovery now
   stores remote names, normalized special-use values, and UIDVALIDITY in the local folder mirror.
-- [ ] Add account folder mapping repository/service/settings UI, including explicit remote folder
-  creation.
+- [x] Add account folder mapping repository/service/settings UI, including explicit remote folder
+  creation. The account-scoped folder settings page can save discovered folders, auto-detect
+  unambiguous special-use folders, and explicitly create-and-map remote IMAP folders.
 - [ ] Add account setup blocker when required mappings are missing.
 - [ ] Change local actions to block when required mappings are missing.
 - [ ] Change local actions to enqueue queue rows transactionally.
