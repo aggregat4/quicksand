@@ -134,23 +134,33 @@ public class InMemoryEmailRepository implements EmailRepository {
 
   @Override
   public void archiveById(int id) {
-    Email toArchive = null;
+    moveToFolderById(id, -1);
+  }
+
+  @Override
+  public void markSpamById(int id) {
+    moveToFolderById(id, -2);
+  }
+
+  @Override
+  public void moveToFolderById(int id, int targetFolderId) {
+    Email toMove = null;
     Integer fromFolder = null;
     for (Map.Entry<Integer, List<Email>> entry : messages.entrySet()) {
       for (Email email : entry.getValue()) {
         if (email.header().id() == id) {
-          toArchive = email;
+          toMove = email;
           fromFolder = entry.getKey();
           break;
         }
       }
-      if (toArchive != null) {
+      if (toMove != null) {
         break;
       }
     }
-    if (toArchive != null && fromFolder != null) {
-      messages.get(fromFolder).remove(toArchive);
-      messages.computeIfAbsent(-1, k -> new ArrayList<>()).add(toArchive);
+    if (toMove != null && fromFolder != null) {
+      messages.get(fromFolder).remove(toMove);
+      messages.computeIfAbsent(targetFolderId, k -> new ArrayList<>()).add(toMove);
     }
   }
 

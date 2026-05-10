@@ -33,8 +33,7 @@ Several UI affordances exist before their backing behavior is complete.
 
 **Confirmed still needed:**
 
-- **implement or deliberately hide remaining unsupported bulk message actions** (spam, move). Archive and delete are now wired end-to-end; spam and move still log as unimplemented.
-- **decide how much IMAP server-side state should be updated from local mailbox actions**. Currently no local action propagates back to the IMAP server. This applies uniformly to read/unread, delete, and archive. After spam and move are implemented, add a dedicated TODO in `EmailWebService.emailActionHandler` making this gap explicit so it is not lost.
+- **decide how much IMAP server-side state should be updated from local mailbox actions**. Currently no local action propagates back to the IMAP server. This applies uniformly to read/unread, delete, archive, spam, and move. `EmailWebService.emailActionHandler` now has a dedicated TODO for this gap.
 - **extract and persist incoming message attachments during IMAP sync**. `ImapStoreSync.downloadNewMessages` hardcodes `Collections.emptyList()` for attachments and skips `Part.ATTACHMENT` dispositions in `ImapBodyExtractor`. Stored messages therefore never expose real downloaded attachments.
 - **improve IMAP sync beyond the current naive folder/message scan**. The codebase has commented-out QRESYNC/CONDSTORE paths and TODOs for `UIDVALIDITY` tracking, but only the naive UID scan is active.
 
@@ -60,13 +59,14 @@ The current defaults are acceptable for a local prototype, but they should be ma
 3. **Test coverage for mark read/unread** — New `EmailWebServiceActionTest` integration test starts a minimal Helidon server, seeds emails in SQLite, and verifies that POSTs to `/emails/selection` return 303 redirects and actually update the `read` column for single and bulk selections. Two new Playwright e2e tests verify bulk toolbar and per-email hover actions update the `.read` CSS class after redirect.
 4. **HTML sanitization test coverage** — `HtmlSearchHighlighterTest` expanded from 2 → 8 tests with three realistic fixture files (`newsletter.html`, `malicious.html`, `styled.html`). New `EmailWebServiceSanitizationTest` exercises the production `NO_IMAGES_POLICY` and `IMAGES_POLICY` against real HTML.
 5. **Rich HTML demo emails** — four new visually complex demo emails added to `GreenmailUtils` boundary seeds (summer sale, flight confirmation, monthly invoice, security alert). They use table-based layouts, inline CSS, and placeholder images for end-to-end viewer testing.
+6. **Archive, spam, and move wired end-to-end** — mailbox action handling now moves archived messages to a local `Archive` folder, spammed messages to a local `Spam` folder, and selected messages to the chosen target folder. Integration coverage verifies redirects, folder count changes, and cross-account move rejection.
 
 ## Recommended Next Slice
 
 If picking one product-facing task next:
 
-1. **choose one mailbox action slice** and wire it through repository/service/SSR routes (e.g. mark read/unread is the smallest surface area)
+1. **decide the IMAP propagation model for local mailbox actions** so read/unread, delete, archive, spam, and move do not get undone or conflict on the next sync
 2. **add incoming attachment extraction/persistence** when message attachments become the next mail-reading slice
-3. **handle runtime/schema/storage hardening incrementally** after product-facing mailbox behavior, unless a concrete persistence issue appears
+3. **handle runtime/schema/storage hardening incrementally**, especially folder uniqueness and UIDVALIDITY, before treating multi-account local state as durable
 
 Developer linting/tooling is sufficient for now; do not make tooling the next primary slice unless a new build pain appears.

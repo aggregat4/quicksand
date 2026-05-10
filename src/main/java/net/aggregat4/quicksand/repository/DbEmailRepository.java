@@ -558,62 +558,32 @@ public class DbEmailRepository implements EmailRepository {
 
   @Override
   public void archiveById(int id) {
+    moveToNamedFolderById(id, "Archive");
+  }
+
+  @Override
+  public void markSpamById(int id) {
+    moveToNamedFolderById(id, "Spam");
+  }
+
+  @Override
+  public void moveToFolderById(int id, int targetFolderId) {
     DbUtil.withConConsumer(
         ds,
         con -> {
           boolean previousAutoCommit = con.getAutoCommit();
           con.setAutoCommit(false);
           try {
-            int accountId;
-            try (PreparedStatement stmt =
-                con.prepareStatement(
-                    "SELECT f.account_id FROM messages m JOIN folders f ON m.folder_id = f.id WHERE m.id = ?")) {
-              stmt.setInt(1, id);
-              try (ResultSet rs = stmt.executeQuery()) {
-                if (!rs.next()) {
-                  con.rollback();
-                  return;
-                }
-                accountId = rs.getInt(1);
-              }
+            Optional<Integer> messageAccountId = findMessageAccountId(con, id);
+            Optional<Integer> targetAccountId = findFolderAccountId(con, targetFolderId);
+            if (messageAccountId.isEmpty()
+                || targetAccountId.isEmpty()
+                || !messageAccountId.get().equals(targetAccountId.get())) {
+              con.rollback();
+              return;
             }
 
-            int archiveFolderId;
-            try (PreparedStatement stmt =
-                con.prepareStatement("SELECT id FROM folders WHERE account_id = ? AND name = ?")) {
-              stmt.setInt(1, accountId);
-              stmt.setString(2, "Archive");
-              try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                  archiveFolderId = rs.getInt(1);
-                } else {
-                  try (PreparedStatement insert =
-                      con.prepareStatement(
-                          "INSERT INTO folders (account_id, name, last_seen_uid) VALUES (?, ?, ?)",
-                          Statement.RETURN_GENERATED_KEYS)) {
-                    insert.setInt(1, accountId);
-                    insert.setString(2, "Archive");
-                    insert.setLong(3, 0);
-                    insert.executeUpdate();
-                    try (ResultSet keys = insert.getGeneratedKeys()) {
-                      if (!keys.next()) {
-                        throw new IllegalStateException(
-                            "Expected generated keys after inserting folder");
-                      }
-                      archiveFolderId = keys.getInt(1);
-                    }
-                  }
-                }
-              }
-            }
-
-            try (PreparedStatement stmt =
-                con.prepareStatement("UPDATE messages SET folder_id = ? WHERE id = ?")) {
-              stmt.setInt(1, archiveFolderId);
-              stmt.setInt(2, id);
-              stmt.executeUpdate();
-            }
-
+            moveMessageToFolder(con, id, targetFolderId);
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -622,6 +592,99 @@ public class DbEmailRepository implements EmailRepository {
             con.setAutoCommit(previousAutoCommit);
           }
         });
+  }
+
+  private void moveToNamedFolderById(int id, String folderName) {
+    DbUtil.withConConsumer(
+        ds,
+        con -> {
+          boolean previousAutoCommit = con.getAutoCommit();
+          con.setAutoCommit(false);
+          try {
+            Optional<Integer> accountId = findMessageAccountId(con, id);
+            if (accountId.isEmpty()) {
+              con.rollback();
+              return;
+            }
+            int targetFolderId = findOrCreateFolderId(con, accountId.get(), folderName);
+            moveMessageToFolder(con, id, targetFolderId);
+            con.commit();
+          } catch (SQLException | RuntimeException e) {
+            con.rollback();
+            throw e;
+          } finally {
+            con.setAutoCommit(previousAutoCommit);
+          }
+        });
+  }
+
+  private static Optional<Integer> findMessageAccountId(Connection con, int messageId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            "SELECT f.account_id FROM messages m JOIN folders f ON m.folder_id = f.id WHERE m.id = ?")) {
+      stmt.setInt(1, messageId);
+      try (ResultSet rs = stmt.executeQuery()) {
+        if (!rs.next()) {
+          return Optional.empty();
+        }
+        return Optional.of(rs.getInt(1));
+      }
+    }
+  }
+
+  private static Optional<Integer> findFolderAccountId(Connection con, int folderId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement("SELECT account_id FROM folders WHERE id = ?")) {
+      stmt.setInt(1, folderId);
+      try (ResultSet rs = stmt.executeQuery()) {
+        if (!rs.next()) {
+          return Optional.empty();
+        }
+        return Optional.of(rs.getInt(1));
+      }
+    }
+  }
+
+  private static int findOrCreateFolderId(Connection con, int accountId, String folderName)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement("SELECT id FROM folders WHERE account_id = ? AND name = ?")) {
+      stmt.setInt(1, accountId);
+      stmt.setString(2, folderName);
+      try (ResultSet rs = stmt.executeQuery()) {
+        if (rs.next()) {
+          return rs.getInt(1);
+        }
+      }
+    }
+
+    try (PreparedStatement insert =
+        con.prepareStatement(
+            "INSERT INTO folders (account_id, name, last_seen_uid) VALUES (?, ?, ?)",
+            Statement.RETURN_GENERATED_KEYS)) {
+      insert.setInt(1, accountId);
+      insert.setString(2, folderName);
+      insert.setLong(3, 0);
+      insert.executeUpdate();
+      try (ResultSet keys = insert.getGeneratedKeys()) {
+        if (!keys.next()) {
+          throw new IllegalStateException("Expected generated keys after inserting folder");
+        }
+        return keys.getInt(1);
+      }
+    }
+  }
+
+  private static void moveMessageToFolder(Connection con, int messageId, int targetFolderId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement("UPDATE messages SET folder_id = ? WHERE id = ?")) {
+      stmt.setInt(1, targetFolderId);
+      stmt.setInt(2, messageId);
+      stmt.executeUpdate();
+    }
   }
 
   private static String toISOString(ZonedDateTime dateTime) {

@@ -52,8 +52,14 @@ class EmailWebServiceActionTest {
   private static DbEmailRepository emailRepository;
   private static int firstMessageId;
   private static int secondMessageId;
+  private static int thirdMessageId;
+  private static int fourthMessageId;
+  private static int fifthMessageId;
   private static int accountId;
+  private static int otherAccountId;
   private static int inboxFolderId;
+  private static int targetFolderId;
+  private static int otherAccountFolderId;
   private static String baseUrl;
 
   @BeforeAll
@@ -70,6 +76,21 @@ class EmailWebServiceActionTest {
     NamedFolder folder =
         folderRepository.createFolder(accountRepository.getAccount(accountId), "INBOX");
     inboxFolderId = folder.id();
+    targetFolderId =
+        folderRepository.createFolder(accountRepository.getAccount(accountId), "Target").id();
+
+    Account otherAccount = new Account(-1, "Other", "imap", 143, "u", "p", "smtp", 587, "u", "p");
+    accountRepository.createAccountIfNew(otherAccount);
+    otherAccountId =
+        accountRepository.getAccounts().stream()
+            .filter(existingAccount -> existingAccount.name().equals("Other"))
+            .findFirst()
+            .orElseThrow()
+            .id();
+    otherAccountFolderId =
+        folderRepository
+            .createFolder(accountRepository.getAccount(otherAccountId), "Other INBOX")
+            .id();
 
     DbActorRepository actorRepository = new DbActorRepository(ds);
     emailRepository = new DbEmailRepository(ds, actorRepository);
@@ -87,6 +108,24 @@ class EmailWebServiceActionTest {
             -1, 2L, actors, "Subject 2", now, 0L, now, 0L, "Excerpt", false, false, true);
     Email email2 = new Email(header2, true, "Body 2", Collections.emptyList());
     secondMessageId = emailRepository.addMessage(folder.id(), email2);
+
+    EmailHeader header3 =
+        new EmailHeader(
+            -1, 3L, actors, "Subject 3", now, 0L, now, 0L, "Excerpt", false, false, true);
+    Email email3 = new Email(header3, true, "Body 3", Collections.emptyList());
+    thirdMessageId = emailRepository.addMessage(folder.id(), email3);
+
+    EmailHeader header4 =
+        new EmailHeader(
+            -1, 4L, actors, "Subject 4", now, 0L, now, 0L, "Excerpt", false, false, true);
+    Email email4 = new Email(header4, true, "Body 4", Collections.emptyList());
+    fourthMessageId = emailRepository.addMessage(folder.id(), email4);
+
+    EmailHeader header5 =
+        new EmailHeader(
+            -1, 5L, actors, "Subject 5", now, 0L, now, 0L, "Excerpt", false, false, true);
+    Email email5 = new Email(header5, true, "Body 5", Collections.emptyList());
+    fifthMessageId = emailRepository.addMessage(folder.id(), email5);
 
     DbDraftRepository draftRepository = new DbDraftRepository(ds);
     AttachmentService attachmentService = new AttachmentService(new DbAttachmentRepository(ds));
@@ -161,6 +200,88 @@ class EmailWebServiceActionTest {
 
   @Test
   @Order(4)
+  void markSpamMovesMessageToSpamFolderAndRedirectsFromViewer()
+      throws IOException, InterruptedException {
+    assertTrue(emailRepository.findById(thirdMessageId).isPresent());
+    int inboxCountBefore = emailRepository.getMessageCount(accountId, inboxFolderId);
+
+    HttpRequest spam =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Referer", baseUrl + "/emails/" + thirdMessageId + "/viewer")
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    "email_select=" + thirdMessageId + "&email_action_mark_spam=Mark+Spam"))
+            .build();
+    HttpResponse<String> response = httpClient.send(spam, HttpResponse.BodyHandlers.ofString());
+    assertEquals(303, response.statusCode());
+    assertEquals("/", response.headers().firstValue("location").orElseThrow());
+
+    assertTrue(emailRepository.findById(thirdMessageId).isPresent());
+    assertEquals(inboxCountBefore - 1, emailRepository.getMessageCount(accountId, inboxFolderId));
+  }
+
+  @Test
+  @Order(5)
+  void moveUpdatesSelectedMessagesToTargetFolder() throws IOException, InterruptedException {
+    int inboxCountBefore = emailRepository.getMessageCount(accountId, inboxFolderId);
+    int targetCountBefore = emailRepository.getMessageCount(accountId, targetFolderId);
+
+    HttpRequest move =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Referer", baseUrl + "/accounts/1")
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    "email_select="
+                        + fourthMessageId
+                        + "&email_select="
+                        + fifthMessageId
+                        + "&target_folder="
+                        + targetFolderId
+                        + "&email_action_move=Move"))
+            .build();
+    HttpResponse<String> response = httpClient.send(move, HttpResponse.BodyHandlers.ofString());
+    assertEquals(303, response.statusCode());
+    assertEquals(baseUrl + "/accounts/1", response.headers().firstValue("location").orElseThrow());
+
+    assertTrue(emailRepository.findById(fourthMessageId).isPresent());
+    assertTrue(emailRepository.findById(fifthMessageId).isPresent());
+    assertEquals(inboxCountBefore - 2, emailRepository.getMessageCount(accountId, inboxFolderId));
+    assertEquals(targetCountBefore + 2, emailRepository.getMessageCount(accountId, targetFolderId));
+  }
+
+  @Test
+  @Order(6)
+  void moveIgnoresTargetFolderFromDifferentAccount() throws IOException, InterruptedException {
+    int inboxCountBefore = emailRepository.getMessageCount(accountId, inboxFolderId);
+    int otherAccountFolderCountBefore =
+        emailRepository.getMessageCount(otherAccountId, otherAccountFolderId);
+
+    HttpRequest move =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Referer", baseUrl + "/accounts/1")
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    "email_select="
+                        + thirdMessageId
+                        + "&target_folder="
+                        + otherAccountFolderId
+                        + "&email_action_move=Move"))
+            .build();
+    HttpResponse<String> response = httpClient.send(move, HttpResponse.BodyHandlers.ofString());
+    assertEquals(303, response.statusCode());
+    assertEquals(baseUrl + "/accounts/1", response.headers().firstValue("location").orElseThrow());
+
+    assertEquals(inboxCountBefore, emailRepository.getMessageCount(accountId, inboxFolderId));
+    assertEquals(
+        otherAccountFolderCountBefore,
+        emailRepository.getMessageCount(otherAccountId, otherAccountFolderId));
+  }
+
+  @Test
+  @Order(7)
   void deleteRemovesMessageAndRedirectsToReferer() throws IOException, InterruptedException {
     assertTrue(emailRepository.findById(firstMessageId).isPresent());
 
@@ -180,7 +301,7 @@ class EmailWebServiceActionTest {
   }
 
   @Test
-  @Order(5)
+  @Order(8)
   void deleteFromViewerRedirectsToHome() throws IOException, InterruptedException {
     assertTrue(emailRepository.findById(secondMessageId).isPresent());
 

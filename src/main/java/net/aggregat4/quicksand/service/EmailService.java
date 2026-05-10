@@ -61,4 +61,12 @@ public class EmailService {
   public void archiveMessage(int id) {
     emailRepository.archiveById(id);
   }
+
+  public void markSpam(int id) {
+    emailRepository.markSpamById(id);
+  }
+
+  public void moveMessage(int id, int targetFolderId) {
+    emailRepository.moveToFolderById(id, targetFolderId);
+  }
 }

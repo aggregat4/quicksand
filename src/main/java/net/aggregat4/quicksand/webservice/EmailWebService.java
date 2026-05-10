@@ -153,14 +153,25 @@ public class EmailWebService implements HttpService {
     List<String> selectionIds = formParams.getOrDefault("email_select", Collections.emptyList());
     LOGGER.info("Selection action {} for emails {}", action, selectionIds);
     List<Integer> emailIds = selectionIds.stream().map(Integer::parseInt).toList();
-    // TODO: none of these local actions propagate back to the IMAP server. After spam/move are
-    // implemented, decide whether and how to push local state changes (flags, delete, move) to the
-    // server so the next sync does not undo or conflict with user actions.
+    // TODO: local mailbox actions do not propagate back to IMAP yet. Decide whether to push flags,
+    // deletes, and moves to the server so sync does not conflict with user actions.
     switch (action) {
       case "email_action_mark_read" -> emailIds.forEach(id -> emailService.updateRead(id, true));
       case "email_action_mark_unread" -> emailIds.forEach(id -> emailService.updateRead(id, false));
       case "email_action_delete" -> emailIds.forEach(id -> emailService.deleteMessage(id));
       case "email_action_archive" -> emailIds.forEach(id -> emailService.archiveMessage(id));
+      case "email_action_mark_spam" -> emailIds.forEach(emailService::markSpam);
+      case "email_action_move" -> {
+        Optional<Integer> targetFolder =
+            formParams.getOrDefault("target_folder", Collections.emptyList()).stream()
+                .findFirst()
+                .map(Integer::parseInt);
+        if (targetFolder.isPresent()) {
+          emailIds.forEach(id -> emailService.moveMessage(id, targetFolder.get()));
+        } else {
+          LOGGER.info("Move action submitted without target folder for emails {}", emailIds);
+        }
+      }
       default -> LOGGER.info("Unimplemented action {}", action);
     }
     // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local
@@ -169,7 +180,10 @@ public class EmailWebService implements HttpService {
     URI referer = request.headers().referer().orElse(URI.create("/"));
     boolean fromViewer = referer.getPath() != null && referer.getPath().contains("/viewer");
     boolean actionLeavesFolder =
-        "email_action_delete".equals(action) || "email_action_archive".equals(action);
+        "email_action_delete".equals(action)
+            || "email_action_archive".equals(action)
+            || "email_action_mark_spam".equals(action)
+            || "email_action_move".equals(action);
     URI location = (actionLeavesFolder && fromViewer) ? URI.create("/") : referer;
     ResponseUtils.redirectAfterPost(response, location);
   }

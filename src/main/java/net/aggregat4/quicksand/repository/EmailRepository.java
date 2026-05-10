@@ -29,6 +29,10 @@ public interface EmailRepository {
 
   void archiveById(int id);
 
+  void markSpamById(int id);
+
+  void moveToFolderById(int id, int targetFolderId);
+
   int addMessage(int folderId, Email email);
 
   void addMessages(int folderId, List<Email> emails);
