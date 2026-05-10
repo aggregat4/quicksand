@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.aggregat4.quicksand.domain.Account;
+import net.aggregat4.quicksand.domain.FolderMappingStatus;
+import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.repository.FolderRepository;
 
@@ -18,11 +20,48 @@ class InMemoryFolderRepository implements FolderRepository {
   }
 
   @Override
-  public NamedFolder createFolder(Account account, String name) {
+  public NamedFolder createFolder(
+      Account account,
+      String name,
+      String remoteName,
+      FolderSpecialUse specialUse,
+      Long uidValidity) {
     List<NamedFolder> folders = getFolders(account.id());
-    NamedFolder folder = new NamedFolder(folders.size() + 1, name, -1);
+    NamedFolder folder =
+        new NamedFolder(
+            folders.size() + 1,
+            name,
+            -1,
+            remoteName,
+            specialUse,
+            uidValidity,
+            true,
+            FolderMappingStatus.MISSING);
     folders.add(folder);
     return folder;
+  }
+
+  @Override
+  public NamedFolder updateRemoteMetadata(
+      NamedFolder folder, String remoteName, FolderSpecialUse specialUse, Long uidValidity) {
+    NamedFolder updated =
+        new NamedFolder(
+            folder.id(),
+            folder.name(),
+            folder.lastSeenUid(),
+            remoteName,
+            specialUse,
+            uidValidity,
+            folder.syncEnabled(),
+            folder.mappingStatus());
+    for (List<NamedFolder> folders : foldersByAccount.values()) {
+      int index = folders.indexOf(folder);
+      if (index >= 0) {
+        folders.set(index, updated);
+        return updated;
+      }
+    }
+    throw new IllegalStateException("Folder not found: " + folder.id());
   }
 
   @Override

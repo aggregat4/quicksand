@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -24,6 +25,7 @@ import net.aggregat4.quicksand.domain.Actor;
 import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
+import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
@@ -71,17 +73,25 @@ public class ImapStoreSync {
         // This filter is from https://stackoverflow.com/a/4801728/1996
         // unsure whether we will need it
         if ((folder.getType() & Folder.HOLDS_MESSAGES) != 0) {
+          String remoteName = folder.getFullName();
+          FolderSpecialUse specialUse = specialUseFor(folder).orElse(null);
           NamedFolder localFolder =
               localFolders.stream()
-                  .filter(f -> f.name().equals(folder.getFullName()))
+                  .filter(f -> matchesRemoteFolder(f, remoteName))
                   .findFirst()
-                  .orElseGet(() -> folderRepository.createFolder(account, folder.getFullName()));
+                  .orElseGet(
+                      () ->
+                          folderRepository.createFolder(
+                              account, remoteName, remoteName, specialUse, null));
+          localFolder =
+              folderRepository.updateRemoteMetadata(
+                  localFolder, remoteName, specialUse, localFolder.uidValidity());
           seenFolders.add(localFolder);
           long folderSyncStarted = System.nanoTime();
-          syncImapFolder(localFolder, folder, messageRepository);
+          syncImapFolder(localFolder, folder, folderRepository, messageRepository);
           LOGGER.debug(
               "Synced folder {} for account {} in {} ms",
-              folder.getFullName(),
+              remoteName,
               account.name(),
               elapsedMillis(folderSyncStarted));
         }
@@ -105,7 +115,10 @@ public class ImapStoreSync {
    * CONDSTORE that we definitely need to implement
    */
   private static void syncImapFolder(
-      NamedFolder localFolder, Folder remoteFolder, EmailRepository messageRepository)
+      NamedFolder localFolder,
+      Folder remoteFolder,
+      FolderRepository folderRepository,
+      EmailRepository messageRepository)
       throws MessagingException {
     if (!(remoteFolder instanceof IMAPFolder imapFolder)) {
       throw new IllegalStateException(
@@ -118,6 +131,12 @@ public class ImapStoreSync {
         imapFolder.getFullName(),
         imapFolder.getMessageCount(),
         elapsedMillis(openStarted));
+    localFolder =
+        folderRepository.updateRemoteMetadata(
+            localFolder,
+            imapFolder.getFullName(),
+            localFolder.specialUse(),
+            imapFolder.getUIDValidity());
     naiveFolderSync(localFolder, imapFolder, messageRepository);
     //        try {
     //            // TODO: purge deleted messages
@@ -344,6 +363,37 @@ public class ImapStoreSync {
         .filter(InternetAddress.class::isInstance)
         .map(InternetAddress.class::cast)
         .toArray(InternetAddress[]::new);
+  }
+
+  private static boolean matchesRemoteFolder(NamedFolder localFolder, String remoteName) {
+    return remoteName.equals(localFolder.remoteName()) || remoteName.equals(localFolder.name());
+  }
+
+  static Optional<FolderSpecialUse> specialUseFor(Folder folder) throws MessagingException {
+    if ("INBOX".equalsIgnoreCase(folder.getFullName())) {
+      return Optional.of(FolderSpecialUse.INBOX);
+    }
+    if (folder instanceof IMAPFolder imapFolder) {
+      return specialUseFromAttributes(imapFolder.getAttributes());
+    }
+    return Optional.empty();
+  }
+
+  static Optional<FolderSpecialUse> specialUseFromAttributes(String[] attributes) {
+    Set<String> normalizedAttributes = new HashSet<>();
+    for (String attribute : attributes) {
+      String normalized = attribute.startsWith("\\") ? attribute.substring(1) : attribute;
+      normalizedAttributes.add(normalized.toUpperCase(Locale.ROOT));
+    }
+    for (String specialUse : List.of("ARCHIVE", "TRASH", "JUNK", "SPAM", "SENT", "DRAFTS")) {
+      if (normalizedAttributes.contains(specialUse)) {
+        return Optional.of(
+            "SPAM".equals(specialUse)
+                ? FolderSpecialUse.JUNK
+                : FolderSpecialUse.valueOf(specialUse));
+      }
+    }
+    return Optional.empty();
   }
 
   private static long elapsedMillis(long startedNanos) {

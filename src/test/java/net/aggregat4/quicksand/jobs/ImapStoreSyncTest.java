@@ -20,6 +20,7 @@ import java.util.Properties;
 import net.aggregat4.quicksand.GreenmailTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Email;
+import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import org.eclipse.angus.mail.imap.IMAPFolder;
@@ -51,6 +52,10 @@ public class ImapStoreSyncTest {
     assertEquals(1, folderRepository.getFolders(account.id()).size());
     NamedFolder inbox = folderRepository.getFolders(account.id()).get(0);
     assertEquals("INBOX", inbox.name());
+    assertEquals("INBOX", inbox.remoteName());
+    assertEquals(FolderSpecialUse.INBOX, inbox.specialUse());
+    assertNotNull(inbox.uidValidity());
+    assertTrue(inbox.uidValidity() > 0);
     assertEquals(1, messageRepository.getAllMessageIds(inbox.id()).size());
     long storedUid = messageRepository.getAllMessageIds(inbox.id()).iterator().next();
     assertTrue(storedUid > 0);
@@ -93,6 +98,18 @@ public class ImapStoreSyncTest {
     assertEquals(1, folderRepository.getFolders(account.id()).size());
     // but the messages should all be gone
     assertEquals(0, messageRepository.getAllMessageIds(inbox.id()).size());
+  }
+
+  @Test
+  public void mapsImapSpecialUseAttributes() {
+    assertEquals(
+        FolderSpecialUse.ARCHIVE,
+        ImapStoreSync.specialUseFromAttributes(new String[] {"\\HasNoChildren", "\\Archive"})
+            .orElseThrow());
+    assertEquals(
+        FolderSpecialUse.JUNK,
+        ImapStoreSync.specialUseFromAttributes(new String[] {"\\Spam"}).orElseThrow());
+    assertTrue(ImapStoreSync.specialUseFromAttributes(new String[] {"\\HasChildren"}).isEmpty());
   }
 
   @Test

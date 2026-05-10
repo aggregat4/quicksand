@@ -651,7 +651,8 @@ initially. A narrower per-folder reset can be added later.
 
 - [x] Add schema support for folder remote metadata, account folder mappings, and mailbox action
   queue. Initial v3 migration adds the new columns/tables/indexes and focused schema coverage.
-- [ ] Teach folder sync to capture UIDVALIDITY and special-use metadata.
+- [x] Teach folder sync to capture UIDVALIDITY and special-use metadata. Folder discovery now
+  stores remote names, normalized special-use values, and UIDVALIDITY in the local folder mirror.
 - [ ] Add account folder mapping repository/service/settings UI, including explicit remote folder
   creation.
 - [ ] Add account setup blocker when required mappings are missing.
