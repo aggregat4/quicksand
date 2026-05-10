@@ -52,6 +52,8 @@ public class AccountWebService implements HttpService {
       PebbleConfig.getEngine().getTemplate("templates/account-nofolders.peb");
   private static final PebbleTemplate folderSettingsTemplate =
       PebbleConfig.getEngine().getTemplate("templates/folder-settings.peb");
+  private static final PebbleTemplate syncStatusTemplate =
+      PebbleConfig.getEngine().getTemplate("templates/sync-status.peb");
   private final FolderService folderService;
   private final AccountService accountService;
   private final AccountFolderMappingService accountFolderMappingService;
@@ -85,6 +87,7 @@ public class AccountWebService implements HttpService {
     rules.get("/{accountId}/drafts", this::getDraftsHandler);
     rules.get("/{accountId}/outbox", this::getOutboxHandler);
     rules.get("/{accountId}/search", this::getSearchHandler);
+    rules.get("/{accountId}/sync", this::getSyncStatusHandler);
     rules.get("/{accountId}/settings/folders", this::getFolderSettingsHandler);
     rules.post("/{accountId}/settings/folders", this::postFolderSettingsHandler);
     rules.post("/{accountId}/emails", this::emailCreationHandler);
@@ -290,11 +293,24 @@ public class AccountWebService implements HttpService {
     context.put("currentAccount", accountService.getAccount(accountId));
     context.put("accounts", accountService.getAccounts());
     context.put("mappingRows", accountFolderMappingService.getSetupRows(accountId));
+    context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
     context.put("required", request.query().first("required"));
     context.put("saved", request.query().first("saved").isPresent());
     context.put("error", request.query().first("error"));
     response.headers().contentType(TEXT_HTML);
     response.send(PebbleRenderer.renderTemplate(context, folderSettingsTemplate));
+  }
+
+  private void getSyncStatusHandler(ServerRequest request, ServerResponse response) {
+    int accountId = RequestUtils.intPathParam(request, "accountId");
+    Map<String, Object> context = new HashMap<>();
+    context.put("bodyclass", "accountpage sync-status-page");
+    context.put("currentAccount", accountService.getAccount(accountId));
+    context.put("accounts", accountService.getAccounts());
+    context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
+    context.put("mappingRows", accountFolderMappingService.getSetupRows(accountId));
+    response.headers().contentType(TEXT_HTML);
+    response.send(PebbleRenderer.renderTemplate(context, syncStatusTemplate));
   }
 
   private void postFolderSettingsHandler(ServerRequest request, ServerResponse response) {
@@ -410,6 +426,7 @@ public class AccountWebService implements HttpService {
     context.put("moveFolders", mailboxNavigationFolders);
     context.put("sidebarFolders", toSidebarFolders(accountId, mailboxNavigationFolders, folder));
     context.put("emailGroupPage", emailGroupPage);
+    context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
     context.put("currentFolder", folder);
     context.put("currentFolderIsDrafts", folder instanceof DraftsFolder);
     context.put("currentFolderIsOutbox", folder instanceof OutboxFolder);

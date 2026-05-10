@@ -660,7 +660,7 @@ initially. A narrower per-folder reset can be added later.
 - [x] Change local actions to block when required mappings are missing.
 - [x] Change local actions to enqueue queue rows transactionally.
 - [x] Teach inbound sync to ignore source UIDs covered by pending move/delete/archive/spam actions.
-- [ ] Add sync status/error view.
+- [x] Add sync status/error view.
 - [ ] Implement remote read/unread sync.
 - [ ] Implement remote move to configured folders using `UID MOVE`.
 - [ ] Add safe COPY/delete/UID-expunge fallback only where UIDPLUS support makes it safe.

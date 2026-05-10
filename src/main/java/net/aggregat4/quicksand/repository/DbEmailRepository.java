@@ -16,6 +16,8 @@ import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
+import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.PageParams;
 import net.aggregat4.quicksand.domain.SortOrder;
@@ -244,6 +246,23 @@ public class DbEmailRepository implements EmailRepository {
                 }
                 return sourceUids;
               });
+        });
+  }
+
+  @Override
+  public MailboxSyncStatus getMailboxSyncStatus(int accountId) {
+    return DbUtil.withConFunction(
+        ds,
+        con -> {
+          MailboxSyncStatusCounts counts = getMailboxSyncStatusCounts(con, accountId);
+          List<MailboxActionQueueRow> actions = getMailboxSyncStatusRows(con, accountId);
+          return new MailboxSyncStatus(
+              counts.pendingCount(),
+              counts.retryingCount(),
+              counts.failedCount(),
+              counts.conflictCount(),
+              counts.needsAttention(),
+              actions);
         });
   }
 
@@ -815,6 +834,100 @@ public class DbEmailRepository implements EmailRepository {
     return rs.wasNull() ? null : value;
   }
 
+  private static MailboxSyncStatusCounts getMailboxSyncStatusCounts(Connection con, int accountId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                SELECT
+                  COALESCE(SUM(CASE WHEN status IN ('PENDING', 'APPLYING') THEN 1 ELSE 0 END), 0),
+                  COALESCE(SUM(CASE WHEN status = 'FAILED_RETRYABLE' THEN 1 ELSE 0 END), 0),
+                  COALESCE(SUM(CASE WHEN status = 'FAILED_PERMANENT' THEN 1 ELSE 0 END), 0),
+                  COALESCE(SUM(CASE WHEN status = 'CONFLICT' THEN 1 ELSE 0 END), 0),
+                  COALESCE(SUM(CASE
+                    WHEN status IN ('FAILED_PERMANENT', 'CONFLICT')
+                      OR (status = 'FAILED_RETRYABLE' AND attempt_count >= 3)
+                    THEN 1 ELSE 0 END), 0)
+                FROM mailbox_action_queue
+                WHERE account_id = ?
+                  AND dismissed_at IS NULL
+                  AND (resolution_type IS NULL OR resolution_type <> 'DISMISSED')""")) {
+      stmt.setInt(1, accountId);
+      try (ResultSet rs = stmt.executeQuery()) {
+        rs.next();
+        return new MailboxSyncStatusCounts(
+            rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4), rs.getInt(5) > 0);
+      }
+    }
+  }
+
+  private static List<MailboxActionQueueRow> getMailboxSyncStatusRows(Connection con, int accountId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                SELECT
+                  q.id,
+                  COALESCE(m.subject, ''),
+                  q.action_type,
+                  q.source_remote_name,
+                  q.source_uidvalidity,
+                  q.source_uid,
+                  q.target_remote_name,
+                  q.target_special_use,
+                  q.status,
+                  q.execution_state,
+                  q.resolution_type,
+                  q.attempt_count,
+                  q.next_attempt_at,
+                  q.last_error,
+                  q.created_at,
+                  q.updated_at
+                FROM mailbox_action_queue q
+                LEFT JOIN messages m ON m.id = q.message_id
+                WHERE q.account_id = ?
+                  AND q.status IN (
+                    'PENDING', 'APPLYING', 'FAILED_RETRYABLE', 'FAILED_PERMANENT', 'CONFLICT')
+                  AND q.dismissed_at IS NULL
+                  AND (q.resolution_type IS NULL OR q.resolution_type <> 'DISMISSED')
+                ORDER BY
+                  CASE q.status
+                    WHEN 'CONFLICT' THEN 0
+                    WHEN 'FAILED_PERMANENT' THEN 1
+                    WHEN 'FAILED_RETRYABLE' THEN 2
+                    WHEN 'APPLYING' THEN 3
+                    ELSE 4
+                  END,
+                  q.created_at DESC,
+                  q.id DESC""")) {
+      stmt.setInt(1, accountId);
+      try (ResultSet rs = stmt.executeQuery()) {
+        List<MailboxActionQueueRow> rows = new ArrayList<>();
+        while (rs.next()) {
+          rows.add(
+              new MailboxActionQueueRow(
+                  rs.getInt(1),
+                  rs.getString(2),
+                  rs.getString(3),
+                  rs.getString(4),
+                  getNullableLong(rs, 5),
+                  getNullableLong(rs, 6),
+                  rs.getString(7),
+                  rs.getString(8),
+                  rs.getString(9),
+                  rs.getString(10),
+                  rs.getString(11),
+                  rs.getInt(12),
+                  rs.getString(13),
+                  rs.getString(14),
+                  rs.getString(15),
+                  rs.getString(16)));
+        }
+        return rows;
+      }
+    }
+  }
+
   private record MessageActionContext(
       int messageId,
       int accountId,
@@ -824,6 +937,13 @@ public class DbEmailRepository implements EmailRepository {
       long sourceUid) {}
 
   private record TargetFolderContext(int folderId, String remoteName, String specialUse) {}
+
+  private record MailboxSyncStatusCounts(
+      int pendingCount,
+      int retryingCount,
+      int failedCount,
+      int conflictCount,
+      boolean needsAttention) {}
 
   private static String toISOString(ZonedDateTime dateTime) {
     return dateTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);

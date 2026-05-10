@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.Set;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 
@@ -25,6 +26,8 @@ public interface EmailRepository {
 
   Set<Long> getPendingMoveLikeActionSourceUids(
       int accountId, String sourceRemoteName, Long sourceUidValidity);
+
+  MailboxSyncStatus getMailboxSyncStatus(int accountId);
 
   void removeAllByUid(Collection<Long> localMessageIds);
 

@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.repository.EmailRepository;
@@ -127,6 +128,11 @@ public class InMemoryEmailRepository implements EmailRepository {
 
   public void addPendingMoveLikeActionSourceUid(long uid) {
     pendingMoveLikeActionSourceUids.add(uid);
+  }
+
+  @Override
+  public MailboxSyncStatus getMailboxSyncStatus(int accountId) {
+    return new MailboxSyncStatus(0, 0, 0, 0, false, List.of());
   }
 
   @Override

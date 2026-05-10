@@ -3,6 +3,7 @@ package net.aggregat4.quicksand.service;
 import java.util.Optional;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.repository.EmailRepository;
@@ -52,6 +53,10 @@ public class EmailService {
 
   public int getSearchMessageCount(int accountId, String query) {
     return emailRepository.getSearchMessageCount(accountId, query);
+  }
+
+  public MailboxSyncStatus getMailboxSyncStatus(int accountId) {
+    return emailRepository.getMailboxSyncStatus(accountId);
   }
 
   public void updateRead(int id, boolean read) {

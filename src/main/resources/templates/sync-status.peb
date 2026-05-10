@@ -1,0 +1,115 @@
+{% extends "templates/base.peb" %}
+
+{% block pageTitle %} Sync Status for {{ currentAccount.name }} {% endblock %}
+
+{% block additionalHeader %}
+<link rel="stylesheet" href="/css/account.css">
+{% endblock %}
+
+{% block content %}
+<main class="settings-layout sync-status-layout">
+    <nav class="settings-backlink" aria-label="Account sync navigation">
+        <a href="/accounts/{{ currentAccount.id }}">Back to mailbox</a>
+        <a href="/accounts/{{ currentAccount.id }}/settings/folders">Folder mappings</a>
+    </nav>
+
+    <section class="sync-status">
+        <header class="settings-header">
+            <h2>Sync status</h2>
+            {% if syncStatus.needsAttention() %}
+                <p class="settings-error">Remote mailbox sync needs attention.</p>
+            {% else %}
+                <p class="settings-notice">No remote mailbox sync errors need attention.</p>
+            {% endif %}
+        </header>
+
+        <section class="sync-summary" aria-label="Sync queue summary">
+            <div>
+                <strong>{{ syncStatus.pendingCount() }}</strong>
+                <span>Pending</span>
+            </div>
+            <div>
+                <strong>{{ syncStatus.retryingCount() }}</strong>
+                <span>Retrying</span>
+            </div>
+            <div>
+                <strong>{{ syncStatus.failedCount() }}</strong>
+                <span>Failed</span>
+            </div>
+            <div>
+                <strong>{{ syncStatus.conflictCount() }}</strong>
+                <span>Conflicts</span>
+            </div>
+        </section>
+
+        <section class="sync-mapping-summary">
+            <h3>Folder mappings</h3>
+            <dl>
+            {% for row in mappingRows %}
+                <div>
+                    <dt>{{ row.label() }}</dt>
+                    <dd>{{ row.statusLabel() }}</dd>
+                </div>
+            {% endfor %}
+            </dl>
+        </section>
+
+        <section class="sync-actions-table-section">
+            <h3>Queued actions</h3>
+            {% if syncStatus.actions().isEmpty() %}
+                <p class="empty-state">No queued mailbox actions.</p>
+            {% else %}
+                <div class="sync-actions-table-wrap">
+                    <table class="sync-actions-table">
+                        <thead>
+                            <tr>
+                                <th>Message</th>
+                                <th>Action</th>
+                                <th>Source</th>
+                                <th>Target</th>
+                                <th>Status</th>
+                                <th>Attempts</th>
+                                <th>Next retry</th>
+                                <th>Last error</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for action in syncStatus.actions() %}
+                            <tr>
+                                <td>{{ action.messageSubject().isBlank() ? '(message unavailable)' : action.messageSubject() }}</td>
+                                <td>{{ action.actionType() }}</td>
+                                <td>
+                                    {{ action.sourceRemoteName() == null ? '-' : action.sourceRemoteName() }}
+                                    {% if action.sourceUid() != null %}
+                                        <span>UID {{ action.sourceUid() }}</span>
+                                    {% endif %}
+                                    {% if action.sourceUidValidity() != null %}
+                                        <span>UIDVALIDITY {{ action.sourceUidValidity() }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ action.targetRemoteName() == null ? '-' : action.targetRemoteName() }}
+                                    {% if action.targetSpecialUse() != null %}
+                                        <span>{{ action.targetSpecialUse() }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ action.status() }}
+                                    <span>{{ action.executionState() }}</span>
+                                    {% if action.resolutionType() != null %}
+                                        <span>{{ action.resolutionType() }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ action.attemptCount() }}</td>
+                                <td>{{ action.nextAttemptAt() == null ? '-' : action.nextAttemptAt() }}</td>
+                                <td>{{ action.lastError() == null ? '-' : action.lastError() }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </section>
+    </section>
+</main>
+{% endblock %}

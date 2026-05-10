@@ -12,6 +12,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.time.Clock;
 import javax.sql.DataSource;
 import net.aggregat4.quicksand.DbTestUtils;
@@ -179,6 +181,54 @@ class AccountFolderSettingsWebServiceTest {
     }
   }
 
+  @Test
+  void rendersSyncStatusAndMailboxWarningForFailedActions() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Syncing", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    int inboxFolderId =
+        folderRepository.createFolder(account, "Inbox", "INBOX", FolderSpecialUse.INBOX, 1L).id();
+    createRequiredSpecialUseFolders(account, folderRepository);
+    seedFailedMailboxAction(ds, account.id(), inboxFolderId);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+
+    WebServer webServer = startServer(ds, accountRepository, folderRepository, mappingRepository);
+    try {
+      String baseUrl = "http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME);
+      HttpClient client = HttpClient.newHttpClient();
+
+      HttpResponse<String> syncResponse =
+          client.send(
+              HttpRequest.newBuilder(URI.create(baseUrl + "/accounts/" + account.id() + "/sync"))
+                  .GET()
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      HttpResponse<String> accountResponse =
+          client.send(
+              HttpRequest.newBuilder(URI.create(baseUrl + "/accounts/" + account.id()))
+                  .GET()
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+
+      assertEquals(200, syncResponse.statusCode());
+      assertTrue(syncResponse.body().contains("Sync status"));
+      assertTrue(syncResponse.body().contains("Remote mailbox sync needs attention."));
+      assertTrue(syncResponse.body().contains("1</strong>"));
+      assertTrue(syncResponse.body().contains("Queued subject"));
+      assertTrue(syncResponse.body().contains("FAILED_RETRYABLE"));
+      assertTrue(syncResponse.body().contains("Temporary IMAP failure"));
+      assertEquals(200, accountResponse.statusCode());
+      assertTrue(accountResponse.body().contains("Sync needs attention"));
+      assertTrue(accountResponse.body().contains("/accounts/" + account.id() + "/sync"));
+    } finally {
+      webServer.stop();
+    }
+  }
+
   private static WebServer startServer(
       DataSource ds,
       DbAccountRepository accountRepository,
@@ -226,6 +276,45 @@ class AccountFolderSettingsWebServiceTest {
     folderRepository.createFolder(account, "Junk", "Junk", FolderSpecialUse.JUNK, 4L);
     folderRepository.createFolder(account, "Sent", "Sent", FolderSpecialUse.SENT, 5L);
     folderRepository.createFolder(account, "Drafts", "Drafts", FolderSpecialUse.DRAFTS, 6L);
+  }
+
+  private static void seedFailedMailboxAction(DataSource ds, int accountId, int folderId)
+      throws Exception {
+    try (Connection con = ds.getConnection()) {
+      int messageId;
+      try (PreparedStatement stmt =
+          con.prepareStatement(
+              """
+                  INSERT INTO messages (
+                    folder_id, imap_uid, subject, sent_date, sent_date_epoch_s,
+                    received_date, received_date_epoch_s, body_excerpt, starred, read, body)
+                  VALUES (?, 42, 'Queued subject', '2026-03-25T09:15:00Z', 1774430100,
+                    '2026-03-25T09:15:00Z', 1774430100, 'excerpt', 0, 0, 'body')
+                  RETURNING id""")) {
+        stmt.setInt(1, folderId);
+        try (var rs = stmt.executeQuery()) {
+          rs.next();
+          messageId = rs.getInt(1);
+        }
+      }
+      try (PreparedStatement stmt =
+          con.prepareStatement(
+              """
+                  INSERT INTO mailbox_action_queue (
+                    account_id, message_id, action_type,
+                    source_folder_id, source_remote_name, source_uidvalidity, source_uid,
+                    target_folder_id, target_remote_name, target_special_use,
+                    status, execution_state, attempt_count, next_attempt_at, last_error)
+                  VALUES (?, ?, 'MOVE', ?, 'INBOX', 1, 42, ?, 'Archive', 'ARCHIVE',
+                    'FAILED_RETRYABLE', 'ATTEMPTED_UNKNOWN', 3,
+                    '2026-03-25T09:20:00Z', 'Temporary IMAP failure')""")) {
+        stmt.setInt(1, accountId);
+        stmt.setInt(2, messageId);
+        stmt.setInt(3, folderId);
+        stmt.setInt(4, folderId);
+        stmt.executeUpdate();
+      }
+    }
   }
 
   private static int countOccurrences(String input, String needle) {
