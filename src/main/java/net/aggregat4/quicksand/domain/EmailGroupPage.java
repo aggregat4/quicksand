@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public record EmailGroupPage(List<EmailGroup> groups, Pagination pagination) {
   private static final DateTimeFormatter RECEIVED_RANGE_FORMATTER =
-      DateTimeFormatter.ofPattern("dd LLL HH:mm");
+      DateTimeFormatter.ofPattern("dd LLL");
 
   public int getNofMessages() {
     return groups.stream().mapToInt(EmailGroup::getNofMessages).sum();
