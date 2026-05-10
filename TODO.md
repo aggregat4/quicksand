@@ -33,8 +33,8 @@ Several UI affordances exist before their backing behavior is complete.
 
 **Confirmed still needed:**
 
-- **implement or deliberately hide remaining unsupported bulk message actions** (archive, delete, spam, move). The toolbar buttons and viewer action forms render, but `EmailWebService.emailActionHandler` only handles mark read/unread and logs everything else.
-- **decide how much IMAP server-side state should be updated from local mailbox actions**. Currently no local action propagates back to the IMAP server.
+- **implement or deliberately hide remaining unsupported bulk message actions** (spam, move). Archive and delete are now wired end-to-end; spam and move still log as unimplemented.
+- **decide how much IMAP server-side state should be updated from local mailbox actions**. Currently no local action propagates back to the IMAP server. This applies uniformly to read/unread, delete, and archive. After spam and move are implemented, add a dedicated TODO in `EmailWebService.emailActionHandler` making this gap explicit so it is not lost.
 - **extract and persist incoming message attachments during IMAP sync**. `ImapStoreSync.downloadNewMessages` hardcodes `Collections.emptyList()` for attachments and skips `Part.ATTACHMENT` dispositions in `ImapBodyExtractor`. Stored messages therefore never expose real downloaded attachments.
 - **improve IMAP sync beyond the current naive folder/message scan**. The codebase has commented-out QRESYNC/CONDSTORE paths and TODOs for `UIDVALIDITY` tracking, but only the naive UID scan is active.
 

@@ -57,4 +57,8 @@ public class EmailService {
   public void deleteMessage(int id) {
     emailRepository.deleteById(id);
   }
+
+  public void archiveMessage(int id) {
+    emailRepository.archiveById(id);
+  }
 }

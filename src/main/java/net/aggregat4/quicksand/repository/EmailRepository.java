@@ -27,6 +27,8 @@ public interface EmailRepository {
 
   void deleteById(int id);
 
+  void archiveById(int id);
+
   int addMessage(int folderId, Email email);
 
   void addMessages(int folderId, List<Email> emails);

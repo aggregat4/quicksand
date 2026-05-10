@@ -39,8 +39,12 @@ import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class EmailWebServiceActionTest {
 
   private static WebServer webServer;
@@ -48,6 +52,8 @@ class EmailWebServiceActionTest {
   private static DbEmailRepository emailRepository;
   private static int firstMessageId;
   private static int secondMessageId;
+  private static int accountId;
+  private static int inboxFolderId;
   private static String baseUrl;
 
   @BeforeAll
@@ -58,11 +64,12 @@ class EmailWebServiceActionTest {
     DbAccountRepository accountRepository = new DbAccountRepository(ds);
     Account account = new Account(-1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p");
     accountRepository.createAccountIfNew(account);
-    int accountId = accountRepository.getAccounts().getFirst().id();
+    accountId = accountRepository.getAccounts().getFirst().id();
 
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
     NamedFolder folder =
         folderRepository.createFolder(accountRepository.getAccount(accountId), "INBOX");
+    inboxFolderId = folder.id();
 
     DbActorRepository actorRepository = new DbActorRepository(ds);
     emailRepository = new DbEmailRepository(ds, actorRepository);
@@ -117,6 +124,7 @@ class EmailWebServiceActionTest {
   }
 
   @Test
+  @Order(1)
   void markReadAndUnreadRedirectsAndUpdatesState() throws IOException, InterruptedException {
     assertFalse(emailRepository.findById(firstMessageId).orElseThrow().header().read());
 
@@ -152,6 +160,7 @@ class EmailWebServiceActionTest {
   }
 
   @Test
+  @Order(4)
   void deleteRemovesMessageAndRedirectsToReferer() throws IOException, InterruptedException {
     assertTrue(emailRepository.findById(firstMessageId).isPresent());
 
@@ -171,6 +180,7 @@ class EmailWebServiceActionTest {
   }
 
   @Test
+  @Order(5)
   void deleteFromViewerRedirectsToHome() throws IOException, InterruptedException {
     assertTrue(emailRepository.findById(secondMessageId).isPresent());
 
@@ -190,6 +200,7 @@ class EmailWebServiceActionTest {
   }
 
   @Test
+  @Order(2)
   void bulkMarkReadUpdatesMultipleEmails() throws IOException, InterruptedException {
     assertFalse(emailRepository.findById(firstMessageId).orElseThrow().header().read());
     assertTrue(emailRepository.findById(secondMessageId).orElseThrow().header().read());
@@ -211,5 +222,50 @@ class EmailWebServiceActionTest {
 
     assertTrue(emailRepository.findById(firstMessageId).orElseThrow().header().read());
     assertTrue(emailRepository.findById(secondMessageId).orElseThrow().header().read());
+  }
+
+  @Test
+  @Order(3)
+  void archiveMovesMessageToArchiveFolderAndRedirectsToReferer()
+      throws IOException, InterruptedException {
+    assertTrue(emailRepository.findById(firstMessageId).isPresent());
+    int inboxCountBefore = emailRepository.getMessageCount(accountId, inboxFolderId);
+
+    HttpRequest archive =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Referer", baseUrl + "/accounts/1")
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    "email_select=" + firstMessageId + "&email_action_archive=Archive"))
+            .build();
+    HttpResponse<String> response = httpClient.send(archive, HttpResponse.BodyHandlers.ofString());
+    assertEquals(303, response.statusCode());
+    assertEquals(baseUrl + "/accounts/1", response.headers().firstValue("location").orElseThrow());
+
+    assertTrue(emailRepository.findById(firstMessageId).isPresent());
+    assertEquals(inboxCountBefore - 1, emailRepository.getMessageCount(accountId, inboxFolderId));
+  }
+
+  @Test
+  @Order(3)
+  void archiveFromViewerRedirectsToHome() throws IOException, InterruptedException {
+    assertTrue(emailRepository.findById(secondMessageId).isPresent());
+    int inboxCountBefore = emailRepository.getMessageCount(accountId, inboxFolderId);
+
+    HttpRequest archive =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Referer", baseUrl + "/emails/" + secondMessageId + "/viewer")
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    "email_select=" + secondMessageId + "&email_action_archive=Archive"))
+            .build();
+    HttpResponse<String> response = httpClient.send(archive, HttpResponse.BodyHandlers.ofString());
+    assertEquals(303, response.statusCode());
+    assertEquals("/", response.headers().firstValue("location").orElseThrow());
+
+    assertTrue(emailRepository.findById(secondMessageId).isPresent());
+    assertEquals(inboxCountBefore - 1, emailRepository.getMessageCount(accountId, inboxFolderId));
   }
 }

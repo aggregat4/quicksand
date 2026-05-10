@@ -153,22 +153,24 @@ public class EmailWebService implements HttpService {
     List<String> selectionIds = formParams.getOrDefault("email_select", Collections.emptyList());
     LOGGER.info("Selection action {} for emails {}", action, selectionIds);
     List<Integer> emailIds = selectionIds.stream().map(Integer::parseInt).toList();
+    // TODO: none of these local actions propagate back to the IMAP server. After spam/move are
+    // implemented, decide whether and how to push local state changes (flags, delete, move) to the
+    // server so the next sync does not undo or conflict with user actions.
     switch (action) {
       case "email_action_mark_read" -> emailIds.forEach(id -> emailService.updateRead(id, true));
       case "email_action_mark_unread" -> emailIds.forEach(id -> emailService.updateRead(id, false));
       case "email_action_delete" -> emailIds.forEach(id -> emailService.deleteMessage(id));
+      case "email_action_archive" -> emailIds.forEach(id -> emailService.archiveMessage(id));
       default -> LOGGER.info("Unimplemented action {}", action);
     }
     // NOTE: it is unclear how reliable using referer is. It is very convenient and maybe for local
     // applications
     // it is no problem
     URI referer = request.headers().referer().orElse(URI.create("/"));
-    URI location =
-        "email_action_delete".equals(action)
-                && referer.getPath() != null
-                && referer.getPath().contains("/viewer")
-            ? URI.create("/")
-            : referer;
+    boolean fromViewer = referer.getPath() != null && referer.getPath().contains("/viewer");
+    boolean actionLeavesFolder =
+        "email_action_delete".equals(action) || "email_action_archive".equals(action);
+    URI location = (actionLeavesFolder && fromViewer) ? URI.create("/") : referer;
     ResponseUtils.redirectAfterPost(response, location);
   }
 
