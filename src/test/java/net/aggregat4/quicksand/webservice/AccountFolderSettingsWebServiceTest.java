@@ -20,6 +20,9 @@ import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.FolderMappingStatus;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
+import net.aggregat4.quicksand.domain.MailboxActionExecutionState;
+import net.aggregat4.quicksand.domain.MailboxActionStatus;
+import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
@@ -305,13 +308,16 @@ class AccountFolderSettingsWebServiceTest {
                     source_folder_id, source_remote_name, source_uidvalidity, source_uid,
                     target_folder_id, target_remote_name, target_special_use,
                     status, execution_state, attempt_count, next_attempt_at, last_error)
-                  VALUES (?, ?, 'MOVE', ?, 'INBOX', 1, 42, ?, 'Archive', 'ARCHIVE',
-                    'FAILED_RETRYABLE', 'ATTEMPTED_UNKNOWN', 3,
-                    '2026-03-25T09:20:00Z', 'Temporary IMAP failure')""")) {
+                  VALUES (?, ?, ?, ?, 'INBOX', 1, 42, ?, 'Archive', ?,
+                    ?, ?, 3, '2026-03-25T09:20:00Z', 'Temporary IMAP failure')""")) {
         stmt.setInt(1, accountId);
         stmt.setInt(2, messageId);
-        stmt.setInt(3, folderId);
+        stmt.setString(3, MailboxActionType.MOVE.name());
         stmt.setInt(4, folderId);
+        stmt.setInt(5, folderId);
+        stmt.setString(6, FolderSpecialUse.ARCHIVE.name());
+        stmt.setString(7, MailboxActionStatus.FAILED_RETRYABLE.name());
+        stmt.setString(8, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
         stmt.executeUpdate();
       }
     }

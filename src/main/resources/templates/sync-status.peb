@@ -77,7 +77,7 @@
                         {% for action in syncStatus.actions() %}
                             <tr>
                                 <td>{{ action.messageSubject().isBlank() ? '(message unavailable)' : action.messageSubject() }}</td>
-                                <td>{{ action.actionType() }}</td>
+                                <td>{{ action.actionType().name() }}</td>
                                 <td>
                                     {{ action.sourceRemoteName() == null ? '-' : action.sourceRemoteName() }}
                                     {% if action.sourceUid() != null %}
@@ -90,14 +90,14 @@
                                 <td>
                                     {{ action.targetRemoteName() == null ? '-' : action.targetRemoteName() }}
                                     {% if action.targetSpecialUse() != null %}
-                                        <span>{{ action.targetSpecialUse() }}</span>
+                                        <span>{{ action.targetSpecialUse().name() }}</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {{ action.status() }}
-                                    <span>{{ action.executionState() }}</span>
+                                    {{ action.status().name() }}
+                                    <span>{{ action.executionState().name() }}</span>
                                     {% if action.resolutionType() != null %}
-                                        <span>{{ action.resolutionType() }}</span>
+                                        <span>{{ action.resolutionType().name() }}</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ action.attemptCount() }}</td>

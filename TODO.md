@@ -1,6 +1,6 @@
 # TODO
 
-## Verified Baseline (2026-04-26)
+## Verified Baseline (2026-05-19)
 
 - Java 25 application on Helidon 4
 - runnable JVM artifact is `target/quicksand.jar`
@@ -27,17 +27,35 @@
 
 ## Current Backlog
 
-### 1. Mailbox Interaction Gaps
+### 1. IMAP Action Sync (in progress on `feature/imap-action-sync-spec`)
 
-Several UI affordances exist before their backing behavior is complete.
+Local-first mailbox actions with a queued remote replay model are specified in `specs/imap-action-sync.md`.
+
+**Done:**
+
+- schema for folder remote metadata, account folder mappings, and `mailbox_action_queue`
+- folder sync captures UIDVALIDITY and special-use metadata
+- account folder mapping settings UI, remote folder creation, and setup blocker for missing mappings
+- local actions enqueue remote work transactionally; inbound sync suppresses pending move-like source UIDs
+- account sync status view and header warnings
+- background `MailboxActionSync` applies **read/unread** to IMAP with retry/conflict handling
+
+**Still needed:**
+
+- **remote move-like actions** — implement `UID MOVE` (then safe COPY/UID-expunge fallback where UIDPLUS allows) for MOVE, DELETE→Trash, ARCHIVE, and MARK_SPAM in `MailboxActionSync`
+- **Sent append sync** after SMTP delivery
+- **Drafts sync** with debounced/coalesced remote updates
+- **broader GreenMail integration tests** for move/delete/trash, retry, mapping flows, Sent, and Drafts
+- **sync status actions** — retry now, rollback, abandon, dismiss resolved rows, reset local mirror (spec; not all wired yet)
+
+### 2. Other Mailbox Interaction Gaps
 
 **Confirmed still needed:**
 
-- **decide how much IMAP server-side state should be updated from local mailbox actions**. Currently no local action propagates back to the IMAP server. This applies uniformly to read/unread, delete, archive, spam, and move. `EmailWebService.emailActionHandler` now has a dedicated TODO for this gap.
 - **extract and persist incoming message attachments during IMAP sync**. `ImapStoreSync.downloadNewMessages` hardcodes `Collections.emptyList()` for attachments and skips `Part.ATTACHMENT` dispositions in `ImapBodyExtractor`. Stored messages therefore never expose real downloaded attachments.
-- **improve IMAP sync beyond the current naive folder/message scan**. The codebase has commented-out QRESYNC/CONDSTORE paths and TODOs for `UIDVALIDITY` tracking, but only the naive UID scan is active.
+- **improve IMAP sync beyond the current naive folder/message scan**. The codebase has commented-out QRESYNC/CONDSTORE paths and TODOs for `UIDVALIDITY` tracking at the message level, but only the naive UID scan is active.
 
-### 2. Runtime, Schema, And Storage Hardening
+### 3. Runtime, Schema, And Storage Hardening
 
 The current defaults are acceptable for a local prototype, but they should be made explicit before treating Quicksand as a non-local or long-lived mail client.
 
@@ -47,26 +65,26 @@ The current defaults are acceptable for a local prototype, but they should be ma
 - **resolve the SQLite/Hikari pooling question** in `Main.createDataSource` or document the intended connection setup. The commented-out `SQLiteDataSource` path and the `TODO` are still there.
 - **add indexes** for the query paths now known to matter. `QuicksandMigrations` has an explicit `TODO index on imap_uid since we do lookups there`. Other hot paths include folder paging/sorting (`received_date_epoch_s, id`), actor lookup by message, and queued outbound retry scanning.
 - **revisit folder uniqueness**. The schema declares `folders(name TEXT UNIQUE)`, making folder names globally unique rather than per-account unique.
-- **store IMAP UIDVALIDITY** and make UID lookups folder/validity-aware before relying on UIDs as durable identity. Currently `last_seen_uid` is stored per folder but `UIDVALIDITY` is not.
+- **make UID lookups folder/validity-aware at the message level** before relying on UIDs as durable identity. Folder rows store `uidvalidity`, but message-level identity in queued actions and reconciliation can still be strengthened.
 - **add `NOT NULL`, uniqueness, and foreign-key cascade constraints** where application invariants are now clear. The migration has a `TODO consider adding NOT NULL constraints`. Some tables (e.g. `messages.folder_id`, `messages.imap_uid`) still allow NULLs that the application never expects.
 - **replace plaintext account password storage** with an explicit local secret-storage strategy before non-local use. `QuicksandMigrations` has `TODO: Store password bcrypt encrypted and salted`. Recoverable mail credentials cannot simply be bcrypt-hashed, so this needs a real design (e.g. OS keychain, master-password-encrypted store).
 - **add targeted regression coverage** for schema constraints, multi-account folders, IMAP UID behavior, and deletion/cascade behavior.
 
 ## Recently Completed (since last review)
 
-1. **Mark read/unread wired end-to-end** — `EmailRepository.updateRead`, `EmailService.updateRead`, and `EmailWebService.emailActionHandler` now handle `email_action_mark_read` / `email_action_mark_unread` for both per-email and bulk selection. Template names normalized across `emailheader.peb`, `account.peb`, and `emailviewer.peb`. Viewer toolbar now shows the correct read/unread button based on current state. `InMemoryEmailRepository` made public for reuse; new `EmailServiceTest` verifies the flag flip leaves `starred` untouched.
-2. **Bug fix: missing `executeUpdate()` in `DbEmailRepository.updateFlags` and `updateRead`** — `withPreparedStmtConsumer` requires the consumer to call `executeUpdate()`, which was omitted in both flag update methods. This was caught by the new integration test and fixed before production use.
-3. **Test coverage for mark read/unread** — New `EmailWebServiceActionTest` integration test starts a minimal Helidon server, seeds emails in SQLite, and verifies that POSTs to `/emails/selection` return 303 redirects and actually update the `read` column for single and bulk selections. Two new Playwright e2e tests verify bulk toolbar and per-email hover actions update the `.read` CSS class after redirect.
-4. **HTML sanitization test coverage** — `HtmlSearchHighlighterTest` expanded from 2 → 8 tests with three realistic fixture files (`newsletter.html`, `malicious.html`, `styled.html`). New `EmailWebServiceSanitizationTest` exercises the production `NO_IMAGES_POLICY` and `IMAGES_POLICY` against real HTML.
-5. **Rich HTML demo emails** — four new visually complex demo emails added to `GreenmailUtils` boundary seeds (summer sale, flight confirmation, monthly invoice, security alert). They use table-based layouts, inline CSS, and placeholder images for end-to-end viewer testing.
-6. **Archive, spam, and move wired end-to-end** — mailbox action handling now moves archived messages to a local `Archive` folder, spammed messages to a local `Spam` folder, and selected messages to the chosen target folder. Integration coverage verifies redirects, folder count changes, and cross-account move rejection.
+1. **IMAP action sync foundation** — v3 migration, folder metadata, account folder mappings, mapping settings UI, setup blocker, transactional enqueue, inbound UID suppression, and sync status view (`feature/imap-action-sync-spec`).
+2. **Remote read/unread sync** — `MailboxActionSync` background job claims queued rows, applies `\Seen` on IMAP, and records success/retry/conflict; GreenMail-backed `MailboxActionSyncTest`.
+3. **Mark read/unread wired end-to-end** — local update plus queue row; integration and Playwright coverage for toolbar and bulk actions.
+4. **Archive, spam, move, and delete (local)** — local folder moves with queued remote intent; integration tests verify redirects, folder counts, and cross-account rejection.
+5. **HTML sanitization and rich demo emails** — fixture-backed unit tests and visually complex demo messages for viewer testing.
 
 ## Recommended Next Slice
 
 If picking one product-facing task next:
 
-1. **decide the IMAP propagation model for local mailbox actions** so read/unread, delete, archive, spam, and move do not get undone or conflict on the next sync
-2. **add incoming attachment extraction/persistence** when message attachments become the next mail-reading slice
-3. **handle runtime/schema/storage hardening incrementally**, especially folder uniqueness and UIDVALIDITY, before treating multi-account local state as durable
+1. **implement remote move-like actions in `MailboxActionSync`** (`UID MOVE` for move, delete-as-trash, archive, and spam) so queued local intent is replayed to IMAP
+2. **add GreenMail integration tests** for at least one move-like action end-to-end
+3. **add incoming attachment extraction/persistence** when message attachments become the next mail-reading slice
+4. **handle runtime/schema/storage hardening incrementally**, especially per-account folder uniqueness, before treating multi-account local state as durable
 
 Developer linting/tooling is sufficient for now; do not make tooling the next primary slice unless a new build pain appears.

@@ -16,6 +16,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
+import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import org.eclipse.angus.mail.imap.IMAPFolder;
@@ -81,7 +82,8 @@ public class MailboxActionSync {
   }
 
   private void applyAction(MailboxActionQueueRow action) throws MessagingException {
-    if (!"MARK_READ".equals(action.actionType()) && !"MARK_UNREAD".equals(action.actionType())) {
+    if (action.actionType() != MailboxActionType.MARK_READ
+        && action.actionType() != MailboxActionType.MARK_UNREAD) {
       throw new IllegalArgumentException("Unsupported mailbox action type " + action.actionType());
     }
     if (action.sourceRemoteName() == null || action.sourceUid() == null) {
@@ -103,7 +105,7 @@ public class MailboxActionSync {
         if (message == null) {
           throw new MailboxActionConflictException("Source UID no longer exists");
         }
-        message.setFlag(Flags.Flag.SEEN, "MARK_READ".equals(action.actionType()));
+        message.setFlag(Flags.Flag.SEEN, action.actionType() == MailboxActionType.MARK_READ);
       } finally {
         imapFolder.close(false);
       }

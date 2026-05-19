@@ -16,7 +16,13 @@ import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.FolderMappingStatus;
+import net.aggregat4.quicksand.domain.FolderSpecialUse;
+import net.aggregat4.quicksand.domain.MailboxActionExecutionState;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
+import net.aggregat4.quicksand.domain.MailboxActionResolutionType;
+import net.aggregat4.quicksand.domain.MailboxActionStatus;
+import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.PageParams;
@@ -186,7 +192,12 @@ public class DbEmailRepository implements EmailRepository {
                   stmt.executeUpdate();
                 });
             enqueueAction(
-                con, context.get(), messageRead ? "MARK_READ" : "MARK_UNREAD", null, null, null);
+                con,
+                context.get(),
+                messageRead ? MailboxActionType.MARK_READ : MailboxActionType.MARK_UNREAD,
+                null,
+                null,
+                null);
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -227,8 +238,14 @@ public class DbEmailRepository implements EmailRepository {
             WHERE account_id = ?
               AND source_remote_name = ?
               AND source_uidvalidity IS ?
-              AND action_type IN ('MOVE', 'DELETE', 'ARCHIVE', 'MARK_SPAM')
-              AND status IN ('PENDING', 'APPLYING', 'FAILED_RETRYABLE')""",
+              AND action_type IN (%s)
+              AND status IN (%s)"""
+            .formatted(
+                EnumSql.inClause(MailboxActionType.MOVE_LIKE),
+                EnumSql.inClause(
+                    MailboxActionStatus.PENDING,
+                    MailboxActionStatus.APPLYING,
+                    MailboxActionStatus.FAILED_RETRYABLE)),
         stmt -> {
           stmt.setInt(1, accountId);
           stmt.setString(2, sourceRemoteName);
@@ -280,12 +297,14 @@ public class DbEmailRepository implements EmailRepository {
                   con.prepareStatement(
                       """
                           UPDATE mailbox_action_queue
-                          SET status = 'APPLYING',
+                          SET status = ?,
                               updated_at = ?
                           WHERE id = ?
-                            AND status IN ('PENDING', 'FAILED_RETRYABLE')""")) {
-                stmt.setString(1, toISOString(now));
-                stmt.setInt(2, action.id());
+                            AND status IN (%s)"""
+                          .formatted(EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
+                stmt.setString(1, MailboxActionStatus.APPLYING.name());
+                stmt.setString(2, toISOString(now));
+                stmt.setInt(3, action.id());
                 stmt.executeUpdate();
               }
             }
@@ -306,16 +325,18 @@ public class DbEmailRepository implements EmailRepository {
         ds,
         """
             UPDATE mailbox_action_queue
-            SET status = 'SUCCEEDED',
-                execution_state = 'CONFIRMED_APPLIED',
+            SET status = ?,
+                execution_state = ?,
                 updated_at = ?,
                 succeeded_at = ?,
                 last_error = NULL
             WHERE id = ?""",
         stmt -> {
-          stmt.setString(1, toISOString(now));
-          stmt.setString(2, toISOString(now));
-          stmt.setInt(3, id);
+          stmt.setString(1, MailboxActionStatus.SUCCEEDED.name());
+          stmt.setString(2, MailboxActionExecutionState.CONFIRMED_APPLIED.name());
+          stmt.setString(3, toISOString(now));
+          stmt.setString(4, toISOString(now));
+          stmt.setInt(5, id);
           stmt.executeUpdate();
         });
   }
@@ -327,8 +348,8 @@ public class DbEmailRepository implements EmailRepository {
         ds,
         """
             UPDATE mailbox_action_queue
-            SET status = 'FAILED_RETRYABLE',
-                execution_state = 'ATTEMPTED_UNKNOWN',
+            SET status = ?,
+                execution_state = ?,
                 attempt_count = attempt_count + 1,
                 next_attempt_at = ?,
                 next_attempt_at_epoch_s = ?,
@@ -336,11 +357,13 @@ public class DbEmailRepository implements EmailRepository {
                 updated_at = ?
             WHERE id = ?""",
         stmt -> {
-          stmt.setString(1, toISOString(nextAttempt));
-          stmt.setLong(2, nextAttempt.toEpochSecond());
-          stmt.setString(3, error);
-          stmt.setString(4, toISOString(now));
-          stmt.setInt(5, id);
+          stmt.setString(1, MailboxActionStatus.FAILED_RETRYABLE.name());
+          stmt.setString(2, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
+          stmt.setString(3, toISOString(nextAttempt));
+          stmt.setLong(4, nextAttempt.toEpochSecond());
+          stmt.setString(5, error);
+          stmt.setString(6, toISOString(now));
+          stmt.setInt(7, id);
           stmt.executeUpdate();
         });
   }
@@ -351,18 +374,20 @@ public class DbEmailRepository implements EmailRepository {
         ds,
         """
             UPDATE mailbox_action_queue
-            SET status = 'CONFLICT',
-                execution_state = 'ATTEMPTED_UNKNOWN',
+            SET status = ?,
+                execution_state = ?,
                 attempt_count = attempt_count + 1,
                 last_error = ?,
                 updated_at = ?,
                 resolved_at = ?
             WHERE id = ?""",
         stmt -> {
-          stmt.setString(1, error);
-          stmt.setString(2, toISOString(now));
-          stmt.setString(3, toISOString(now));
-          stmt.setInt(4, id);
+          stmt.setString(1, MailboxActionStatus.CONFLICT.name());
+          stmt.setString(2, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
+          stmt.setString(3, error);
+          stmt.setString(4, toISOString(now));
+          stmt.setString(5, toISOString(now));
+          stmt.setInt(6, id);
           stmt.executeUpdate();
         });
   }
@@ -711,17 +736,17 @@ public class DbEmailRepository implements EmailRepository {
 
   @Override
   public void deleteById(int id) {
-    moveToMappedSpecialFolderById(id, "DELETE", "TRASH");
+    moveToMappedSpecialFolderById(id, MailboxActionType.DELETE, FolderSpecialUse.TRASH);
   }
 
   @Override
   public void archiveById(int id) {
-    moveToMappedSpecialFolderById(id, "ARCHIVE", "ARCHIVE");
+    moveToMappedSpecialFolderById(id, MailboxActionType.ARCHIVE, FolderSpecialUse.ARCHIVE);
   }
 
   @Override
   public void markSpamById(int id) {
-    moveToMappedSpecialFolderById(id, "MARK_SPAM", "JUNK");
+    moveToMappedSpecialFolderById(id, MailboxActionType.MARK_SPAM, FolderSpecialUse.JUNK);
   }
 
   @Override
@@ -749,7 +774,7 @@ public class DbEmailRepository implements EmailRepository {
             }
 
             moveMessageToFolder(con, id, targetFolderId);
-            enqueueAction(con, context.get(), "MOVE", target.get(), null, null);
+            enqueueAction(con, context.get(), MailboxActionType.MOVE, target.get(), null, null);
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -760,7 +785,8 @@ public class DbEmailRepository implements EmailRepository {
         });
   }
 
-  private void moveToMappedSpecialFolderById(int id, String actionType, String specialUse) {
+  private void moveToMappedSpecialFolderById(
+      int id, MailboxActionType actionType, FolderSpecialUse specialUse) {
     DbUtil.withConConsumer(
         ds,
         con -> {
@@ -846,7 +872,7 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   private static Optional<TargetFolderContext> findMappedTargetFolderContext(
-      Connection con, int accountId, String specialUse) throws SQLException {
+      Connection con, int accountId, FolderSpecialUse specialUse) throws SQLException {
     try (PreparedStatement stmt =
         con.prepareStatement(
             """
@@ -854,14 +880,17 @@ public class DbEmailRepository implements EmailRepository {
                 FROM account_folder_mappings
                 WHERE account_id = ? AND special_use = ?
                   AND folder_id IS NOT NULL AND remote_name IS NOT NULL
-                  AND status IN ('AUTO_DETECTED', 'USER_CONFIRMED')""")) {
+                  AND status IN (%s)"""
+                .formatted(EnumSql.inClause(FolderMappingStatus.CONFIGURED)))) {
       stmt.setInt(1, accountId);
-      stmt.setString(2, specialUse);
+      stmt.setString(2, specialUse.name());
       try (ResultSet rs = stmt.executeQuery()) {
         if (!rs.next()) {
           return Optional.empty();
         }
-        return Optional.of(new TargetFolderContext(rs.getInt(1), rs.getString(2), rs.getString(3)));
+        return Optional.of(
+            new TargetFolderContext(
+                rs.getInt(1), rs.getString(2), FolderSpecialUse.valueOf(rs.getString(3))));
       }
     }
   }
@@ -875,7 +904,12 @@ public class DbEmailRepository implements EmailRepository {
         if (!rs.next()) {
           return Optional.empty();
         }
-        return Optional.of(new TargetFolderContext(rs.getInt(1), rs.getString(2), rs.getString(3)));
+        String specialUse = rs.getString(3);
+        return Optional.of(
+            new TargetFolderContext(
+                rs.getInt(1),
+                rs.getString(2),
+                specialUse == null ? null : FolderSpecialUse.valueOf(specialUse)));
       }
     }
   }
@@ -883,9 +917,9 @@ public class DbEmailRepository implements EmailRepository {
   private static void enqueueAction(
       Connection con,
       MessageActionContext source,
-      String actionType,
+      MailboxActionType actionType,
       TargetFolderContext target,
-      String targetSpecialUse,
+      FolderSpecialUse targetSpecialUse,
       String payloadJson)
       throws SQLException {
     try (PreparedStatement stmt =
@@ -898,7 +932,7 @@ public class DbEmailRepository implements EmailRepository {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
       stmt.setInt(1, source.accountId());
       stmt.setInt(2, source.messageId());
-      stmt.setString(3, actionType);
+      stmt.setString(3, actionType.name());
       stmt.setInt(4, source.sourceFolderId());
       stmt.setString(5, source.sourceRemoteName());
       if (source.sourceUidValidity() == null) {
@@ -914,7 +948,7 @@ public class DbEmailRepository implements EmailRepository {
         stmt.setInt(8, target.folderId());
         stmt.setString(9, target.remoteName());
       }
-      stmt.setString(10, targetSpecialUse);
+      stmt.setString(10, targetSpecialUse == null ? null : targetSpecialUse.name());
       stmt.setString(11, payloadJson);
       stmt.executeUpdate();
     }
@@ -941,18 +975,27 @@ public class DbEmailRepository implements EmailRepository {
         con.prepareStatement(
             """
                 SELECT
-                  COALESCE(SUM(CASE WHEN status IN ('PENDING', 'APPLYING') THEN 1 ELSE 0 END), 0),
-                  COALESCE(SUM(CASE WHEN status = 'FAILED_RETRYABLE' THEN 1 ELSE 0 END), 0),
-                  COALESCE(SUM(CASE WHEN status = 'FAILED_PERMANENT' THEN 1 ELSE 0 END), 0),
-                  COALESCE(SUM(CASE WHEN status = 'CONFLICT' THEN 1 ELSE 0 END), 0),
+                  COALESCE(SUM(CASE WHEN status IN (%s) THEN 1 ELSE 0 END), 0),
+                  COALESCE(SUM(CASE WHEN status = '%s' THEN 1 ELSE 0 END), 0),
+                  COALESCE(SUM(CASE WHEN status = '%s' THEN 1 ELSE 0 END), 0),
+                  COALESCE(SUM(CASE WHEN status = '%s' THEN 1 ELSE 0 END), 0),
                   COALESCE(SUM(CASE
-                    WHEN status IN ('FAILED_PERMANENT', 'CONFLICT')
-                      OR (status = 'FAILED_RETRYABLE' AND attempt_count >= 3)
+                    WHEN status IN ('%s', '%s')
+                      OR (status = '%s' AND attempt_count >= 3)
                     THEN 1 ELSE 0 END), 0)
                 FROM mailbox_action_queue
                 WHERE account_id = ?
                   AND dismissed_at IS NULL
-                  AND (resolution_type IS NULL OR resolution_type <> 'DISMISSED')""")) {
+                  AND (resolution_type IS NULL OR resolution_type <> '%s')"""
+                .formatted(
+                    EnumSql.inClause(MailboxActionStatus.PENDING_OR_APPLYING),
+                    MailboxActionStatus.FAILED_RETRYABLE.name(),
+                    MailboxActionStatus.FAILED_PERMANENT.name(),
+                    MailboxActionStatus.CONFLICT.name(),
+                    MailboxActionStatus.FAILED_PERMANENT.name(),
+                    MailboxActionStatus.CONFLICT.name(),
+                    MailboxActionStatus.FAILED_RETRYABLE.name(),
+                    MailboxActionResolutionType.DISMISSED.name()))) {
       stmt.setInt(1, accountId);
       try (ResultSet rs = stmt.executeQuery()) {
         rs.next();
@@ -988,20 +1031,26 @@ public class DbEmailRepository implements EmailRepository {
                 FROM mailbox_action_queue q
                 LEFT JOIN messages m ON m.id = q.message_id
                 WHERE q.account_id = ?
-                  AND q.status IN (
-                    'PENDING', 'APPLYING', 'FAILED_RETRYABLE', 'FAILED_PERMANENT', 'CONFLICT')
+                  AND q.status IN (%s)
                   AND q.dismissed_at IS NULL
-                  AND (q.resolution_type IS NULL OR q.resolution_type <> 'DISMISSED')
+                  AND (q.resolution_type IS NULL OR q.resolution_type <> '%s')
                 ORDER BY
                   CASE q.status
-                    WHEN 'CONFLICT' THEN 0
-                    WHEN 'FAILED_PERMANENT' THEN 1
-                    WHEN 'FAILED_RETRYABLE' THEN 2
-                    WHEN 'APPLYING' THEN 3
+                    WHEN '%s' THEN 0
+                    WHEN '%s' THEN 1
+                    WHEN '%s' THEN 2
+                    WHEN '%s' THEN 3
                     ELSE 4
                   END,
                   q.created_at DESC,
-                  q.id DESC""")) {
+                  q.id DESC"""
+                .formatted(
+                    EnumSql.inClause(MailboxActionStatus.SYNC_STATUS_VISIBLE),
+                    MailboxActionResolutionType.DISMISSED.name(),
+                    MailboxActionStatus.CONFLICT.name(),
+                    MailboxActionStatus.FAILED_PERMANENT.name(),
+                    MailboxActionStatus.FAILED_RETRYABLE.name(),
+                    MailboxActionStatus.APPLYING.name()))) {
       stmt.setInt(1, accountId);
       try (ResultSet rs = stmt.executeQuery()) {
         List<MailboxActionQueueRow> rows = new ArrayList<>();
@@ -1038,11 +1087,14 @@ public class DbEmailRepository implements EmailRepository {
                   q.updated_at
                 FROM mailbox_action_queue q
                 LEFT JOIN messages m ON m.id = q.message_id
-                WHERE q.status IN ('PENDING', 'FAILED_RETRYABLE')
-                  AND q.action_type IN ('MARK_READ', 'MARK_UNREAD')
+                WHERE q.status IN (%s)
+                  AND q.action_type IN (%s)
                   AND (q.next_attempt_at_epoch_s IS NULL OR q.next_attempt_at_epoch_s <= ?)
                 ORDER BY q.created_at, q.id
-                LIMIT ?""")) {
+                LIMIT ?"""
+                .formatted(
+                    EnumSql.inClause(MailboxActionStatus.CLAIMABLE),
+                    EnumSql.inClause(MailboxActionType.READ_STATE_SYNCABLE)))) {
       stmt.setLong(1, now.toEpochSecond());
       stmt.setInt(2, limit);
       try (ResultSet rs = stmt.executeQuery()) {
@@ -1060,15 +1112,15 @@ public class DbEmailRepository implements EmailRepository {
         rs.getInt(1),
         rs.getInt(2),
         rs.getString(3),
-        rs.getString(4),
+        MailboxActionType.valueOf(rs.getString(4)),
         rs.getString(5),
         getNullableLong(rs, 6),
         getNullableLong(rs, 7),
         rs.getString(8),
-        rs.getString(9),
-        rs.getString(10),
-        rs.getString(11),
-        rs.getString(12),
+        EnumSql.optionalEnum(FolderSpecialUse.class, rs.getString(9)),
+        MailboxActionStatus.valueOf(rs.getString(10)),
+        MailboxActionExecutionState.valueOf(rs.getString(11)),
+        EnumSql.optionalEnum(MailboxActionResolutionType.class, rs.getString(12)),
         rs.getInt(13),
         rs.getString(14),
         rs.getString(15),
@@ -1084,7 +1136,8 @@ public class DbEmailRepository implements EmailRepository {
       Long sourceUidValidity,
       long sourceUid) {}
 
-  private record TargetFolderContext(int folderId, String remoteName, String specialUse) {}
+  private record TargetFolderContext(
+      int folderId, String remoteName, FolderSpecialUse specialUse) {}
 
   private record MailboxSyncStatusCounts(
       int pendingCount,

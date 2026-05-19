@@ -21,6 +21,8 @@ import net.aggregat4.quicksand.GreenmailTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.MailboxActionStatus;
+import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
@@ -72,7 +74,7 @@ class MailboxActionSyncTest {
     new MailboxActionSync(accountRepository, emailRepository, clock, 60, 60).syncNow();
 
     assertRemoteSeen();
-    assertEquals("SUCCEEDED", queuedActionStatus(ds));
+    assertEquals(MailboxActionStatus.SUCCEEDED.name(), queuedActionStatus(ds));
   }
 
   private static Email onlySyncedMessage(DbEmailRepository emailRepository, int folderId) {
@@ -99,7 +101,7 @@ class MailboxActionSyncTest {
     try (Connection con = ds.getConnection();
         PreparedStatement stmt =
             con.prepareStatement("SELECT status FROM mailbox_action_queue WHERE action_type = ?")) {
-      stmt.setString(1, "MARK_READ");
+      stmt.setString(1, MailboxActionType.MARK_READ.name());
       try (var rs = stmt.executeQuery()) {
         assertTrue(rs.next());
         return rs.getString(1);

@@ -30,6 +30,7 @@ import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.FolderMappingStatus;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
+import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
@@ -290,7 +291,7 @@ class EmailWebServiceActionTest {
     assertTrue(emailRepository.findById(fifthMessageId).isPresent());
     assertEquals(inboxCountBefore - 2, emailRepository.getMessageCount(accountId, inboxFolderId));
     assertEquals(targetCountBefore + 2, emailRepository.getMessageCount(accountId, targetFolderId));
-    assertEquals(2, queuedActionCountForType("MOVE"));
+    assertEquals(2, queuedActionCountForType(MailboxActionType.MOVE));
   }
 
   @Test
@@ -342,7 +343,7 @@ class EmailWebServiceActionTest {
 
     assertTrue(emailRepository.findById(firstMessageId).isPresent());
     assertEquals(trashCountBefore + 1, emailRepository.getMessageCount(accountId, trashFolderId));
-    assertEquals(1, queuedActionCountForType("DELETE"));
+    assertEquals(1, queuedActionCountForType(MailboxActionType.DELETE));
   }
 
   @Test
@@ -411,7 +412,7 @@ class EmailWebServiceActionTest {
 
     assertTrue(emailRepository.findById(firstMessageId).isPresent());
     assertEquals(inboxCountBefore - 1, emailRepository.getMessageCount(accountId, inboxFolderId));
-    assertTrue(queuedActionCountForType("ARCHIVE") >= 1);
+    assertTrue(queuedActionCountForType(MailboxActionType.ARCHIVE) >= 1);
   }
 
   @Test
@@ -464,15 +465,15 @@ class EmailWebServiceActionTest {
         "/accounts/" + otherAccountId + "/settings/folders?required=TRASH",
         response.headers().firstValue("location").orElseThrow());
     assertTrue(emailRepository.findById(messageId).isPresent());
-    assertEquals(2, queuedActionCountForType("DELETE"));
+    assertEquals(2, queuedActionCountForType(MailboxActionType.DELETE));
   }
 
-  private static int queuedActionCountForType(String actionType) {
+  private static int queuedActionCountForType(MailboxActionType actionType) {
     try (Connection con = dataSource.getConnection();
         PreparedStatement stmt =
             con.prepareStatement(
                 "SELECT COUNT(*) FROM mailbox_action_queue WHERE action_type = ?")) {
-      stmt.setString(1, actionType);
+      stmt.setString(1, actionType.name());
       try (ResultSet rs = stmt.executeQuery()) {
         return rs.next() ? rs.getInt(1) : 0;
       }
