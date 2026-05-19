@@ -1,0 +1,189 @@
+package net.aggregat4.quicksand.repository;
+
+import static net.aggregat4.quicksand.repository.DatabaseMaintenance.migrateDb;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Set;
+import javax.sql.DataSource;
+import net.aggregat4.quicksand.DbTestUtils;
+import net.aggregat4.quicksand.domain.Account;
+import net.aggregat4.quicksand.domain.Actor;
+import net.aggregat4.quicksand.domain.ActorType;
+import net.aggregat4.quicksand.domain.Email;
+import net.aggregat4.quicksand.domain.EmailHeader;
+import net.aggregat4.quicksand.domain.FolderMappingStatus;
+import net.aggregat4.quicksand.domain.FolderSpecialUse;
+import net.aggregat4.quicksand.domain.MailboxActionExecutionState;
+import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
+import net.aggregat4.quicksand.domain.MailboxActionStatus;
+import net.aggregat4.quicksand.domain.MailboxActionType;
+import net.aggregat4.quicksand.domain.NamedFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+class DbEmailRepositoryMailboxActionTest {
+
+  private DataSource dataSource;
+  private DbEmailRepository emailRepository;
+  private DbFolderRepository folderRepository;
+  private DbAccountFolderMappingRepository mappingRepository;
+  private Account account;
+  private NamedFolder inbox;
+  private NamedFolder trash;
+  private int messageId;
+  private long messageUid;
+
+  @BeforeEach
+  void setUp() throws Exception {
+    dataSource = DbTestUtils.getTempSqlite();
+    migrateDb(dataSource);
+    DbAccountRepository accountRepository = new DbAccountRepository(dataSource);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    account = accountRepository.getAccount(accountRepository.getAccounts().getFirst().id());
+    folderRepository = new DbFolderRepository(dataSource);
+    mappingRepository = new DbAccountFolderMappingRepository(dataSource);
+    emailRepository = new DbEmailRepository(dataSource, new DbActorRepository(dataSource));
+
+    inbox = folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+    trash = folderRepository.createFolder(account, "Trash", "Trash", FolderSpecialUse.TRASH, 200L);
+    mappingRepository.save(
+        account.id(),
+        FolderSpecialUse.TRASH,
+        trash.id(),
+        trash.remoteName(),
+        FolderMappingStatus.USER_CONFIRMED);
+
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 9, 15, 0, 0, ZoneId.of("UTC"));
+    messageUid = 42L;
+    messageId =
+        emailRepository.addMessage(
+            inbox.id(),
+            new Email(
+                new EmailHeader(
+                    -1,
+                    messageUid,
+                    java.util.List.of(
+                        new Actor(ActorType.SENDER, "a@b.com", java.util.Optional.empty())),
+                    "Subject",
+                    now,
+                    now.toEpochSecond(),
+                    now,
+                    now.toEpochSecond(),
+                    "excerpt",
+                    false,
+                    false,
+                    false),
+                true,
+                "body",
+                java.util.List.of()));
+  }
+
+  @Test
+  void deleteByIdEnqueuesMoveLikeActionWithSourceIdentity() {
+    emailRepository.deleteById(messageId);
+
+    Set<Long> pending =
+        emailRepository.getPendingMoveLikeActionSourceUids(
+            account.id(), inbox.remoteName(), inbox.uidValidity());
+    assertEquals(Set.of(messageUid), pending);
+  }
+
+  @Test
+  void claimDueMailboxActionsReturnsMoveLikeQueueRows() throws Exception {
+    emailRepository.deleteById(messageId);
+
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC"));
+    java.util.List<MailboxActionQueueRow> claimed = emailRepository.claimDueMailboxActions(now, 10);
+
+    assertEquals(1, claimed.size());
+    MailboxActionQueueRow row = claimed.getFirst();
+    assertEquals(MailboxActionType.DELETE, row.actionType());
+    assertEquals(messageId, row.messageId());
+    assertEquals("INBOX", row.sourceRemoteName());
+    assertEquals(messageUid, row.sourceUid());
+    assertEquals("Trash", row.targetRemoteName());
+    assertEquals(MailboxActionStatus.APPLYING.name(), queueStatus(row.id()));
+  }
+
+  @Test
+  void markMailboxActionPermanentFailureSetsStatusAndError() {
+    emailRepository.deleteById(messageId);
+    MailboxActionQueueRow row =
+        emailRepository
+            .claimDueMailboxActions(ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC")), 1)
+            .getFirst();
+
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    emailRepository.markMailboxActionPermanentFailure(row.id(), "UID MOVE unsupported", now);
+
+    var status = emailRepository.getMailboxSyncStatus(account.id());
+    assertEquals(1, status.failedCount());
+    assertTrue(status.needsAttention());
+    assertEquals(MailboxActionStatus.FAILED_PERMANENT, status.actions().getFirst().status());
+    assertEquals(
+        MailboxActionExecutionState.ATTEMPTED_UNKNOWN,
+        status.actions().getFirst().executionState());
+    assertEquals("UID MOVE unsupported", status.actions().getFirst().lastError());
+  }
+
+  @Test
+  void markMailboxActionConflictSetsConflictStatus() {
+    emailRepository.deleteById(messageId);
+    MailboxActionQueueRow row =
+        emailRepository
+            .claimDueMailboxActions(ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC")), 1)
+            .getFirst();
+
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    emailRepository.markMailboxActionConflict(row.id(), "Source UID no longer exists", now);
+
+    var status = emailRepository.getMailboxSyncStatus(account.id());
+    assertEquals(1, status.conflictCount());
+    assertTrue(status.needsAttention());
+    assertEquals(MailboxActionStatus.CONFLICT, status.actions().getFirst().status());
+  }
+
+  @Test
+  void updateMessageImapUidChangesStoredUid() {
+    emailRepository.updateMessageImapUid(messageId, 99L);
+
+    Email updated = emailRepository.findById(messageId).orElseThrow();
+    assertEquals(99L, updated.header().imapUid());
+    assertFalse(emailRepository.findByMessageUid(messageUid).isPresent());
+    assertTrue(emailRepository.findByMessageUid(99L).isPresent());
+  }
+
+  @Test
+  void markMailboxActionSucceededClearsRetryState() {
+    emailRepository.deleteById(messageId);
+    MailboxActionQueueRow row =
+        emailRepository
+            .claimDueMailboxActions(ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC")), 1)
+            .getFirst();
+
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    emailRepository.markMailboxActionSucceeded(row.id(), now);
+
+    var status = emailRepository.getMailboxSyncStatus(account.id());
+    assertTrue(status.actions().isEmpty());
+  }
+
+  private String queueStatus(int queueId) throws Exception {
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement("SELECT status FROM mailbox_action_queue WHERE id = ?")) {
+      stmt.setInt(1, queueId);
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        return rs.getString(1);
+      }
+    }
+  }
+}

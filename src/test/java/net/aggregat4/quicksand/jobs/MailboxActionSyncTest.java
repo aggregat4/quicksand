@@ -34,70 +34,124 @@ import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
 import net.aggregat4.quicksand.repository.DbFolderRepository;
+import org.eclipse.angus.mail.imap.IMAPFolder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 class MailboxActionSyncTest {
+
+  private static final Clock FIXED_CLOCK =
+      Clock.fixed(Instant.parse("2026-03-25T09:15:00Z"), ZoneId.of("UTC"));
 
   @RegisterExtension
   static GreenMailExtension greenMail = GreenmailTestUtils.configureTestGreenMailExtension();
 
   @Test
   void syncsQueuedMarkReadActionToImap() throws Exception {
-    String subject = GreenMailUtil.random();
-    GreenmailUtils.deliverOneMessage(
-        greenMail, subject, "read-sync-body", "from@foo.bar", "to@foo.bar");
+    SyncFixture fixture = syncInboxMessage("read-sync-body");
+    fixture.emailRepository().updateRead(fixture.message().header().id(), true);
 
-    DataSource ds = DbTestUtils.getTempSqlite();
-    migrateDb(ds);
-    DbAccountRepository accountRepository = new DbAccountRepository(ds);
-    accountRepository.createAccountIfNew(
-        new Account(
-            -1,
-            "Mailbox Action Account",
-            "localhost",
-            greenMail.getImap().getServerSetup().getPort(),
-            "testuser",
-            "testpassword",
-            "localhost",
-            greenMail.getSmtp().getServerSetup().getPort(),
-            "testuser",
-            "testpassword"));
-    Account account = accountRepository.getAccounts().getFirst();
-    DbFolderRepository folderRepository = new DbFolderRepository(ds);
-    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbActorRepository(ds));
-
-    Store syncStore = GreenmailUtils.getImapStore(greenMail);
-    ImapStoreSync.syncImapFolders(account, syncStore, folderRepository, emailRepository);
-    int inboxFolderId =
-        folderRepository.getFolders(account.id()).stream()
-            .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
-            .findFirst()
-            .orElseThrow()
-            .id();
-    Email message = onlySyncedMessage(emailRepository, inboxFolderId);
-    emailRepository.updateRead(message.header().id(), true);
-
-    Clock clock = Clock.fixed(Instant.parse("2026-03-25T09:15:00Z"), ZoneId.of("UTC"));
-    new MailboxActionSync(accountRepository, emailRepository, clock, 60, 60).syncNow();
+    runMailboxActionSync(fixture);
 
     assertRemoteSeen();
     assertEquals(
-        MailboxActionStatus.SUCCEEDED.name(), queuedActionStatus(ds, MailboxActionType.MARK_READ));
+        MailboxActionStatus.SUCCEEDED.name(),
+        queuedActionStatus(fixture.dataSource(), MailboxActionType.MARK_READ));
   }
 
   @Test
   void syncsQueuedArchiveActionToImap() throws Exception {
-    String subject = GreenMailUtil.random();
-    GreenmailUtils.deliverOneMessage(
-        greenMail, subject, "archive-sync-body", "from@foo.bar", "to@foo.bar");
+    SyncFixture fixture =
+        configureMappedFolder(
+            syncInboxMessage("archive-sync-body"), "Archive", FolderSpecialUse.ARCHIVE);
 
-    Store setupStore = GreenmailUtils.getImapStore(greenMail);
-    Folder archiveFolder = setupStore.getFolder("Archive");
-    if (!archiveFolder.exists()) {
-      archiveFolder.create(Folder.HOLDS_MESSAGES);
-    }
-    setupStore.close();
+    fixture.emailRepository().archiveById(fixture.message().header().id());
+    runMailboxActionSync(fixture);
+
+    assertEquals(
+        MailboxActionStatus.SUCCEEDED.name(),
+        queuedActionStatus(fixture.dataSource(), MailboxActionType.ARCHIVE));
+    assertRemoteFolderCounts("INBOX", 0, "Archive", 1);
+  }
+
+  @Test
+  void syncsQueuedDeleteActionToTrashOnImap() throws Exception {
+    SyncFixture fixture =
+        configureMappedFolder(
+            syncInboxMessage("delete-sync-body"), "Trash", FolderSpecialUse.TRASH);
+
+    fixture.emailRepository().deleteById(fixture.message().header().id());
+    runMailboxActionSync(fixture);
+
+    assertEquals(
+        MailboxActionStatus.SUCCEEDED.name(),
+        queuedActionStatus(fixture.dataSource(), MailboxActionType.DELETE));
+    assertRemoteFolderCounts("INBOX", 0, "Trash", 1);
+  }
+
+  @Test
+  void syncsQueuedMarkSpamActionToImap() throws Exception {
+    SyncFixture fixture =
+        configureMappedFolder(syncInboxMessage("spam-sync-body"), "Spam", FolderSpecialUse.JUNK);
+
+    fixture.emailRepository().markSpamById(fixture.message().header().id());
+    runMailboxActionSync(fixture);
+
+    assertEquals(
+        MailboxActionStatus.SUCCEEDED.name(),
+        queuedActionStatus(fixture.dataSource(), MailboxActionType.MARK_SPAM));
+    assertRemoteFolderCounts("INBOX", 0, "Spam", 1);
+  }
+
+  @Test
+  void syncsQueuedMoveActionToImapAndUpdatesLocalUid() throws Exception {
+    SyncFixture fixture = syncInboxMessageWithExtraFolders("move-sync-body", "Target");
+
+    NamedFolder target =
+        fixture.folderRepository().getFolders(fixture.account().id()).stream()
+            .filter(folder -> "Target".equals(folder.remoteName()))
+            .findFirst()
+            .orElseThrow();
+    fixture.emailRepository().moveToFolderById(fixture.message().header().id(), target.id());
+    runMailboxActionSync(fixture);
+
+    assertEquals(
+        MailboxActionStatus.SUCCEEDED.name(),
+        queuedActionStatus(fixture.dataSource(), MailboxActionType.MOVE));
+    assertRemoteFolderCounts("INBOX", 0, "Target", 1);
+
+    Email updated =
+        fixture.emailRepository().findById(fixture.message().header().id()).orElseThrow();
+    assertEquals(remoteMessageUid("Target", 1), updated.header().imapUid());
+  }
+
+  private static SyncFixture configureMappedFolder(
+      SyncFixture fixture, String remoteFolderName, FolderSpecialUse specialUse) throws Exception {
+    ensureRemoteFolderExists(remoteFolderName);
+    fixture = resync(fixture);
+    NamedFolder folder =
+        fixture.folderRepository().getFolders(fixture.account().id()).stream()
+            .filter(candidate -> remoteFolderName.equals(candidate.remoteName()))
+            .findFirst()
+            .orElseThrow();
+    new DbAccountFolderMappingRepository(fixture.dataSource())
+        .save(
+            fixture.account().id(),
+            specialUse,
+            folder.id(),
+            folder.remoteName(),
+            FolderMappingStatus.USER_CONFIRMED);
+    return fixture;
+  }
+
+  private static SyncFixture syncInboxMessage(String body) throws Exception {
+    return syncInboxMessageWithExtraFolders(body);
+  }
+
+  private static SyncFixture syncInboxMessageWithExtraFolders(String body, String... extraFolders)
+      throws Exception {
+    GreenmailUtils.deliverOneMessage(
+        greenMail, GreenMailUtil.random(), body, "from@foo.bar", "to@foo.bar");
 
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
@@ -119,7 +173,14 @@ class MailboxActionSyncTest {
     DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbActorRepository(ds));
 
     Store syncStore = GreenmailUtils.getImapStore(greenMail);
+    for (String extraFolder : extraFolders) {
+      Folder folder = syncStore.getFolder(extraFolder);
+      if (!folder.exists()) {
+        folder.create(Folder.HOLDS_MESSAGES);
+      }
+    }
     ImapStoreSync.syncImapFolders(account, syncStore, folderRepository, emailRepository);
+
     int inboxFolderId =
         folderRepository.getFolders(account.id()).stream()
             .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
@@ -127,28 +188,46 @@ class MailboxActionSyncTest {
             .orElseThrow()
             .id();
     Email message = onlySyncedMessage(emailRepository, inboxFolderId);
+    return new SyncFixture(
+        ds, account, accountRepository, folderRepository, emailRepository, message);
+  }
 
-    NamedFolder archive =
-        folderRepository.getFolders(account.id()).stream()
-            .filter(folder -> "Archive".equals(folder.remoteName()))
+  private static SyncFixture resync(SyncFixture fixture) throws Exception {
+    Store syncStore = GreenmailUtils.getImapStore(greenMail);
+    ImapStoreSync.syncImapFolders(
+        fixture.account(), syncStore, fixture.folderRepository(), fixture.emailRepository());
+    int inboxFolderId =
+        fixture.folderRepository().getFolders(fixture.account().id()).stream()
+            .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
             .findFirst()
-            .orElseThrow();
-    new DbAccountFolderMappingRepository(ds)
-        .save(
-            account.id(),
-            FolderSpecialUse.ARCHIVE,
-            archive.id(),
-            archive.remoteName(),
-            FolderMappingStatus.USER_CONFIRMED);
+            .orElseThrow()
+            .id();
+    Email message = onlySyncedMessage(fixture.emailRepository(), inboxFolderId);
+    return new SyncFixture(
+        fixture.dataSource(),
+        fixture.account(),
+        fixture.accountRepository(),
+        fixture.folderRepository(),
+        fixture.emailRepository(),
+        message);
+  }
 
-    emailRepository.archiveById(message.header().id());
+  private static void runMailboxActionSync(SyncFixture fixture) {
+    new MailboxActionSync(
+            fixture.accountRepository(), fixture.emailRepository(), FIXED_CLOCK, 60, 60)
+        .syncNow();
+  }
 
-    Clock clock = Clock.fixed(Instant.parse("2026-03-25T09:15:00Z"), ZoneId.of("UTC"));
-    new MailboxActionSync(accountRepository, emailRepository, clock, 60, 60).syncNow();
-
-    assertEquals(
-        MailboxActionStatus.SUCCEEDED.name(), queuedActionStatus(ds, MailboxActionType.ARCHIVE));
-    assertRemoteArchived();
+  private static void ensureRemoteFolderExists(String folderName) throws Exception {
+    Store store = GreenmailUtils.getImapStore(greenMail);
+    try {
+      Folder folder = store.getFolder(folderName);
+      if (!folder.exists()) {
+        folder.create(Folder.HOLDS_MESSAGES);
+      }
+    } finally {
+      store.close();
+    }
   }
 
   private static Email onlySyncedMessage(DbEmailRepository emailRepository, int folderId) {
@@ -171,21 +250,33 @@ class MailboxActionSyncTest {
     }
   }
 
-  private static void assertRemoteArchived() throws Exception {
+  private static long remoteMessageUid(String folderName, int messageNumber) throws Exception {
     Store store = GreenmailUtils.getImapStore(greenMail);
-    Folder inbox = store.getFolder("INBOX");
-    inbox.open(Folder.READ_ONLY);
+    Folder folder = store.getFolder(folderName);
+    folder.open(Folder.READ_ONLY);
     try {
-      assertEquals(0, inbox.getMessageCount());
+      Message message = folder.getMessage(messageNumber);
+      return ((IMAPFolder) folder).getUID(message);
     } finally {
-      inbox.close();
+      folder.close();
+      store.close();
     }
-    Folder archive = store.getFolder("Archive");
-    archive.open(Folder.READ_ONLY);
+  }
+
+  private static void assertRemoteFolderCounts(
+      String sourceFolder, int sourceCount, String targetFolder, int targetCount) throws Exception {
+    Store store = GreenmailUtils.getImapStore(greenMail);
     try {
-      assertEquals(1, archive.getMessageCount());
+      Folder source = store.getFolder(sourceFolder);
+      source.open(Folder.READ_ONLY);
+      assertEquals(sourceCount, source.getMessageCount());
+      source.close();
+
+      Folder target = store.getFolder(targetFolder);
+      target.open(Folder.READ_ONLY);
+      assertEquals(targetCount, target.getMessageCount());
+      target.close();
     } finally {
-      archive.close();
       store.close();
     }
   }
@@ -202,4 +293,12 @@ class MailboxActionSyncTest {
       }
     }
   }
+
+  private record SyncFixture(
+      DataSource dataSource,
+      Account account,
+      DbAccountRepository accountRepository,
+      DbFolderRepository folderRepository,
+      DbEmailRepository emailRepository,
+      Email message) {}
 }
