@@ -71,6 +71,21 @@ mvn -DskipTests package            # build the jar without running tests
 npm run test:e2e                   # full Playwright e2e suite (builds jar + starts server)
 ```
 
+### IMAP capability probe (CLI)
+
+Probe an IMAP server for extensions relevant to Quicksand sync:
+
+```bash
+./scripts/imap-probe.sh --host HOST --user USER --password PASS [--port 993] [--no-ssl]
+```
+
+Or run the Java class directly after `mvn -DskipTests package`:
+
+```bash
+java -cp "target/quicksand.jar:target/libs/*" net.aggregat4.quicksand.tools.ImapCapabilityProbe \
+  --host HOST --user USER --password PASS [--port 993] [--no-ssl]
+```
+
 ### Stale Database Trap
 
 Quicksand persists mailbox state in a local SQLite database. The **demo mode** seeds messages on first sync, but if the database already exists it will skip seeding and show the old data. This is the most common cause of "my changes are not visible" confusion.
