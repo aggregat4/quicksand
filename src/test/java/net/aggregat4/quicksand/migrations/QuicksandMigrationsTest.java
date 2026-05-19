@@ -31,6 +31,8 @@ class QuicksandMigrationsTest {
       assertTrue(tableExists(con, "account_folder_mappings"));
       assertTrue(tableExists(con, "mailbox_action_queue"));
       assertTrue(
+          columns(con, "drafts").containsAll(Set.of("remote_imap_uid", "remote_uidvalidity")));
+      assertTrue(
           columns(con, "account_folder_mappings")
               .containsAll(
                   Set.of(

@@ -94,8 +94,11 @@ public final class Main {
     OutboundMessageRepository outboundMessageRepository = new DbOutboundMessageRepository(ds);
     AttachmentService attachmentService = new AttachmentService(attachmentRepository);
     EmailService emailService = new EmailService(messageRepository);
+    long draftSyncDebounceSeconds =
+        config.get("mailbox_action_sync.draft_debounce_seconds").asLong().orElse(5L);
     DraftService draftService =
-        new DraftService(draftRepository, messageRepository, attachmentService, clock);
+        new DraftService(
+            draftRepository, messageRepository, attachmentService, draftSyncDebounceSeconds, clock);
     OutboundMessageService outboundMessageService =
         new OutboundMessageService(
             ds,
@@ -103,6 +106,7 @@ public final class Main {
             dbDraftRepository,
             dbAttachmentRepository,
             outboundMessageRepository,
+            messageRepository,
             clock);
     List<Account> accounts = loadAccounts(config, demoEnabled);
     bootstrapAccounts(accounts, accountRepository);
@@ -152,6 +156,7 @@ public final class Main {
               messageRepository,
               outboundMessageRepository,
               attachmentRepository,
+              draftRepository,
               clock,
               syncPeriodInSeconds,
               retryDelaySeconds);

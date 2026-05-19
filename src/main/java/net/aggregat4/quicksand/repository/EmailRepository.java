@@ -1,5 +1,6 @@
 package net.aggregat4.quicksand.repository;
 
+import java.sql.Connection;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -44,6 +45,15 @@ public interface EmailRepository {
   void updateMessageImapUid(int messageId, long imapUid);
 
   void enqueueAppendSent(int outboundMessageId);
+
+  void scheduleDraftUpsert(int draftId, ZonedDateTime nextAttemptAt);
+
+  void enqueueDraftDelete(int draftId);
+
+  /**
+   * Uses the caller's connection; must not open a nested connection while a transaction is active.
+   */
+  void enqueueDraftDelete(Connection con, int draftId);
 
   void removeAllByUid(Collection<Long> localMessageIds);
 

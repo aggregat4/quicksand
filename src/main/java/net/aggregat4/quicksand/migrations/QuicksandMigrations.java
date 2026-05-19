@@ -244,13 +244,20 @@ public class QuicksandMigrations implements Migrations {
         return 3;
       };
 
+  private static final Function<Connection, Integer> v4Migration =
+      (con) -> {
+        executeUpdate(con, "ALTER TABLE drafts ADD COLUMN remote_imap_uid INTEGER");
+        executeUpdate(con, "ALTER TABLE drafts ADD COLUMN remote_uidvalidity INTEGER");
+        return 4;
+      };
+
   @Override
   public Map<Integer, Function<Connection, Integer>> getMigrations() {
-    return Map.of(2, v2Migration, 3, v3Migration);
+    return Map.of(2, v2Migration, 3, v3Migration, 4, v4Migration);
   }
 
   @Override
   public int getCurrentVersion() {
-    return 3;
+    return 4;
   }
 }

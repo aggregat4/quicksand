@@ -18,6 +18,7 @@ import net.aggregat4.quicksand.domain.OutboundMessageStatus;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
+import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.OutboundMessageRepository;
 
 public class OutboundMessageService {
@@ -26,6 +27,7 @@ public class OutboundMessageService {
   private final DbDraftRepository draftRepository;
   private final DbAttachmentRepository attachmentRepository;
   private final OutboundMessageRepository outboundMessageRepository;
+  private final EmailRepository emailRepository;
   private final Clock clock;
 
   public OutboundMessageService(
@@ -34,12 +36,14 @@ public class OutboundMessageService {
       DbDraftRepository draftRepository,
       DbAttachmentRepository attachmentRepository,
       OutboundMessageRepository outboundMessageRepository,
+      EmailRepository emailRepository,
       Clock clock) {
     this.ds = ds;
     this.accountRepository = accountRepository;
     this.draftRepository = draftRepository;
     this.attachmentRepository = attachmentRepository;
     this.outboundMessageRepository = outboundMessageRepository;
+    this.emailRepository = emailRepository;
     this.clock = clock;
   }
 
@@ -60,6 +64,7 @@ public class OutboundMessageService {
             OutboundMessage created =
                 outboundMessageRepository.create(con, toOutboundMessage(draft.get(), account));
             attachmentRepository.moveDraftAttachmentsToOutboundMessage(con, draftId, created.id());
+            emailRepository.enqueueDraftDelete(con, draftId);
             draftRepository.delete(con, draftId);
             con.commit();
             return Optional.of(created);

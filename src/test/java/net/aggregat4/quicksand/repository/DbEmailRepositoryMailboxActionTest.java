@@ -15,6 +15,8 @@ import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Actor;
 import net.aggregat4.quicksand.domain.ActorType;
+import net.aggregat4.quicksand.domain.Draft;
+import net.aggregat4.quicksand.domain.DraftType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.FolderMappingStatus;
@@ -203,6 +205,58 @@ class DbEmailRepositoryMailboxActionTest {
         assertTrue(rs.next());
         assertEquals(1, rs.getInt(1));
       }
+    }
+  }
+
+  @Test
+  void scheduleDraftUpsertCoalescesPendingRows() {
+    NamedFolder drafts =
+        folderRepository.createFolder(account, "Drafts", "Drafts", FolderSpecialUse.DRAFTS, 400L);
+    mappingRepository.save(
+        account.id(),
+        FolderSpecialUse.DRAFTS,
+        drafts.id(),
+        drafts.remoteName(),
+        FolderMappingStatus.USER_CONFIRMED);
+
+    Draft draft =
+        new DbDraftRepository(dataSource)
+            .create(
+                new Draft(
+                    0,
+                    account.id(),
+                    DraftType.NEW,
+                    java.util.Optional.empty(),
+                    "to@example.com",
+                    "",
+                    "",
+                    "Draft",
+                    "Body",
+                    false,
+                    ZonedDateTime.of(2026, 3, 25, 9, 15, 0, 0, ZoneId.of("UTC")),
+                    ZonedDateTime.of(2026, 3, 25, 9, 15, 0, 0, ZoneId.of("UTC")).toEpochSecond()));
+
+    ZonedDateTime first = ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC"));
+    ZonedDateTime second = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    emailRepository.scheduleDraftUpsert(draft.id(), first);
+    emailRepository.scheduleDraftUpsert(draft.id(), second);
+
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement(
+                """
+                    SELECT next_attempt_at_epoch_s
+                    FROM mailbox_action_queue
+                    WHERE action_type = ? AND payload_json = ?""")) {
+      stmt.setString(1, MailboxActionType.UPSERT_DRAFT.name());
+      stmt.setString(2, Integer.toString(draft.id()));
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(second.toEpochSecond(), rs.getLong(1));
+        assertFalse(rs.next());
+      }
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 

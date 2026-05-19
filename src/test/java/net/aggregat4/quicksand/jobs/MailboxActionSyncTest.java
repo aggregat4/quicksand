@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import javax.sql.DataSource;
 import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.GreenmailTestUtils;
@@ -141,6 +142,7 @@ class MailboxActionSyncTest {
             draftRepository,
             new DbAttachmentRepository(fixture.dataSource()),
             outboundMessageRepository,
+            fixture.emailRepository(),
             FIXED_CLOCK);
     OutboundMessage queued = outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();
 
@@ -174,6 +176,84 @@ class MailboxActionSyncTest {
       assertEquals("Append sent subject", sent.getMessage(1).getSubject());
     } finally {
       sent.close();
+      store.close();
+    }
+  }
+
+  @Test
+  void syncsQueuedDraftUpsertToImapAndCoalescesAutosaves() throws Exception {
+    SyncFixture fixture =
+        configureMappedFolder(
+            syncInboxMessage("draft-sync-body"), "Drafts", FolderSpecialUse.DRAFTS);
+
+    DbDraftRepository draftRepository = new DbDraftRepository(fixture.dataSource());
+    Draft draft =
+        draftRepository.create(
+            new Draft(
+                0,
+                fixture.account().id(),
+                DraftType.NEW,
+                java.util.Optional.empty(),
+                "to@localhost",
+                "",
+                "",
+                "Draft sync subject",
+                "Draft sync body v1",
+                false,
+                java.time.ZonedDateTime.now(FIXED_CLOCK),
+                FIXED_CLOCK.instant().getEpochSecond()));
+
+    ZonedDateTime firstAttempt = java.time.ZonedDateTime.now(FIXED_CLOCK);
+    fixture.emailRepository().scheduleDraftUpsert(draft.id(), firstAttempt.plusSeconds(60));
+    fixture.emailRepository().scheduleDraftUpsert(draft.id(), firstAttempt.plusSeconds(120));
+
+    try (Connection con = fixture.dataSource().getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement(
+                "SELECT COUNT(*) FROM mailbox_action_queue WHERE action_type = ? AND payload_json = ?")) {
+      stmt.setString(1, MailboxActionType.UPSERT_DRAFT.name());
+      stmt.setString(2, Integer.toString(draft.id()));
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(1, rs.getInt(1));
+      }
+    }
+
+    draftRepository.update(
+        draft.withContent(
+            "to@localhost", "", "", "Draft sync subject", "Draft sync body v2", firstAttempt));
+
+    try (Connection con = fixture.dataSource().getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement(
+                """
+                    UPDATE mailbox_action_queue
+                    SET next_attempt_at_epoch_s = ?, status = ?
+                    WHERE action_type = ? AND payload_json = ?""")) {
+      stmt.setLong(1, firstAttempt.toEpochSecond() - 1);
+      stmt.setString(2, MailboxActionStatus.PENDING.name());
+      stmt.setString(3, MailboxActionType.UPSERT_DRAFT.name());
+      stmt.setString(4, Integer.toString(draft.id()));
+      stmt.executeUpdate();
+    }
+
+    runMailboxActionSync(fixture);
+
+    assertEquals(
+        MailboxActionStatus.SUCCEEDED.name(),
+        queuedActionStatus(fixture.dataSource(), MailboxActionType.UPSERT_DRAFT));
+    assertRemoteFolderCounts("INBOX", 1, "Drafts", 1);
+
+    Draft updated = draftRepository.findById(draft.id()).orElseThrow();
+    assertTrue(updated.remoteImapUid().isPresent());
+
+    Store store = GreenmailUtils.getImapStore(greenMail);
+    Folder drafts = store.getFolder("Drafts");
+    drafts.open(Folder.READ_ONLY);
+    try {
+      assertEquals("Draft sync subject", drafts.getMessage(1).getSubject());
+    } finally {
+      drafts.close();
       store.close();
     }
   }
@@ -291,9 +371,9 @@ class MailboxActionSyncTest {
     new MailboxActionSync(
             fixture.accountRepository(),
             fixture.emailRepository(),
-            new net.aggregat4.quicksand.repository.DbOutboundMessageRepository(
-                fixture.dataSource()),
-            new net.aggregat4.quicksand.repository.DbAttachmentRepository(fixture.dataSource()),
+            new DbOutboundMessageRepository(fixture.dataSource()),
+            new DbAttachmentRepository(fixture.dataSource()),
+            new DbDraftRepository(fixture.dataSource()),
             FIXED_CLOCK,
             60,
             60)

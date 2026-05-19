@@ -16,12 +16,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.domain.Account;
+import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
 import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.OutboundMessage;
 import net.aggregat4.quicksand.domain.StoredAttachment;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
+import net.aggregat4.quicksand.repository.DraftRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.OutboundMessageRepository;
 import org.eclipse.angus.mail.imap.AppendUID;
@@ -40,6 +42,7 @@ public class MailboxActionSync {
   private final EmailRepository emailRepository;
   private final OutboundMessageRepository outboundMessageRepository;
   private final AttachmentRepository attachmentRepository;
+  private final DraftRepository draftRepository;
   private final Clock clock;
   private final long syncPeriodInSeconds;
   private final long retryDelaySeconds;
@@ -49,6 +52,7 @@ public class MailboxActionSync {
       EmailRepository emailRepository,
       OutboundMessageRepository outboundMessageRepository,
       AttachmentRepository attachmentRepository,
+      DraftRepository draftRepository,
       Clock clock,
       long syncPeriodInSeconds,
       long retryDelaySeconds) {
@@ -56,6 +60,7 @@ public class MailboxActionSync {
     this.emailRepository = emailRepository;
     this.outboundMessageRepository = outboundMessageRepository;
     this.attachmentRepository = attachmentRepository;
+    this.draftRepository = draftRepository;
     this.clock = clock;
     this.syncPeriodInSeconds = syncPeriodInSeconds;
     this.retryDelaySeconds = retryDelaySeconds;
@@ -110,7 +115,88 @@ public class MailboxActionSync {
       applyAppendSentAction(action);
       return;
     }
+    if (action.actionType() == MailboxActionType.UPSERT_DRAFT) {
+      applyUpsertDraftAction(action);
+      return;
+    }
+    if (action.actionType() == MailboxActionType.DELETE_DRAFT) {
+      applyDeleteDraftAction(action);
+      return;
+    }
     throw new IllegalArgumentException("Unsupported mailbox action type " + action.actionType());
+  }
+
+  private void applyUpsertDraftAction(MailboxActionQueueRow action) throws MessagingException {
+    if (action.targetRemoteName() == null || action.payloadJson() == null) {
+      throw new MailboxActionConflictException(
+          "Queued draft upsert is missing target mailbox or draft identity");
+    }
+    int draftId = Integer.parseInt(action.payloadJson());
+    Draft draft =
+        draftRepository
+            .findById(draftId)
+            .orElseThrow(
+                () ->
+                    new MailboxActionConflictException(
+                        "Draft %s no longer exists".formatted(draftId)));
+    if (draft.accountId() != action.accountId()) {
+      throw new MailboxActionConflictException("Draft does not belong to this account");
+    }
+    Account account = accountRepository.getAccount(action.accountId());
+    MimeMessage mimeMessage;
+    try {
+      mimeMessage = DraftMimeMessageBuilder.build(account, draft);
+    } catch (java.io.UnsupportedEncodingException e) {
+      throw new MessagingException("Failed to build draft for IMAP append", e);
+    }
+
+    try (Store store = createConnectedStore(account)) {
+      Folder targetFolder = store.getFolder(action.targetRemoteName());
+      if (!targetFolder.exists()) {
+        throw new MailboxActionConflictException("Drafts mailbox does not exist on server");
+      }
+      if (!(targetFolder instanceof IMAPFolder imapFolder)) {
+        throw new MessagingException("Drafts folder is not an IMAP folder");
+      }
+      imapFolder.open(Folder.READ_WRITE);
+      try {
+        if (draft.remoteImapUid().isPresent()) {
+          deleteRemoteMessage(imapFolder, draft.remoteImapUid().get());
+        }
+        AppendUID[] appended = imapFolder.appendUIDMessages(new Message[] {mimeMessage});
+        if (appended == null || appended.length != 1 || appended[0] == null) {
+          throw new MessagingException("IMAP APPEND did not return APPENDUID");
+        }
+        draftRepository.updateRemoteIdentity(draftId, appended[0].uid, imapFolder.getUIDValidity());
+      } finally {
+        imapFolder.close(false);
+      }
+    }
+  }
+
+  private void applyDeleteDraftAction(MailboxActionQueueRow action) throws MessagingException {
+    if (action.sourceRemoteName() == null || action.sourceUid() == null) {
+      return;
+    }
+    Account account = accountRepository.getAccount(action.accountId());
+    try (Store store = createConnectedStore(account)) {
+      IMAPFolder imapFolder = openSourceFolder(store, action);
+      try {
+        deleteRemoteMessage(imapFolder, action.sourceUid());
+      } finally {
+        imapFolder.close(false);
+      }
+    }
+  }
+
+  private static void deleteRemoteMessage(IMAPFolder imapFolder, long uid)
+      throws MessagingException {
+    Message message = imapFolder.getMessageByUID(uid);
+    if (message == null) {
+      return;
+    }
+    message.setFlag(Flags.Flag.DELETED, true);
+    imapFolder.expunge();
   }
 
   private void applyAppendSentAction(MailboxActionQueueRow action) throws MessagingException {

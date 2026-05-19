@@ -252,6 +252,7 @@ class AccountFolderSettingsWebServiceTest {
             draftRepository,
             attachmentRepository,
             new DbOutboundMessageRepository(ds),
+            emailRepository,
             Clock.systemDefaultZone());
     HttpRouting.Builder routing =
         HttpRouting.builder()
@@ -266,6 +267,7 @@ class AccountFolderSettingsWebServiceTest {
                         draftRepository,
                         emailRepository,
                         attachmentService,
+                        5L,
                         Clock.systemDefaultZone()),
                     outboundMessageService,
                     Clock.systemDefaultZone()));

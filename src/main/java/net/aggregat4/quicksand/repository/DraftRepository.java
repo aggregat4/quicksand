@@ -13,5 +13,7 @@ public interface DraftRepository {
 
   void update(Draft draft);
 
+  void updateRemoteIdentity(int draftId, long remoteImapUid, long remoteUidValidity);
+
   void delete(int id);
 }

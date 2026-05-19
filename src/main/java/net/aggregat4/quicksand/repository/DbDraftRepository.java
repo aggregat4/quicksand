@@ -26,8 +26,10 @@ public class DbDraftRepository implements DraftRepository {
     return DbUtil.withPreparedStmtFunction(
         ds,
         """
-                INSERT INTO drafts (account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, body, queued, updated_at, updated_at_epoch_s)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO drafts (
+                  account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients,
+                  subject, body, queued, updated_at, updated_at_epoch_s, remote_imap_uid, remote_uidvalidity)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
         stmt -> {
           stmt.setInt(1, draft.accountId());
@@ -45,6 +47,8 @@ public class DbDraftRepository implements DraftRepository {
           stmt.setInt(9, draft.queued() ? 1 : 0);
           stmt.setString(10, ISO_DATE_TIME.format(draft.updatedAt()));
           stmt.setLong(11, draft.updatedAtEpochSeconds());
+          setNullableLong(stmt, 12, draft.remoteImapUid());
+          setNullableLong(stmt, 13, draft.remoteUidValidity());
           stmt.executeUpdate();
           try (ResultSet keyRs = stmt.getGeneratedKeys()) {
             if (!keyRs.next()) {
@@ -62,7 +66,9 @@ public class DbDraftRepository implements DraftRepository {
                 draft.body(),
                 draft.queued(),
                 draft.updatedAt(),
-                draft.updatedAtEpochSeconds());
+                draft.updatedAtEpochSeconds(),
+                draft.remoteImapUid(),
+                draft.remoteUidValidity());
           }
         });
   }
@@ -71,11 +77,7 @@ public class DbDraftRepository implements DraftRepository {
   public Optional<Draft> findById(int id) {
     return DbUtil.withPreparedStmtFunction(
         ds,
-        """
-                SELECT id, account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, body, queued, updated_at, updated_at_epoch_s
-                FROM drafts
-                WHERE id = ?
-                """,
+        selectDraftSql() + " WHERE id = ?",
         stmt -> {
           stmt.setInt(1, id);
           return DbUtil.withResultSetFunction(
@@ -86,11 +88,7 @@ public class DbDraftRepository implements DraftRepository {
   public Optional<Draft> findById(Connection con, int id) {
     return DbUtil.withPreparedStmtFunction(
         con,
-        """
-                SELECT id, account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, body, queued, updated_at, updated_at_epoch_s
-                FROM drafts
-                WHERE id = ?
-                """,
+        selectDraftSql() + " WHERE id = ?",
         stmt -> {
           stmt.setInt(1, id);
           return DbUtil.withResultSetFunction(
@@ -102,12 +100,8 @@ public class DbDraftRepository implements DraftRepository {
   public List<Draft> findOpenByAccountId(int accountId) {
     return DbUtil.withPreparedStmtFunction(
         ds,
-        """
-                SELECT id, account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, body, queued, updated_at, updated_at_epoch_s
-                FROM drafts
-                WHERE account_id = ? AND queued = 0
-                ORDER BY updated_at_epoch_s DESC, id DESC
-                """,
+        selectDraftSql()
+            + " WHERE account_id = ? AND queued = 0 ORDER BY updated_at_epoch_s DESC, id DESC",
         stmt -> {
           stmt.setInt(1, accountId);
           return DbUtil.withResultSetFunction(
@@ -128,7 +122,9 @@ public class DbDraftRepository implements DraftRepository {
         ds,
         """
                 UPDATE drafts
-                SET to_recipients = ?, cc_recipients = ?, bcc_recipients = ?, subject = ?, body = ?, queued = ?, updated_at = ?, updated_at_epoch_s = ?
+                SET to_recipients = ?, cc_recipients = ?, bcc_recipients = ?, subject = ?, body = ?,
+                    queued = ?, updated_at = ?, updated_at_epoch_s = ?,
+                    remote_imap_uid = ?, remote_uidvalidity = ?
                 WHERE id = ?
                 """,
         stmt -> {
@@ -140,7 +136,22 @@ public class DbDraftRepository implements DraftRepository {
           stmt.setInt(6, draft.queued() ? 1 : 0);
           stmt.setString(7, ISO_DATE_TIME.format(draft.updatedAt()));
           stmt.setLong(8, draft.updatedAtEpochSeconds());
-          stmt.setInt(9, draft.id());
+          setNullableLong(stmt, 9, draft.remoteImapUid());
+          setNullableLong(stmt, 10, draft.remoteUidValidity());
+          stmt.setInt(11, draft.id());
+          stmt.executeUpdate();
+        });
+  }
+
+  @Override
+  public void updateRemoteIdentity(int draftId, long remoteImapUid, long remoteUidValidity) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        "UPDATE drafts SET remote_imap_uid = ?, remote_uidvalidity = ? WHERE id = ?",
+        stmt -> {
+          stmt.setLong(1, remoteImapUid);
+          stmt.setLong(2, remoteUidValidity);
+          stmt.setInt(3, draftId);
           stmt.executeUpdate();
         });
   }
@@ -166,6 +177,13 @@ public class DbDraftRepository implements DraftRepository {
         });
   }
 
+  private static String selectDraftSql() {
+    return """
+        SELECT id, account_id, type, source_message_id, to_recipients, cc_recipients, bcc_recipients,
+               subject, body, queued, updated_at, updated_at_epoch_s, remote_imap_uid, remote_uidvalidity
+        FROM drafts""";
+  }
+
   private static Draft toDraft(ResultSet rs) throws SQLException {
     Integer sourceMessageId = (Integer) rs.getObject(4);
     return new Draft(
@@ -180,6 +198,22 @@ public class DbDraftRepository implements DraftRepository {
         rs.getString(9),
         rs.getInt(10) == 1,
         ZonedDateTime.parse(rs.getString(11), ISO_DATE_TIME),
-        rs.getLong(12));
+        rs.getLong(12),
+        getOptionalLong(rs, 13),
+        getOptionalLong(rs, 14));
+  }
+
+  private static Optional<Long> getOptionalLong(ResultSet rs, int columnIndex) throws SQLException {
+    long value = rs.getLong(columnIndex);
+    return rs.wasNull() ? Optional.empty() : Optional.of(value);
+  }
+
+  private static void setNullableLong(
+      java.sql.PreparedStatement stmt, int index, Optional<Long> value) throws SQLException {
+    if (value.isEmpty()) {
+      stmt.setNull(index, java.sql.Types.BIGINT);
+    } else {
+      stmt.setLong(index, value.get());
+    }
   }
 }

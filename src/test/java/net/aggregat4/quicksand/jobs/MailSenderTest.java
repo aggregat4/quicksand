@@ -104,6 +104,7 @@ public class MailSenderTest {
             draftRepository,
             attachmentRepository,
             outboundMessageRepository,
+            new DbEmailRepository(ds, new DbActorRepository(ds)),
             Clock.fixed(createdAt.toInstant(), ZoneId.of("Europe/Berlin")));
 
     var queuedMessage = outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();
@@ -194,6 +195,7 @@ public class MailSenderTest {
             draftRepository,
             attachmentRepository,
             outboundMessageRepository,
+            new DbEmailRepository(ds, new DbActorRepository(ds)),
             Clock.fixed(createdAt.toInstant(), ZoneId.of("Europe/Berlin")));
     var unused = outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();
 
@@ -535,6 +537,7 @@ public class MailSenderTest {
             draftRepository,
             attachmentRepository,
             outboundMessageRepository,
+            new DbEmailRepository(ds, new DbActorRepository(ds)),
             Clock.fixed(createdAt.toInstant(), ZoneId.of("Europe/Berlin")));
     return outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow().id();
   }

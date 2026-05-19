@@ -18,16 +18,19 @@ public class DraftService {
   private final DraftRepository draftRepository;
   private final EmailRepository emailRepository;
   private final AttachmentService attachmentService;
+  private final long draftSyncDebounceSeconds;
   private final Clock clock;
 
   public DraftService(
       DraftRepository draftRepository,
       EmailRepository emailRepository,
       AttachmentService attachmentService,
+      long draftSyncDebounceSeconds,
       Clock clock) {
     this.draftRepository = draftRepository;
     this.emailRepository = emailRepository;
     this.attachmentService = attachmentService;
+    this.draftSyncDebounceSeconds = draftSyncDebounceSeconds;
     this.clock = clock;
   }
 
@@ -113,6 +116,7 @@ public class DraftService {
             existing -> {
               Draft updated = existing.withContent(to, cc, bcc, subject, body, now());
               draftRepository.update(updated);
+              emailRepository.scheduleDraftUpsert(id, now().plusSeconds(draftSyncDebounceSeconds));
               return updated;
             });
   }
@@ -132,6 +136,7 @@ public class DraftService {
     if (draftRepository.findById(id).isEmpty()) {
       return false;
     }
+    emailRepository.enqueueDraftDelete(id);
     attachmentService.deleteDraftAttachments(id);
     draftRepository.delete(id);
     return true;

@@ -234,6 +234,14 @@ public class EmailWebService implements HttpService {
       response.send();
       return;
     }
+    if (!accountFolderMappingService.hasConfiguredMapping(
+        draft.get().accountId(), FolderSpecialUse.DRAFTS)) {
+      ResponseUtils.redirectAfterPost(
+          response,
+          URI.create(
+              "/accounts/%s/settings/folders?required=DRAFTS".formatted(draft.get().accountId())));
+      return;
+    }
     Map<String, Object> context = new HashMap<>();
     context.put("draft", draft.get());
     context.put("attachments", attachmentService.getDraftAttachments(emailId));

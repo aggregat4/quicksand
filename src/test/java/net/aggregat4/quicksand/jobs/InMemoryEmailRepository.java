@@ -163,6 +163,15 @@ public class InMemoryEmailRepository implements EmailRepository {
   public void enqueueAppendSent(int outboundMessageId) {}
 
   @Override
+  public void scheduleDraftUpsert(int draftId, java.time.ZonedDateTime nextAttemptAt) {}
+
+  @Override
+  public void enqueueDraftDelete(int draftId) {}
+
+  @Override
+  public void enqueueDraftDelete(java.sql.Connection con, int draftId) {}
+
+  @Override
   public void removeAllByUid(Collection<Long> localMessageIds) {
     for (List<Email> emails : messages.values()) {
       emails.removeIf(email -> localMessageIds.contains(email.header().imapUid()));

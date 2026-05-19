@@ -15,7 +15,39 @@ public record Draft(
     String body,
     boolean queued,
     ZonedDateTime updatedAt,
-    long updatedAtEpochSeconds) {
+    long updatedAtEpochSeconds,
+    Optional<Long> remoteImapUid,
+    Optional<Long> remoteUidValidity) {
+
+  public Draft(
+      int id,
+      int accountId,
+      DraftType type,
+      Optional<Integer> sourceMessageId,
+      String to,
+      String cc,
+      String bcc,
+      String subject,
+      String body,
+      boolean queued,
+      ZonedDateTime updatedAt,
+      long updatedAtEpochSeconds) {
+    this(
+        id,
+        accountId,
+        type,
+        sourceMessageId,
+        to,
+        cc,
+        bcc,
+        subject,
+        body,
+        queued,
+        updatedAt,
+        updatedAtEpochSeconds,
+        Optional.empty(),
+        Optional.empty());
+  }
 
   public Draft withContent(
       String to, String cc, String bcc, String subject, String body, ZonedDateTime updatedAt) {
@@ -31,7 +63,9 @@ public record Draft(
         body,
         queued,
         updatedAt,
-        updatedAt.toEpochSecond());
+        updatedAt.toEpochSecond(),
+        remoteImapUid,
+        remoteUidValidity);
   }
 
   public Draft markQueued(ZonedDateTime updatedAt) {
@@ -47,6 +81,26 @@ public record Draft(
         body,
         true,
         updatedAt,
-        updatedAt.toEpochSecond());
+        updatedAt.toEpochSecond(),
+        remoteImapUid,
+        remoteUidValidity);
+  }
+
+  public Draft withRemoteIdentity(long remoteImapUid, long remoteUidValidity) {
+    return new Draft(
+        id,
+        accountId,
+        type,
+        sourceMessageId,
+        to,
+        cc,
+        bcc,
+        subject,
+        body,
+        queued,
+        updatedAt,
+        updatedAtEpochSeconds,
+        Optional.of(remoteImapUid),
+        Optional.of(remoteUidValidity));
   }
 }

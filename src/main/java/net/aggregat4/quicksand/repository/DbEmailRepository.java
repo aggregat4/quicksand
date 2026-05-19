@@ -393,6 +393,63 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
+  public void scheduleDraftUpsert(int draftId, ZonedDateTime nextAttemptAt) {
+    DbUtil.withConConsumer(
+        ds,
+        con -> {
+          try {
+            Optional<DraftEnqueueContext> context = findDraftEnqueueContext(con, draftId);
+            if (context.isEmpty()) {
+              return;
+            }
+            Optional<TargetFolderContext> target =
+                findMappedTargetFolderContext(
+                    con, context.get().accountId(), FolderSpecialUse.DRAFTS);
+            if (target.isEmpty()) {
+              return;
+            }
+            if (coalesceDraftUpsert(con, draftId, nextAttemptAt)) {
+              return;
+            }
+            enqueueDraftUpsertAction(
+                con, context.get().accountId(), target.get(), draftId, nextAttemptAt);
+          } catch (SQLException e) {
+            throw new RuntimeException(e);
+          }
+        });
+  }
+
+  @Override
+  public void enqueueDraftDelete(int draftId) {
+    DbUtil.withConConsumer(ds, con -> enqueueDraftDelete(con, draftId));
+  }
+
+  @Override
+  public void enqueueDraftDelete(Connection con, int draftId) {
+    try {
+      cancelPendingDraftUpserts(con, draftId);
+      Optional<DraftEnqueueContext> context = findDraftEnqueueContext(con, draftId);
+      if (context.isEmpty()) {
+        return;
+      }
+      if (context.get().remoteImapUid().isEmpty()) {
+        return;
+      }
+      Optional<TargetFolderContext> target =
+          findMappedTargetFolderContext(con, context.get().accountId(), FolderSpecialUse.DRAFTS);
+      if (target.isEmpty()) {
+        return;
+      }
+      if (hasUnresolvedDraftDelete(con, draftId)) {
+        return;
+      }
+      enqueueDraftDeleteAction(con, context.get(), target.get(), draftId);
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
   public void enqueueAppendSent(int outboundMessageId) {
     DbUtil.withConConsumer(
         ds,
@@ -975,6 +1032,136 @@ public class DbEmailRepository implements EmailRepository {
     }
   }
 
+  private static boolean coalesceDraftUpsert(
+      Connection con, int draftId, ZonedDateTime nextAttemptAt) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                UPDATE mailbox_action_queue
+                SET status = ?,
+                    next_attempt_at = ?,
+                    next_attempt_at_epoch_s = ?,
+                    last_error = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE action_type = ?
+                  AND payload_json = ?
+                  AND status IN (%s)"""
+                .formatted(EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
+      stmt.setString(1, MailboxActionStatus.PENDING.name());
+      stmt.setString(2, toISOString(nextAttemptAt));
+      stmt.setLong(3, nextAttemptAt.toEpochSecond());
+      stmt.setString(4, MailboxActionType.UPSERT_DRAFT.name());
+      stmt.setString(5, Integer.toString(draftId));
+      return stmt.executeUpdate() > 0;
+    }
+  }
+
+  private static void cancelPendingDraftUpserts(Connection con, int draftId) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                DELETE FROM mailbox_action_queue
+                WHERE action_type = ?
+                  AND payload_json = ?
+                  AND status IN (%s)"""
+                .formatted(EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
+      stmt.setString(1, MailboxActionType.UPSERT_DRAFT.name());
+      stmt.setString(2, Integer.toString(draftId));
+      stmt.executeUpdate();
+    }
+  }
+
+  private static void enqueueDraftUpsertAction(
+      Connection con,
+      int accountId,
+      TargetFolderContext target,
+      int draftId,
+      ZonedDateTime nextAttemptAt)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                INSERT INTO mailbox_action_queue (
+                  account_id, message_id, action_type,
+                  target_folder_id, target_remote_name, target_special_use,
+                  payload_json, next_attempt_at, next_attempt_at_epoch_s)
+                VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?)""")) {
+      stmt.setInt(1, accountId);
+      stmt.setString(2, MailboxActionType.UPSERT_DRAFT.name());
+      stmt.setInt(3, target.folderId());
+      stmt.setString(4, target.remoteName());
+      stmt.setString(5, FolderSpecialUse.DRAFTS.name());
+      stmt.setString(6, Integer.toString(draftId));
+      stmt.setString(7, toISOString(nextAttemptAt));
+      stmt.setLong(8, nextAttemptAt.toEpochSecond());
+      stmt.executeUpdate();
+    }
+  }
+
+  private static void enqueueDraftDeleteAction(
+      Connection con, DraftEnqueueContext draft, TargetFolderContext target, int draftId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                INSERT INTO mailbox_action_queue (
+                  account_id, message_id, action_type,
+                  source_remote_name, source_uidvalidity, source_uid,
+                  target_folder_id, target_remote_name, target_special_use, payload_json)
+                VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
+      stmt.setInt(1, draft.accountId());
+      stmt.setString(2, MailboxActionType.DELETE_DRAFT.name());
+      stmt.setString(3, target.remoteName());
+      stmt.setLong(4, draft.remoteUidValidity().orElseThrow());
+      stmt.setLong(5, draft.remoteImapUid().orElseThrow());
+      stmt.setInt(6, target.folderId());
+      stmt.setString(7, target.remoteName());
+      stmt.setString(8, FolderSpecialUse.DRAFTS.name());
+      stmt.setString(9, Integer.toString(draftId));
+      stmt.executeUpdate();
+    }
+  }
+
+  private static boolean hasUnresolvedDraftDelete(Connection con, int draftId) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                SELECT 1
+                FROM mailbox_action_queue
+                WHERE action_type = ?
+                  AND payload_json = ?
+                  AND status IN (%s)"""
+                .formatted(EnumSql.inClause(MailboxActionStatus.UNRESOLVED)))) {
+      stmt.setString(1, MailboxActionType.DELETE_DRAFT.name());
+      stmt.setString(2, Integer.toString(draftId));
+      try (ResultSet rs = stmt.executeQuery()) {
+        return rs.next();
+      }
+    }
+  }
+
+  private static Optional<DraftEnqueueContext> findDraftEnqueueContext(Connection con, int draftId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                SELECT account_id, remote_imap_uid, remote_uidvalidity
+                FROM drafts
+                WHERE id = ?""")) {
+      stmt.setInt(1, draftId);
+      try (ResultSet rs = stmt.executeQuery()) {
+        if (!rs.next()) {
+          return Optional.empty();
+        }
+        return Optional.of(
+            new DraftEnqueueContext(
+                rs.getInt(1),
+                Optional.ofNullable(getNullableLong(rs, 2)),
+                Optional.ofNullable(getNullableLong(rs, 3))));
+      }
+    }
+  }
+
   private static void enqueueAppendSentAction(
       Connection con, int accountId, TargetFolderContext target, int outboundMessageId)
       throws SQLException {
@@ -1128,7 +1315,7 @@ public class DbEmailRepository implements EmailRepository {
                   q.id,
                   q.account_id,
                   q.message_id,
-                  COALESCE(m.subject, om.subject, ''),
+                  COALESCE(m.subject, om.subject, d.subject, ''),
                   q.action_type,
                   q.source_remote_name,
                   q.source_uidvalidity,
@@ -1149,9 +1336,15 @@ public class DbEmailRepository implements EmailRepository {
                 LEFT JOIN outbound_messages om
                   ON q.action_type = '%s'
                  AND om.id = CAST(q.payload_json AS INTEGER)
+                LEFT JOIN drafts d
+                  ON q.action_type IN ('%s', '%s')
+                 AND d.id = CAST(q.payload_json AS INTEGER)
                 WHERE q.account_id = ?
                 """
-                    .formatted(MailboxActionType.APPEND_SENT.name())
+                    .formatted(
+                        MailboxActionType.APPEND_SENT.name(),
+                        MailboxActionType.UPSERT_DRAFT.name(),
+                        MailboxActionType.DELETE_DRAFT.name())
                 + """
                   AND q.status IN (%s)
                   AND q.dismissed_at IS NULL
@@ -1193,7 +1386,7 @@ public class DbEmailRepository implements EmailRepository {
                   q.id,
                   q.account_id,
                   q.message_id,
-                  COALESCE(m.subject, om.subject, ''),
+                  COALESCE(m.subject, om.subject, d.subject, ''),
                   q.action_type,
                   q.source_remote_name,
                   q.source_uidvalidity,
@@ -1214,6 +1407,9 @@ public class DbEmailRepository implements EmailRepository {
                 LEFT JOIN outbound_messages om
                   ON q.action_type = '%s'
                  AND om.id = CAST(q.payload_json AS INTEGER)
+                LEFT JOIN drafts d
+                  ON q.action_type IN ('%s', '%s')
+                 AND d.id = CAST(q.payload_json AS INTEGER)
                 WHERE q.status IN (%s)
                   AND q.action_type IN (%s)
                   AND (q.next_attempt_at_epoch_s IS NULL OR q.next_attempt_at_epoch_s <= ?)
@@ -1221,6 +1417,8 @@ public class DbEmailRepository implements EmailRepository {
                 LIMIT ?"""
                 .formatted(
                     MailboxActionType.APPEND_SENT.name(),
+                    MailboxActionType.UPSERT_DRAFT.name(),
+                    MailboxActionType.DELETE_DRAFT.name(),
                     EnumSql.inClause(MailboxActionStatus.CLAIMABLE),
                     EnumSql.inClause(MailboxActionType.BACKGROUND_SYNCABLE)))) {
       stmt.setLong(1, now.toEpochSecond());
@@ -1268,6 +1466,9 @@ public class DbEmailRepository implements EmailRepository {
 
   private record TargetFolderContext(
       int folderId, String remoteName, FolderSpecialUse specialUse) {}
+
+  private record DraftEnqueueContext(
+      int accountId, Optional<Long> remoteImapUid, Optional<Long> remoteUidValidity) {}
 
   private record MailboxSyncStatusCounts(
       int pendingCount,
