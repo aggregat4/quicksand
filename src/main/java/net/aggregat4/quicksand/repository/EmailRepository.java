@@ -39,6 +39,10 @@ public interface EmailRepository {
 
   void markMailboxActionConflict(int id, String error, ZonedDateTime now);
 
+  void markMailboxActionPermanentFailure(int id, String error, ZonedDateTime now);
+
+  void updateMessageImapUid(int messageId, long imapUid);
+
   void removeAllByUid(Collection<Long> localMessageIds);
 
   void removeBatchByUid(List<Long> batch);

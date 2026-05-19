@@ -369,6 +369,42 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
+  public void markMailboxActionPermanentFailure(int id, String error, ZonedDateTime now) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        """
+            UPDATE mailbox_action_queue
+            SET status = ?,
+                execution_state = ?,
+                attempt_count = attempt_count + 1,
+                last_error = ?,
+                updated_at = ?,
+                resolved_at = ?
+            WHERE id = ?""",
+        stmt -> {
+          stmt.setString(1, MailboxActionStatus.FAILED_PERMANENT.name());
+          stmt.setString(2, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
+          stmt.setString(3, error);
+          stmt.setString(4, toISOString(now));
+          stmt.setString(5, toISOString(now));
+          stmt.setInt(6, id);
+          stmt.executeUpdate();
+        });
+  }
+
+  @Override
+  public void updateMessageImapUid(int messageId, long imapUid) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        "UPDATE messages SET imap_uid = ? WHERE id = ?",
+        stmt -> {
+          stmt.setLong(1, imapUid);
+          stmt.setInt(2, messageId);
+          stmt.executeUpdate();
+        });
+  }
+
+  @Override
   public void markMailboxActionConflict(int id, String error, ZonedDateTime now) {
     DbUtil.withPreparedStmtConsumer(
         ds,
@@ -1013,6 +1049,7 @@ public class DbEmailRepository implements EmailRepository {
                 SELECT
                   q.id,
                   q.account_id,
+                  q.message_id,
                   COALESCE(m.subject, ''),
                   q.action_type,
                   q.source_remote_name,
@@ -1070,6 +1107,7 @@ public class DbEmailRepository implements EmailRepository {
                 SELECT
                   q.id,
                   q.account_id,
+                  q.message_id,
                   COALESCE(m.subject, ''),
                   q.action_type,
                   q.source_remote_name,
@@ -1094,7 +1132,7 @@ public class DbEmailRepository implements EmailRepository {
                 LIMIT ?"""
                 .formatted(
                     EnumSql.inClause(MailboxActionStatus.CLAIMABLE),
-                    EnumSql.inClause(MailboxActionType.READ_STATE_SYNCABLE)))) {
+                    EnumSql.inClause(MailboxActionType.BACKGROUND_SYNCABLE)))) {
       stmt.setLong(1, now.toEpochSecond());
       stmt.setInt(2, limit);
       try (ResultSet rs = stmt.executeQuery()) {
@@ -1111,21 +1149,22 @@ public class DbEmailRepository implements EmailRepository {
     return new MailboxActionQueueRow(
         rs.getInt(1),
         rs.getInt(2),
-        rs.getString(3),
-        MailboxActionType.valueOf(rs.getString(4)),
-        rs.getString(5),
-        getNullableLong(rs, 6),
+        rs.getInt(3),
+        rs.getString(4),
+        MailboxActionType.valueOf(rs.getString(5)),
+        rs.getString(6),
         getNullableLong(rs, 7),
-        rs.getString(8),
-        EnumSql.optionalEnum(FolderSpecialUse.class, rs.getString(9)),
-        MailboxActionStatus.valueOf(rs.getString(10)),
-        MailboxActionExecutionState.valueOf(rs.getString(11)),
-        EnumSql.optionalEnum(MailboxActionResolutionType.class, rs.getString(12)),
-        rs.getInt(13),
-        rs.getString(14),
+        getNullableLong(rs, 8),
+        rs.getString(9),
+        EnumSql.optionalEnum(FolderSpecialUse.class, rs.getString(10)),
+        MailboxActionStatus.valueOf(rs.getString(11)),
+        MailboxActionExecutionState.valueOf(rs.getString(12)),
+        EnumSql.optionalEnum(MailboxActionResolutionType.class, rs.getString(13)),
+        rs.getInt(14),
         rs.getString(15),
         rs.getString(16),
-        rs.getString(17));
+        rs.getString(17),
+        rs.getString(18));
   }
 
   private record MessageActionContext(

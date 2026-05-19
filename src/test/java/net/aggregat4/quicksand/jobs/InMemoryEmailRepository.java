@@ -153,6 +153,13 @@ public class InMemoryEmailRepository implements EmailRepository {
   public void markMailboxActionConflict(int id, String error, java.time.ZonedDateTime now) {}
 
   @Override
+  public void markMailboxActionPermanentFailure(
+      int id, String error, java.time.ZonedDateTime now) {}
+
+  @Override
+  public void updateMessageImapUid(int messageId, long imapUid) {}
+
+  @Override
   public void removeAllByUid(Collection<Long> localMessageIds) {
     for (List<Email> emails : messages.values()) {
       emails.removeIf(email -> localMessageIds.contains(email.header().imapUid()));
