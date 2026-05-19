@@ -38,11 +38,11 @@ Local-first mailbox actions with a queued remote replay model are specified in `
 - account folder mapping settings UI, remote folder creation, and setup blocker for missing mappings
 - local actions enqueue remote work transactionally; inbound sync suppresses pending move-like source UIDs
 - account sync status view and header warnings
-- background `MailboxActionSync` applies **read/unread** to IMAP with retry/conflict handling
+- background `MailboxActionSync` applies **read/unread** and **move-like actions** (`UID MOVE` for MOVE, DELETE→Trash, ARCHIVE, MARK_SPAM) to IMAP with retry/conflict handling
 
 **Still needed:**
 
-- **remote move-like actions** — implement `UID MOVE` (then safe COPY/UID-expunge fallback where UIDPLUS allows) for MOVE, DELETE→Trash, ARCHIVE, and MARK_SPAM in `MailboxActionSync`
+- **UIDPLUS-safe COPY/delete fallback** where servers lack `UID MOVE`
 - **Sent append sync** after SMTP delivery
 - **Drafts sync** with debounced/coalesced remote updates
 - **broader GreenMail integration tests** for move/delete/trash, retry, mapping flows, Sent, and Drafts
@@ -82,8 +82,8 @@ The current defaults are acceptable for a local prototype, but they should be ma
 
 If picking one product-facing task next:
 
-1. **implement remote move-like actions in `MailboxActionSync`** (`UID MOVE` for move, delete-as-trash, archive, and spam) so queued local intent is replayed to IMAP
-2. **add GreenMail integration tests** for at least one move-like action end-to-end
+1. **add UIDPLUS-safe COPY/delete fallback** for servers without `UID MOVE`
+2. **add Sent append and Drafts debounced sync** per `specs/imap-action-sync.md`
 3. **add incoming attachment extraction/persistence** when message attachments become the next mail-reading slice
 4. **handle runtime/schema/storage hardening incrementally**, especially per-account folder uniqueness, before treating multi-account local state as durable
 

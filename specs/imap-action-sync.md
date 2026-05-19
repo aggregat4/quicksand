@@ -662,7 +662,7 @@ initially. A narrower per-folder reset can be added later.
 - [x] Teach inbound sync to ignore source UIDs covered by pending move/delete/archive/spam actions.
 - [x] Add sync status/error view.
 - [x] Implement remote read/unread sync.
-- [ ] Implement remote move to configured folders using `UID MOVE`.
+- [x] Implement remote move to configured folders using `UID MOVE`.
 - [ ] Add safe COPY/delete/UID-expunge fallback only where UIDPLUS support makes it safe.
 - [ ] Add Sent append sync.
 - [ ] Add Drafts sync with debounced/coalesced queued updates.
