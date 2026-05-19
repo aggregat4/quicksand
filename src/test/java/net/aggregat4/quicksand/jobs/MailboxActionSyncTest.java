@@ -19,6 +19,8 @@ import javax.sql.DataSource;
 import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.GreenmailTestUtils;
 import net.aggregat4.quicksand.domain.Account;
+import net.aggregat4.quicksand.domain.Draft;
+import net.aggregat4.quicksand.domain.DraftType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.FolderMappingStatus;
@@ -26,14 +28,19 @@ import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.MailboxActionStatus;
 import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.NamedFolder;
+import net.aggregat4.quicksand.domain.OutboundMessage;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
+import net.aggregat4.quicksand.repository.DbAttachmentRepository;
+import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
 import net.aggregat4.quicksand.repository.DbFolderRepository;
+import net.aggregat4.quicksand.repository.DbOutboundMessageRepository;
+import net.aggregat4.quicksand.service.OutboundMessageService;
 import org.eclipse.angus.mail.imap.IMAPFolder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -101,6 +108,74 @@ class MailboxActionSyncTest {
         MailboxActionStatus.SUCCEEDED.name(),
         queuedActionStatus(fixture.dataSource(), MailboxActionType.MARK_SPAM));
     assertRemoteFolderCounts("INBOX", 0, "Spam", 1);
+  }
+
+  @Test
+  void syncsQueuedAppendSentActionToImap() throws Exception {
+    SyncFixture fixture =
+        configureMappedFolder(syncInboxMessage("append-sent-body"), "Sent", FolderSpecialUse.SENT);
+
+    DbDraftRepository draftRepository = new DbDraftRepository(fixture.dataSource());
+    Draft draft =
+        draftRepository.create(
+            new Draft(
+                0,
+                fixture.account().id(),
+                DraftType.NEW,
+                java.util.Optional.empty(),
+                "recipient@localhost",
+                "",
+                "",
+                "Append sent subject",
+                "Append sent body",
+                false,
+                java.time.ZonedDateTime.now(FIXED_CLOCK),
+                FIXED_CLOCK.instant().getEpochSecond()));
+
+    DbOutboundMessageRepository outboundMessageRepository =
+        new DbOutboundMessageRepository(fixture.dataSource());
+    OutboundMessageService outboundMessageService =
+        new OutboundMessageService(
+            fixture.dataSource(),
+            fixture.accountRepository(),
+            draftRepository,
+            new DbAttachmentRepository(fixture.dataSource()),
+            outboundMessageRepository,
+            FIXED_CLOCK);
+    OutboundMessage queued = outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();
+
+    MailSender mailSender =
+        new MailSender(
+            fixture.accountRepository(),
+            outboundMessageRepository,
+            new DbAttachmentRepository(fixture.dataSource()),
+            fixture.emailRepository(),
+            FIXED_CLOCK,
+            60,
+            3,
+            60);
+    mailSender.sendNow();
+
+    assertEquals(
+        MailboxActionStatus.PENDING.name(),
+        queuedActionStatus(fixture.dataSource(), MailboxActionType.APPEND_SENT));
+
+    runMailboxActionSync(fixture);
+
+    assertEquals(
+        MailboxActionStatus.SUCCEEDED.name(),
+        queuedActionStatus(fixture.dataSource(), MailboxActionType.APPEND_SENT));
+    assertRemoteFolderCounts("INBOX", 1, "Sent", 1);
+
+    Store store = GreenmailUtils.getImapStore(greenMail);
+    Folder sent = store.getFolder("Sent");
+    sent.open(Folder.READ_ONLY);
+    try {
+      assertEquals("Append sent subject", sent.getMessage(1).getSubject());
+    } finally {
+      sent.close();
+      store.close();
+    }
   }
 
   @Test
@@ -214,7 +289,14 @@ class MailboxActionSyncTest {
 
   private static void runMailboxActionSync(SyncFixture fixture) {
     new MailboxActionSync(
-            fixture.accountRepository(), fixture.emailRepository(), FIXED_CLOCK, 60, 60)
+            fixture.accountRepository(),
+            fixture.emailRepository(),
+            new net.aggregat4.quicksand.repository.DbOutboundMessageRepository(
+                fixture.dataSource()),
+            new net.aggregat4.quicksand.repository.DbAttachmentRepository(fixture.dataSource()),
+            FIXED_CLOCK,
+            60,
+            60)
         .syncNow();
   }
 

@@ -24,6 +24,8 @@ import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
 import net.aggregat4.quicksand.domain.MailboxActionStatus;
 import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.NamedFolder;
+import net.aggregat4.quicksand.domain.OutboundMessage;
+import net.aggregat4.quicksand.domain.OutboundMessageStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -148,6 +150,60 @@ class DbEmailRepositoryMailboxActionTest {
     assertEquals(1, status.conflictCount());
     assertTrue(status.needsAttention());
     assertEquals(MailboxActionStatus.CONFLICT, status.actions().getFirst().status());
+  }
+
+  @Test
+  void enqueueAppendSentCreatesQueueRowWhenSentMappingExists() throws Exception {
+    NamedFolder sent =
+        folderRepository.createFolder(account, "Sent", "Sent", FolderSpecialUse.SENT, 300L);
+    mappingRepository.save(
+        account.id(),
+        FolderSpecialUse.SENT,
+        sent.id(),
+        sent.remoteName(),
+        FolderMappingStatus.USER_CONFIRMED);
+
+    DbOutboundMessageRepository outboundRepository = new DbOutboundMessageRepository(dataSource);
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 9, 15, 0, 0, ZoneId.of("UTC"));
+    OutboundMessage outbound;
+    try (Connection con = dataSource.getConnection()) {
+      outbound =
+          outboundRepository.create(
+              con,
+              new OutboundMessage(
+                  0,
+                  account.id(),
+                  java.util.Optional.empty(),
+                  account.name(),
+                  "sender@example.com",
+                  "to@example.com",
+                  "",
+                  "",
+                  "Queued subject",
+                  "Queued body",
+                  OutboundMessageStatus.SENT,
+                  0,
+                  java.util.Optional.empty(),
+                  now,
+                  java.util.Optional.empty(),
+                  java.util.Optional.of(now),
+                  now.toEpochSecond()));
+    }
+
+    emailRepository.enqueueAppendSent(outbound.id());
+    emailRepository.enqueueAppendSent(outbound.id());
+
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement(
+                "SELECT COUNT(*) FROM mailbox_action_queue WHERE action_type = ? AND payload_json = ?")) {
+      stmt.setString(1, MailboxActionType.APPEND_SENT.name());
+      stmt.setString(2, Integer.toString(outbound.id()));
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(1, rs.getInt(1));
+      }
+    }
   }
 
   @Test

@@ -16,4 +16,7 @@ public enum MailboxActionStatus {
 
   public static final List<MailboxActionStatus> SYNC_STATUS_VISIBLE =
       List.of(PENDING, APPLYING, FAILED_RETRYABLE, FAILED_PERMANENT, CONFLICT);
+
+  public static final List<MailboxActionStatus> UNRESOLVED =
+      List.of(PENDING, APPLYING, FAILED_RETRYABLE, FAILED_PERMANENT, CONFLICT);
 }

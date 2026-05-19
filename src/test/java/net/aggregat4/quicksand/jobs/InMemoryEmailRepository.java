@@ -160,6 +160,9 @@ public class InMemoryEmailRepository implements EmailRepository {
   public void updateMessageImapUid(int messageId, long imapUid) {}
 
   @Override
+  public void enqueueAppendSent(int outboundMessageId) {}
+
+  @Override
   public void removeAllByUid(Collection<Long> localMessageIds) {
     for (List<Email> emails : messages.values()) {
       emails.removeIf(email -> localMessageIds.contains(email.header().imapUid()));

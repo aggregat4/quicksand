@@ -664,7 +664,7 @@ initially. A narrower per-folder reset can be added later.
 - [x] Implement remote read/unread sync.
 - [x] Implement remote move to configured folders using `UID MOVE`.
 - [ ] Add safe COPY/delete/UID-expunge fallback only where UIDPLUS support makes it safe.
-- [ ] Add Sent append sync.
+- [x] Add Sent append sync.
 - [ ] Add Drafts sync with debounced/coalesced queued updates.
 - [ ] Add integration tests with GreenMail for read/unread, move, delete-as-trash, retry, folder
   mapping, remote folder creation, pending-action inbound sync suppression, Sent, and Drafts.

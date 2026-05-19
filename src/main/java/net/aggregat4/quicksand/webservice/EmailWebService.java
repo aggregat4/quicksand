@@ -356,6 +356,12 @@ public class EmailWebService implements HttpService {
     LOGGER.debug("Uploaded files: {}", params.get("uploaded-file"));
     if (!validationErrors.isEmpty()) {
       redirectWithValidationErrors(emailId, String.join(" ", validationErrors), response);
+    } else if (!accountFolderMappingService.hasConfiguredMapping(
+        draft.get().accountId(), FolderSpecialUse.SENT)) {
+      ResponseUtils.redirectAfterPost(
+          response,
+          URI.create(
+              "/accounts/%s/settings/folders?required=SENT".formatted(draft.get().accountId())));
     } else {
       Optional<net.aggregat4.quicksand.domain.OutboundMessage> queuedMessage =
           outboundMessageService.queueDraftForDelivery(emailId);

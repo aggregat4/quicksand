@@ -1,21 +1,13 @@
 package net.aggregat4.quicksand.jobs;
 
-import jakarta.activation.DataHandler;
-import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Session;
 import jakarta.mail.Transport;
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
-import jakarta.mail.internet.MimeMultipart;
-import jakarta.mail.util.ByteArrayDataSource;
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -24,6 +16,7 @@ import net.aggregat4.quicksand.domain.OutboundMessage;
 import net.aggregat4.quicksand.domain.StoredAttachment;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
+import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.OutboundMessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +29,7 @@ public class MailSender {
   private final DbAccountRepository accountRepository;
   private final OutboundMessageRepository outboundMessageRepository;
   private final AttachmentRepository attachmentRepository;
+  private final EmailRepository emailRepository;
   private final Clock clock;
   private final long sendPeriodInSeconds;
   private final int maxAttempts;
@@ -45,6 +39,7 @@ public class MailSender {
       DbAccountRepository accountRepository,
       OutboundMessageRepository outboundMessageRepository,
       AttachmentRepository attachmentRepository,
+      EmailRepository emailRepository,
       Clock clock,
       long sendPeriodInSeconds,
       int maxAttempts,
@@ -52,6 +47,7 @@ public class MailSender {
     this.accountRepository = accountRepository;
     this.outboundMessageRepository = outboundMessageRepository;
     this.attachmentRepository = attachmentRepository;
+    this.emailRepository = emailRepository;
     this.clock = clock;
     this.sendPeriodInSeconds = sendPeriodInSeconds;
     this.maxAttempts = maxAttempts;
@@ -76,8 +72,11 @@ public class MailSender {
     for (OutboundMessage message : outboundMessageRepository.findDeliverable(now)) {
       Account account = accountRepository.getAccount(message.accountId());
       try {
-        deliver(account, message, attachmentRepository.findStoredByOutboundMessageId(message.id()));
+        List<StoredAttachment> attachments =
+            attachmentRepository.findStoredByOutboundMessageId(message.id());
+        deliver(account, message, attachments);
         outboundMessageRepository.markSent(message.id(), now);
+        emailRepository.enqueueAppendSent(message.id());
       } catch (MessagingException | UnsupportedEncodingException e) {
         LOGGER.warn("Failed to send outbound message {}", message.id(), e);
         String abbreviatedError = abbreviateError(e);
@@ -95,57 +94,14 @@ public class MailSender {
 
   private void deliver(Account account, OutboundMessage message, List<StoredAttachment> attachments)
       throws MessagingException, UnsupportedEncodingException {
-    Session session = Session.getInstance(smtpProperties(account), null);
-    MimeMessage mimeMessage = new MimeMessage(session);
-    mimeMessage.setFrom(
-        new InternetAddress(message.fromAddress(), blankToNull(message.fromName())));
-    setRecipients(mimeMessage, Message.RecipientType.TO, message.to());
-    setRecipients(mimeMessage, Message.RecipientType.CC, message.cc());
-    setRecipients(mimeMessage, Message.RecipientType.BCC, message.bcc());
-    mimeMessage.setSubject(message.subject(), StandardCharsets.UTF_8.name());
-    if (attachments.isEmpty()) {
-      mimeMessage.setText(message.body(), StandardCharsets.UTF_8.name());
-    } else {
-      MimeMultipart multipart = new MimeMultipart();
-
-      MimeBodyPart textPart = new MimeBodyPart();
-      textPart.setText(message.body(), StandardCharsets.UTF_8.name());
-      multipart.addBodyPart(textPart);
-
-      for (StoredAttachment attachment : attachments) {
-        MimeBodyPart attachmentPart = new MimeBodyPart();
-        attachmentPart.setFileName(attachment.name());
-        attachmentPart.setDataHandler(
-            new DataHandler(
-                new ByteArrayDataSource(attachment.content(), attachment.mediaType().text())));
-        multipart.addBodyPart(attachmentPart);
-      }
-      mimeMessage.setContent(multipart);
-    }
-    mimeMessage.saveChanges();
+    MimeMessage mimeMessage = OutboundMimeMessageBuilder.build(account, message, attachments);
+    Session session = mimeMessage.getSession();
 
     try (Transport transport = session.getTransport("smtp")) {
       transport.connect(
           account.smtpHost(), account.smtpPort(), account.smtpUsername(), account.smtpPassword());
       transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
     }
-  }
-
-  private static void setRecipients(
-      MimeMessage mimeMessage, Message.RecipientType recipientType, String rawRecipients)
-      throws MessagingException {
-    if (rawRecipients == null || rawRecipients.isBlank()) {
-      return;
-    }
-    mimeMessage.setRecipients(recipientType, InternetAddress.parse(rawRecipients, false));
-  }
-
-  private static Properties smtpProperties(Account account) {
-    Properties properties = new Properties();
-    properties.put("mail.smtp.host", account.smtpHost());
-    properties.put("mail.smtp.port", Integer.toString(account.smtpPort()));
-    properties.put("mail.smtp.auth", "true");
-    return properties;
   }
 
   private static String abbreviateError(Exception exception) {
@@ -155,10 +111,6 @@ public class MailSender {
     }
     String collapsed = message.replaceAll("\\s+", " ").trim();
     return collapsed.length() <= 240 ? collapsed : collapsed.substring(0, 237) + "...";
-  }
-
-  private static String blankToNull(String value) {
-    return value == null || value.isBlank() ? null : value;
   }
 
   private long backoffSeconds(int attemptCount) {

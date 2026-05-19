@@ -18,4 +18,5 @@ public record MailboxActionQueueRow(
     String nextAttemptAt,
     String lastError,
     String createdAt,
-    String updatedAt) {}
+    String updatedAt,
+    String payloadJson) {}

@@ -7,6 +7,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.NoSuchProviderException;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
+import jakarta.mail.internet.MimeMessage;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -17,8 +18,12 @@ import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
 import net.aggregat4.quicksand.domain.MailboxActionType;
+import net.aggregat4.quicksand.domain.OutboundMessage;
+import net.aggregat4.quicksand.domain.StoredAttachment;
+import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
+import net.aggregat4.quicksand.repository.OutboundMessageRepository;
 import org.eclipse.angus.mail.imap.AppendUID;
 import org.eclipse.angus.mail.imap.IMAPFolder;
 import org.eclipse.angus.mail.imap.IMAPStore;
@@ -33,6 +38,8 @@ public class MailboxActionSync {
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
   private final DbAccountRepository accountRepository;
   private final EmailRepository emailRepository;
+  private final OutboundMessageRepository outboundMessageRepository;
+  private final AttachmentRepository attachmentRepository;
   private final Clock clock;
   private final long syncPeriodInSeconds;
   private final long retryDelaySeconds;
@@ -40,11 +47,15 @@ public class MailboxActionSync {
   public MailboxActionSync(
       DbAccountRepository accountRepository,
       EmailRepository emailRepository,
+      OutboundMessageRepository outboundMessageRepository,
+      AttachmentRepository attachmentRepository,
       Clock clock,
       long syncPeriodInSeconds,
       long retryDelaySeconds) {
     this.accountRepository = accountRepository;
     this.emailRepository = emailRepository;
+    this.outboundMessageRepository = outboundMessageRepository;
+    this.attachmentRepository = attachmentRepository;
     this.clock = clock;
     this.syncPeriodInSeconds = syncPeriodInSeconds;
     this.retryDelaySeconds = retryDelaySeconds;
@@ -95,7 +106,61 @@ public class MailboxActionSync {
       applyMoveLikeAction(action);
       return;
     }
+    if (action.actionType() == MailboxActionType.APPEND_SENT) {
+      applyAppendSentAction(action);
+      return;
+    }
     throw new IllegalArgumentException("Unsupported mailbox action type " + action.actionType());
+  }
+
+  private void applyAppendSentAction(MailboxActionQueueRow action) throws MessagingException {
+    if (action.targetRemoteName() == null || action.payloadJson() == null) {
+      throw new MailboxActionConflictException(
+          "Queued sent append is missing target mailbox or outbound message identity");
+    }
+    int outboundMessageId = Integer.parseInt(action.payloadJson());
+    OutboundMessage outboundMessage =
+        outboundMessageRepository
+            .findById(outboundMessageId)
+            .orElseThrow(
+                () ->
+                    new MailboxActionConflictException(
+                        "Outbound message %s no longer exists".formatted(outboundMessageId)));
+    if (outboundMessage.accountId() != action.accountId()) {
+      throw new MailboxActionConflictException("Outbound message does not belong to this account");
+    }
+    Account account = accountRepository.getAccount(action.accountId());
+    List<StoredAttachment> attachments =
+        attachmentRepository.findStoredByOutboundMessageId(outboundMessageId);
+    MimeMessage mimeMessage;
+    try {
+      mimeMessage = OutboundMimeMessageBuilder.build(account, outboundMessage, attachments);
+    } catch (java.io.UnsupportedEncodingException e) {
+      throw new MessagingException("Failed to build sent message for IMAP append", e);
+    }
+
+    try (Store store = createConnectedStore(account)) {
+      Folder targetFolder = store.getFolder(action.targetRemoteName());
+      if (!targetFolder.exists()) {
+        throw new MailboxActionConflictException("Sent mailbox does not exist on server");
+      }
+      if (!(targetFolder instanceof IMAPFolder imapFolder)) {
+        throw new MessagingException("Sent folder is not an IMAP folder");
+      }
+      imapFolder.open(Folder.READ_WRITE);
+      try {
+        AppendUID[] appended = imapFolder.appendUIDMessages(new Message[] {mimeMessage});
+        if (appended != null && appended.length == 1 && appended[0] != null) {
+          LOGGER.debug(
+              "Appended sent message {} to {} with UID {}",
+              outboundMessageId,
+              action.targetRemoteName(),
+              appended[0].uid);
+        }
+      } finally {
+        imapFolder.close(false);
+      }
+    }
   }
 
   private void applyReadStateAction(MailboxActionQueueRow action) throws MessagingException {

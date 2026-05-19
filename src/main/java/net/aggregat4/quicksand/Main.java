@@ -129,6 +129,7 @@ public final class Main {
               accountRepository,
               outboundMessageRepository,
               attachmentRepository,
+              messageRepository,
               clock,
               sendPeriodInSeconds,
               maxAttempts,
@@ -147,7 +148,13 @@ public final class Main {
           config.get("mailbox_action_sync.retry_delay_seconds").asLong().orElse(60L);
       mailboxActionSync =
           new MailboxActionSync(
-              accountRepository, messageRepository, clock, syncPeriodInSeconds, retryDelaySeconds);
+              accountRepository,
+              messageRepository,
+              outboundMessageRepository,
+              attachmentRepository,
+              clock,
+              syncPeriodInSeconds,
+              retryDelaySeconds);
       mailboxActionSync.syncNow();
       mailboxActionSync.start();
     } else if (mailboxActionSyncEnabled) {

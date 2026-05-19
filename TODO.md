@@ -39,11 +39,10 @@ Local-first mailbox actions with a queued remote replay model are specified in `
 - account folder mapping settings UI, remote folder creation, and setup blocker for missing mappings
 - local actions enqueue remote work transactionally; inbound sync suppresses pending move-like source UIDs
 - account sync status view and header warnings
-- background `MailboxActionSync` applies **read/unread** and **move-like actions** (`UID MOVE` for MOVE, DELETE→Trash, ARCHIVE, MARK_SPAM) to IMAP with retry/conflict handling
+- background `MailboxActionSync` applies **read/unread**, **move-like actions** (`UID MOVE`), and **Sent append** (`APPEND_SENT` via IMAP APPEND after SMTP) with retry/conflict handling
+- send is blocked until Sent folder mapping is configured
 
 **Still needed (finish action-sync slice):**
-
-- **Sent append sync** after SMTP delivery (`APPEND_SENT` queue row, remote Sent mapping required)
 - **Drafts sync** with debounced/coalesced remote updates (`UPSERT_DRAFT` / `DELETE_DRAFT`)
 - **sync status actions** — retry now, rollback, abandon, dismiss resolved rows, reset local mirror (spec; not all wired yet)
 - **broader GreenMail integration tests** for Sent, Drafts, retry, and sync-status flows
@@ -183,17 +182,18 @@ The current defaults are acceptable for a local prototype, but they should be ma
 ## Recently Completed (since last review)
 
 1. **IMAP action sync foundation** — v3 migration, folder metadata, account folder mappings, mapping settings UI, setup blocker, transactional enqueue, inbound UID suppression, and sync status view (`feature/imap-action-sync-spec`).
-2. **Remote read/unread and move-like sync** — `MailboxActionSync` applies flag and `UID MOVE` actions; GreenMail tests for read/unread, archive, delete, spam, move.
-3. **Typed mailbox action queue** — domain enums, `EnumSql`, repository and sync-status UI alignment.
-4. **IMAP capability probe** — `ImapCapabilityProbe` CLI and `./scripts/imap-probe.sh`.
-5. **Mark read/unread and local mailbox actions** — end-to-end with integration and Playwright coverage.
-6. **HTML sanitization and rich demo emails** — fixture-backed unit tests and visually complex demo messages for viewer testing.
+2. **Sent append sync** — after SMTP delivery, `APPEND_SENT` queue rows are replayed to the configured remote Sent mailbox via IMAP APPEND.
+3. **Remote read/unread and move-like sync** — `MailboxActionSync` applies flag and `UID MOVE` actions; GreenMail tests for read/unread, archive, delete, spam, move.
+4. **Typed mailbox action queue** — domain enums, `EnumSql`, repository and sync-status UI alignment.
+5. **IMAP capability probe** — `ImapCapabilityProbe` CLI and `./scripts/imap-probe.sh`.
+6. **Mark read/unread and local mailbox actions** — end-to-end with integration and Playwright coverage.
+7. **HTML sanitization and rich demo emails** — fixture-backed unit tests and visually complex demo messages for viewer testing.
 
 ## Recommended Next Slice
 
 If picking one product-facing task next:
 
-1. **finish IMAP action sync** — Sent append, Drafts debounced sync, sync-status actions (per `specs/imap-action-sync.md`); Sent/Drafts need configured folder mappings
+1. **finish IMAP action sync** — Drafts debounced sync, sync-status actions (per `specs/imap-action-sync.md`); Drafts mapping required for composer
 2. **SPECIAL-USE folder setup UX** — small slice, high UX win on modern servers; unblocks frictionless first connect (see §1b)
 3. **CONDSTORE-aware inbound sync** — first incremental improvement; biggest win for large mailboxes on modern servers (see §2a)
 4. **QRESYNC then IDLE** — after CONDSTORE checkpointing exists (see §2b, §2c)

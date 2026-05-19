@@ -393,6 +393,31 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
+  public void enqueueAppendSent(int outboundMessageId) {
+    DbUtil.withConConsumer(
+        ds,
+        con -> {
+          try {
+            Optional<Integer> accountId = findOutboundMessageAccountId(con, outboundMessageId);
+            if (accountId.isEmpty()) {
+              return;
+            }
+            if (hasUnresolvedAppendSent(con, outboundMessageId)) {
+              return;
+            }
+            Optional<TargetFolderContext> target =
+                findMappedTargetFolderContext(con, accountId.get(), FolderSpecialUse.SENT);
+            if (target.isEmpty()) {
+              return;
+            }
+            enqueueAppendSentAction(con, accountId.get(), target.get(), outboundMessageId);
+          } catch (SQLException e) {
+            throw new RuntimeException(e);
+          }
+        });
+  }
+
+  @Override
   public void updateMessageImapUid(int messageId, long imapUid) {
     DbUtil.withPreparedStmtConsumer(
         ds,
@@ -950,6 +975,59 @@ public class DbEmailRepository implements EmailRepository {
     }
   }
 
+  private static void enqueueAppendSentAction(
+      Connection con, int accountId, TargetFolderContext target, int outboundMessageId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                INSERT INTO mailbox_action_queue (
+                  account_id, message_id, action_type,
+                  target_folder_id, target_remote_name, target_special_use, payload_json)
+                VALUES (?, NULL, ?, ?, ?, ?, ?)""")) {
+      stmt.setInt(1, accountId);
+      stmt.setString(2, MailboxActionType.APPEND_SENT.name());
+      stmt.setInt(3, target.folderId());
+      stmt.setString(4, target.remoteName());
+      stmt.setString(5, FolderSpecialUse.SENT.name());
+      stmt.setString(6, Integer.toString(outboundMessageId));
+      stmt.executeUpdate();
+    }
+  }
+
+  private static boolean hasUnresolvedAppendSent(Connection con, int outboundMessageId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                SELECT 1
+                FROM mailbox_action_queue
+                WHERE action_type = ?
+                  AND payload_json = ?
+                  AND status IN (%s)"""
+                .formatted(EnumSql.inClause(MailboxActionStatus.UNRESOLVED)))) {
+      stmt.setString(1, MailboxActionType.APPEND_SENT.name());
+      stmt.setString(2, Integer.toString(outboundMessageId));
+      try (ResultSet rs = stmt.executeQuery()) {
+        return rs.next();
+      }
+    }
+  }
+
+  private static Optional<Integer> findOutboundMessageAccountId(
+      Connection con, int outboundMessageId) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement("SELECT account_id FROM outbound_messages WHERE id = ?")) {
+      stmt.setInt(1, outboundMessageId);
+      try (ResultSet rs = stmt.executeQuery()) {
+        if (!rs.next()) {
+          return Optional.empty();
+        }
+        return Optional.of(rs.getInt(1));
+      }
+    }
+  }
+
   private static void enqueueAction(
       Connection con,
       MessageActionContext source,
@@ -1050,7 +1128,7 @@ public class DbEmailRepository implements EmailRepository {
                   q.id,
                   q.account_id,
                   q.message_id,
-                  COALESCE(m.subject, ''),
+                  COALESCE(m.subject, om.subject, ''),
                   q.action_type,
                   q.source_remote_name,
                   q.source_uidvalidity,
@@ -1064,10 +1142,17 @@ public class DbEmailRepository implements EmailRepository {
                   q.next_attempt_at,
                   q.last_error,
                   q.created_at,
-                  q.updated_at
+                  q.updated_at,
+                  q.payload_json
                 FROM mailbox_action_queue q
                 LEFT JOIN messages m ON m.id = q.message_id
+                LEFT JOIN outbound_messages om
+                  ON q.action_type = '%s'
+                 AND om.id = CAST(q.payload_json AS INTEGER)
                 WHERE q.account_id = ?
+                """
+                    .formatted(MailboxActionType.APPEND_SENT.name())
+                + """
                   AND q.status IN (%s)
                   AND q.dismissed_at IS NULL
                   AND (q.resolution_type IS NULL OR q.resolution_type <> '%s')
@@ -1081,13 +1166,13 @@ public class DbEmailRepository implements EmailRepository {
                   END,
                   q.created_at DESC,
                   q.id DESC"""
-                .formatted(
-                    EnumSql.inClause(MailboxActionStatus.SYNC_STATUS_VISIBLE),
-                    MailboxActionResolutionType.DISMISSED.name(),
-                    MailboxActionStatus.CONFLICT.name(),
-                    MailboxActionStatus.FAILED_PERMANENT.name(),
-                    MailboxActionStatus.FAILED_RETRYABLE.name(),
-                    MailboxActionStatus.APPLYING.name()))) {
+                    .formatted(
+                        EnumSql.inClause(MailboxActionStatus.SYNC_STATUS_VISIBLE),
+                        MailboxActionResolutionType.DISMISSED.name(),
+                        MailboxActionStatus.CONFLICT.name(),
+                        MailboxActionStatus.FAILED_PERMANENT.name(),
+                        MailboxActionStatus.FAILED_RETRYABLE.name(),
+                        MailboxActionStatus.APPLYING.name()))) {
       stmt.setInt(1, accountId);
       try (ResultSet rs = stmt.executeQuery()) {
         List<MailboxActionQueueRow> rows = new ArrayList<>();
@@ -1108,7 +1193,7 @@ public class DbEmailRepository implements EmailRepository {
                   q.id,
                   q.account_id,
                   q.message_id,
-                  COALESCE(m.subject, ''),
+                  COALESCE(m.subject, om.subject, ''),
                   q.action_type,
                   q.source_remote_name,
                   q.source_uidvalidity,
@@ -1122,15 +1207,20 @@ public class DbEmailRepository implements EmailRepository {
                   q.next_attempt_at,
                   q.last_error,
                   q.created_at,
-                  q.updated_at
+                  q.updated_at,
+                  q.payload_json
                 FROM mailbox_action_queue q
                 LEFT JOIN messages m ON m.id = q.message_id
+                LEFT JOIN outbound_messages om
+                  ON q.action_type = '%s'
+                 AND om.id = CAST(q.payload_json AS INTEGER)
                 WHERE q.status IN (%s)
                   AND q.action_type IN (%s)
                   AND (q.next_attempt_at_epoch_s IS NULL OR q.next_attempt_at_epoch_s <= ?)
                 ORDER BY q.created_at, q.id
                 LIMIT ?"""
                 .formatted(
+                    MailboxActionType.APPEND_SENT.name(),
                     EnumSql.inClause(MailboxActionStatus.CLAIMABLE),
                     EnumSql.inClause(MailboxActionType.BACKGROUND_SYNCABLE)))) {
       stmt.setLong(1, now.toEpochSecond());
@@ -1164,7 +1254,8 @@ public class DbEmailRepository implements EmailRepository {
         rs.getString(15),
         rs.getString(16),
         rs.getString(17),
-        rs.getString(18));
+        rs.getString(18),
+        rs.getString(19));
   }
 
   private record MessageActionContext(

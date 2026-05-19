@@ -43,6 +43,8 @@ public interface EmailRepository {
 
   void updateMessageImapUid(int messageId, long imapUid);
 
+  void enqueueAppendSent(int outboundMessageId);
+
   void removeAllByUid(Collection<Long> localMessageIds);
 
   void removeBatchByUid(List<Long> batch);
