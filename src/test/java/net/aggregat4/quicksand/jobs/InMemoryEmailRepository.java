@@ -157,6 +157,46 @@ public class InMemoryEmailRepository implements EmailRepository {
       int id, String error, java.time.ZonedDateTime now) {}
 
   @Override
+  public Optional<MailboxActionQueueRow> findMailboxAction(int actionId, int accountId) {
+    return Optional.empty();
+  }
+
+  @Override
+  public boolean requestMailboxActionRetry(
+      int actionId, int accountId, java.time.ZonedDateTime now) {
+    return false;
+  }
+
+  @Override
+  public boolean dismissMailboxAction(int actionId, int accountId, java.time.ZonedDateTime now) {
+    return false;
+  }
+
+  @Override
+  public boolean abandonMailboxAction(int actionId, int accountId, java.time.ZonedDateTime now) {
+    return false;
+  }
+
+  @Override
+  public boolean rollbackMailboxAction(int actionId, int accountId, java.time.ZonedDateTime now) {
+    return false;
+  }
+
+  @Override
+  public void resolveUnresolvedMailboxActions(
+      int accountId,
+      net.aggregat4.quicksand.domain.MailboxActionResolutionType resolutionType,
+      java.time.ZonedDateTime now) {}
+
+  @Override
+  public void clearMirroredMailboxState(int accountId) {}
+
+  @Override
+  public int purgeStaleMailboxActionRows(java.time.ZonedDateTime now) {
+    return 0;
+  }
+
+  @Override
   public void updateMessageImapUid(int messageId, long imapUid) {}
 
   @Override

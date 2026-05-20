@@ -15,4 +15,6 @@ public interface AccountFolderMappingRepository {
       Integer folderId,
       String remoteName,
       FolderMappingStatus status);
+
+  void markMappedFoldersMissing(int accountId);
 }

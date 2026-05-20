@@ -9,6 +9,7 @@ import java.util.Set;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
+import net.aggregat4.quicksand.domain.MailboxActionResolutionType;
 import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
@@ -41,6 +42,23 @@ public interface EmailRepository {
   void markMailboxActionConflict(int id, String error, ZonedDateTime now);
 
   void markMailboxActionPermanentFailure(int id, String error, ZonedDateTime now);
+
+  Optional<MailboxActionQueueRow> findMailboxAction(int actionId, int accountId);
+
+  boolean requestMailboxActionRetry(int actionId, int accountId, ZonedDateTime now);
+
+  boolean dismissMailboxAction(int actionId, int accountId, ZonedDateTime now);
+
+  boolean abandonMailboxAction(int actionId, int accountId, ZonedDateTime now);
+
+  boolean rollbackMailboxAction(int actionId, int accountId, ZonedDateTime now);
+
+  void resolveUnresolvedMailboxActions(
+      int accountId, MailboxActionResolutionType resolutionType, ZonedDateTime now);
+
+  void clearMirroredMailboxState(int accountId);
+
+  int purgeStaleMailboxActionRows(ZonedDateTime now);
 
   void updateMessageImapUid(int messageId, long imapUid);
 

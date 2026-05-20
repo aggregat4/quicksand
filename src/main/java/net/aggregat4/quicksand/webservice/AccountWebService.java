@@ -40,6 +40,7 @@ import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
+import net.aggregat4.quicksand.service.MailboxSyncRecoveryService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 
 public class AccountWebService implements HttpService {
@@ -61,6 +62,7 @@ public class AccountWebService implements HttpService {
   private final EmailService emailService;
   private final DraftService draftService;
   private final OutboundMessageService outboundMessageService;
+  private final MailboxSyncRecoveryService mailboxSyncRecoveryService;
   private final Clock clock;
 
   public AccountWebService(
@@ -70,6 +72,7 @@ public class AccountWebService implements HttpService {
       EmailService emailService,
       DraftService draftService,
       OutboundMessageService outboundMessageService,
+      MailboxSyncRecoveryService mailboxSyncRecoveryService,
       Clock clock) {
     this.folderService = folderService;
     this.accountService = accountService;
@@ -77,6 +80,7 @@ public class AccountWebService implements HttpService {
     this.emailService = emailService;
     this.draftService = draftService;
     this.outboundMessageService = outboundMessageService;
+    this.mailboxSyncRecoveryService = mailboxSyncRecoveryService;
     this.clock = clock;
   }
 
@@ -88,6 +92,11 @@ public class AccountWebService implements HttpService {
     rules.get("/{accountId}/outbox", this::getOutboxHandler);
     rules.get("/{accountId}/search", this::getSearchHandler);
     rules.get("/{accountId}/sync", this::getSyncStatusHandler);
+    rules.post("/{accountId}/sync/retry", this::postSyncRetryHandler);
+    rules.post("/{accountId}/sync/dismiss", this::postSyncDismissHandler);
+    rules.post("/{accountId}/sync/abandon", this::postSyncAbandonHandler);
+    rules.post("/{accountId}/sync/rollback", this::postSyncRollbackHandler);
+    rules.post("/{accountId}/sync/reset", this::postSyncResetHandler);
     rules.get("/{accountId}/settings/folders", this::getFolderSettingsHandler);
     rules.post("/{accountId}/settings/folders", this::postFolderSettingsHandler);
     rules.post("/{accountId}/emails", this::emailCreationHandler);
@@ -309,8 +318,59 @@ public class AccountWebService implements HttpService {
     context.put("accounts", accountService.getAccounts());
     context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
     context.put("mappingRows", accountFolderMappingService.getSetupRows(accountId));
+    context.put("saved", request.query().first("saved").isPresent());
+    context.put("error", request.query().first("error").orElse(null));
     response.headers().contentType(TEXT_HTML);
     response.send(PebbleRenderer.renderTemplate(context, syncStatusTemplate));
+  }
+
+  private void postSyncRetryHandler(ServerRequest request, ServerResponse response) {
+    handleSyncActionPost(request, response, "retry");
+  }
+
+  private void postSyncDismissHandler(ServerRequest request, ServerResponse response) {
+    handleSyncActionPost(request, response, "dismiss");
+  }
+
+  private void postSyncAbandonHandler(ServerRequest request, ServerResponse response) {
+    handleSyncActionPost(request, response, "abandon");
+  }
+
+  private void postSyncRollbackHandler(ServerRequest request, ServerResponse response) {
+    handleSyncActionPost(request, response, "rollback");
+  }
+
+  private void postSyncResetHandler(ServerRequest request, ServerResponse response) {
+    int accountId = RequestUtils.intPathParam(request, "accountId");
+    mailboxSyncRecoveryService.resetLocalMirror(accountId);
+    ResponseUtils.redirectAfterPost(
+        response, URI.create("/accounts/%s/sync?saved=true".formatted(accountId)));
+  }
+
+  private void handleSyncActionPost(
+      ServerRequest request, ServerResponse response, String actionName) {
+    int accountId = RequestUtils.intPathParam(request, "accountId");
+    Map<String, String> formParams = parseFormEncoded(request.content().as(String.class));
+    String actionIdValue = formParams.get("actionId");
+    if (actionIdValue == null || actionIdValue.isBlank()) {
+      redirectSyncStatus(response, accountId, "missing_action");
+      return;
+    }
+    int actionId = Integer.parseInt(actionIdValue);
+    boolean updated =
+        switch (actionName) {
+          case "retry" -> mailboxSyncRecoveryService.retryNow(accountId, actionId);
+          case "dismiss" -> mailboxSyncRecoveryService.dismiss(accountId, actionId);
+          case "abandon" -> mailboxSyncRecoveryService.abandon(accountId, actionId);
+          case "rollback" -> mailboxSyncRecoveryService.rollback(accountId, actionId);
+          default -> false;
+        };
+    redirectSyncStatus(response, accountId, updated ? "saved" : "invalid_action");
+  }
+
+  private static void redirectSyncStatus(ServerResponse response, int accountId, String result) {
+    ResponseUtils.redirectAfterPost(
+        response, URI.create("/accounts/%s/sync?%s=true".formatted(accountId, result)));
   }
 
   private void postFolderSettingsHandler(ServerRequest request, ServerResponse response) {

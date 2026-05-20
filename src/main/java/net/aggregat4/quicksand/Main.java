@@ -43,6 +43,7 @@ import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
+import net.aggregat4.quicksand.service.MailboxSyncRecoveryService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 import net.aggregat4.quicksand.time.ApplicationClock;
 import net.aggregat4.quicksand.webservice.AccountWebService;
@@ -171,6 +172,18 @@ public final class Main {
     AccountFolderMappingService accountFolderMappingService =
         new AccountFolderMappingService(
             accountFolderMappingRepository, folderRepository, accountRepository);
+    Runnable backgroundSyncTrigger =
+        () -> {
+          if (mailFetcher != null) {
+            mailFetcher.fetchNow();
+          }
+          if (mailboxActionSync != null) {
+            mailboxActionSync.syncNow();
+          }
+        };
+    MailboxSyncRecoveryService mailboxSyncRecoveryService =
+        new MailboxSyncRecoveryService(
+            messageRepository, accountFolderMappingRepository, backgroundSyncTrigger, clock);
 
     HttpRouting.Builder routing =
         HttpRouting.builder()
@@ -183,6 +196,7 @@ public final class Main {
                     emailService,
                     draftService,
                     outboundMessageService,
+                    mailboxSyncRecoveryService,
                     clock))
             .register(
                 "/emails",

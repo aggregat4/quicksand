@@ -81,6 +81,7 @@ public class MailboxActionSync {
 
   void syncDueActions() {
     ZonedDateTime now = ZonedDateTime.now(clock);
+    emailRepository.purgeStaleMailboxActionRows(now);
     List<MailboxActionQueueRow> actions = emailRepository.claimDueMailboxActions(now, BATCH_SIZE);
     for (MailboxActionQueueRow action : actions) {
       try {

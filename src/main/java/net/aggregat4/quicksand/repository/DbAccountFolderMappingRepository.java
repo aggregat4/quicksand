@@ -79,4 +79,22 @@ public class DbAccountFolderMappingRepository implements AccountFolderMappingRep
           stmt.executeUpdate();
         });
   }
+
+  @Override
+  public void markMappedFoldersMissing(int accountId) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        """
+            UPDATE account_folder_mappings
+            SET folder_id = NULL,
+                status = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE account_id = ?
+              AND folder_id IS NOT NULL""",
+        stmt -> {
+          stmt.setString(1, FolderMappingStatus.MISSING.name());
+          stmt.setInt(2, accountId);
+          stmt.executeUpdate();
+        });
+  }
 }

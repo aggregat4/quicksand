@@ -37,6 +37,7 @@ import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
+import net.aggregat4.quicksand.service.MailboxSyncRecoveryService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 import org.junit.jupiter.api.Test;
 
@@ -224,9 +225,45 @@ class AccountFolderSettingsWebServiceTest {
       assertTrue(syncResponse.body().contains("Queued subject"));
       assertTrue(syncResponse.body().contains("FAILED_RETRYABLE"));
       assertTrue(syncResponse.body().contains("Temporary IMAP failure"));
+      assertTrue(syncResponse.body().contains("Retry now"));
       assertEquals(200, accountResponse.statusCode());
       assertTrue(accountResponse.body().contains("Sync needs attention"));
       assertTrue(accountResponse.body().contains("/accounts/" + account.id() + "/sync"));
+    } finally {
+      webServer.stop();
+    }
+  }
+
+  @Test
+  void syncStatusRetryNowAppliesRecoveryAction() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Syncing", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    int inboxFolderId =
+        folderRepository.createFolder(account, "Inbox", "INBOX", FolderSpecialUse.INBOX, 1L).id();
+    createRequiredSpecialUseFolders(account, folderRepository);
+    int actionId = seedFailedMailboxAction(ds, account.id(), inboxFolderId);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+
+    WebServer webServer = startServer(ds, accountRepository, folderRepository, mappingRepository);
+    try {
+      String baseUrl = "http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME);
+      HttpClient client = HttpClient.newHttpClient();
+      HttpResponse<String> retryResponse =
+          client.send(
+              HttpRequest.newBuilder(
+                      URI.create(baseUrl + "/accounts/" + account.id() + "/sync/retry"))
+                  .header("Content-Type", "application/x-www-form-urlencoded")
+                  .POST(HttpRequest.BodyPublishers.ofString("actionId=" + actionId))
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+
+      assertEquals(303, retryResponse.statusCode());
+      assertTrue(retryResponse.headers().firstValue("location").orElse("").contains("saved=true"));
     } finally {
       webServer.stop();
     }
@@ -254,6 +291,9 @@ class AccountFolderSettingsWebServiceTest {
             new DbOutboundMessageRepository(ds),
             emailRepository,
             Clock.systemDefaultZone());
+    MailboxSyncRecoveryService mailboxSyncRecoveryService =
+        new MailboxSyncRecoveryService(
+            emailRepository, mappingRepository, () -> {}, Clock.systemDefaultZone());
     HttpRouting.Builder routing =
         HttpRouting.builder()
             .register(
@@ -270,6 +310,7 @@ class AccountFolderSettingsWebServiceTest {
                         5L,
                         Clock.systemDefaultZone()),
                     outboundMessageService,
+                    mailboxSyncRecoveryService,
                     Clock.systemDefaultZone()));
     return WebServer.builder().port(0).host("127.0.0.1").routing(routing).build().start();
   }
@@ -283,10 +324,11 @@ class AccountFolderSettingsWebServiceTest {
     folderRepository.createFolder(account, "Drafts", "Drafts", FolderSpecialUse.DRAFTS, 6L);
   }
 
-  private static void seedFailedMailboxAction(DataSource ds, int accountId, int folderId)
+  private static int seedFailedMailboxAction(DataSource ds, int accountId, int folderId)
       throws Exception {
     try (Connection con = ds.getConnection()) {
       int messageId;
+      int actionId;
       try (PreparedStatement stmt =
           con.prepareStatement(
               """
@@ -311,7 +353,8 @@ class AccountFolderSettingsWebServiceTest {
                     target_folder_id, target_remote_name, target_special_use,
                     status, execution_state, attempt_count, next_attempt_at, last_error)
                   VALUES (?, ?, ?, ?, 'INBOX', 1, 42, ?, 'Archive', ?,
-                    ?, ?, 3, '2026-03-25T09:20:00Z', 'Temporary IMAP failure')""")) {
+                    ?, ?, 3, '2026-03-25T09:20:00Z', 'Temporary IMAP failure')
+                  RETURNING id""")) {
         stmt.setInt(1, accountId);
         stmt.setInt(2, messageId);
         stmt.setString(3, MailboxActionType.MOVE.name());
@@ -320,8 +363,12 @@ class AccountFolderSettingsWebServiceTest {
         stmt.setString(6, FolderSpecialUse.ARCHIVE.name());
         stmt.setString(7, MailboxActionStatus.FAILED_RETRYABLE.name());
         stmt.setString(8, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
-        stmt.executeUpdate();
+        try (var rs = stmt.executeQuery()) {
+          rs.next();
+          actionId = rs.getInt(1);
+        }
       }
+      return actionId;
     }
   }
 

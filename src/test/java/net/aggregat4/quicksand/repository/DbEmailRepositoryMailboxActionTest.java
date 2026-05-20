@@ -285,6 +285,97 @@ class DbEmailRepositoryMailboxActionTest {
     assertTrue(status.actions().isEmpty());
   }
 
+  @Test
+  void requestMailboxActionRetryReschedulesFailedAction() throws Exception {
+    emailRepository.deleteById(messageId);
+    MailboxActionQueueRow row =
+        emailRepository
+            .claimDueMailboxActions(ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC")), 1)
+            .getFirst();
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    emailRepository.markMailboxActionRetry(row.id(), "Temporary failure", now.plusMinutes(5), now);
+
+    assertTrue(emailRepository.requestMailboxActionRetry(row.id(), account.id(), now));
+    assertEquals(MailboxActionStatus.PENDING.name(), queueStatus(row.id()));
+  }
+
+  @Test
+  void dismissMailboxActionHidesPermanentFailure() {
+    emailRepository.deleteById(messageId);
+    MailboxActionQueueRow row =
+        emailRepository
+            .claimDueMailboxActions(ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC")), 1)
+            .getFirst();
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    emailRepository.markMailboxActionPermanentFailure(row.id(), "Unsupported", now);
+
+    assertTrue(emailRepository.dismissMailboxAction(row.id(), account.id(), now));
+    assertTrue(emailRepository.getMailboxSyncStatus(account.id()).actions().isEmpty());
+  }
+
+  @Test
+  void rollbackMailboxActionRestoresLocalFolder() throws Exception {
+    emailRepository.deleteById(messageId);
+    MailboxActionQueueRow row =
+        emailRepository.getMailboxSyncStatus(account.id()).actions().getFirst();
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    emailRepository.markMailboxActionPermanentFailure(row.id(), "Unsupported", now);
+    setExecutionState(row.id(), MailboxActionExecutionState.NOT_ATTEMPTED);
+
+    assertTrue(emailRepository.rollbackMailboxAction(row.id(), account.id(), now));
+    assertEquals(inbox.id(), messageFolderId(messageId));
+    assertTrue(emailRepository.getMailboxSyncStatus(account.id()).actions().isEmpty());
+  }
+
+  @Test
+  void purgeStaleMailboxActionRowsRemovesOldSucceededRows() throws Exception {
+    emailRepository.deleteById(messageId);
+    MailboxActionQueueRow row =
+        emailRepository
+            .claimDueMailboxActions(ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC")), 1)
+            .getFirst();
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    emailRepository.markMailboxActionSucceeded(row.id(), now);
+    setSucceededAt(row.id(), now.minusDays(31));
+
+    assertEquals(1, emailRepository.purgeStaleMailboxActionRows(now));
+  }
+
+  private void setExecutionState(int queueId, MailboxActionExecutionState executionState)
+      throws Exception {
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement(
+                "UPDATE mailbox_action_queue SET execution_state = ? WHERE id = ?")) {
+      stmt.setString(1, executionState.name());
+      stmt.setInt(2, queueId);
+      stmt.executeUpdate();
+    }
+  }
+
+  private void setSucceededAt(int queueId, ZonedDateTime succeededAt) throws Exception {
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement("UPDATE mailbox_action_queue SET succeeded_at = ? WHERE id = ?")) {
+      stmt.setString(
+          1, succeededAt.format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+      stmt.setInt(2, queueId);
+      stmt.executeUpdate();
+    }
+  }
+
+  private int messageFolderId(int id) throws Exception {
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement("SELECT folder_id FROM messages WHERE id = ?")) {
+      stmt.setInt(1, id);
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        return rs.getInt(1);
+      }
+    }
+  }
+
   private String queueStatus(int queueId) throws Exception {
     try (Connection con = dataSource.getConnection();
         PreparedStatement stmt =

@@ -16,7 +16,11 @@
     <section class="sync-status">
         <header class="settings-header">
             <h2>Sync status</h2>
-            {% if syncStatus.needsAttention() %}
+            {% if saved %}
+                <p class="settings-notice">Sync action completed.</p>
+            {% elseif error %}
+                <p class="settings-error">That sync action could not be applied.</p>
+            {% elseif syncStatus.needsAttention() %}
                 <p class="settings-error">Remote mailbox sync needs attention.</p>
             {% else %}
                 <p class="settings-notice">No remote mailbox sync errors need attention.</p>
@@ -71,6 +75,7 @@
                                 <th>Attempts</th>
                                 <th>Next retry</th>
                                 <th>Last error</th>
+                                <th>Recovery</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -103,6 +108,46 @@
                                 <td>{{ action.attemptCount() }}</td>
                                 <td>{{ action.nextAttemptAt() == null ? '-' : action.nextAttemptAt() }}</td>
                                 <td>{{ action.lastError() == null ? '-' : action.lastError() }}</td>
+                                <td class="sync-action-controls">
+                                    {% if action.canRetryNow() %}
+                                        <form method="post" action="/accounts/{{ currentAccount.id }}/sync/retry">
+                                            <input type="hidden" name="actionId" value="{{ action.id() }}">
+                                            <button type="submit">Retry now</button>
+                                        </form>
+                                    {% endif %}
+                                    {% if action.canDismiss() %}
+                                        <form method="post" action="/accounts/{{ currentAccount.id }}/sync/dismiss">
+                                            <input type="hidden" name="actionId" value="{{ action.id() }}">
+                                            <button type="submit">Dismiss</button>
+                                        </form>
+                                    {% endif %}
+                                    {% if action.canAbandon() %}
+                                        <button type="button" class="sync-confirm-trigger" data-dialog="abandon-dialog-{{ action.id() }}">Abandon</button>
+                                        <dialog id="abandon-dialog-{{ action.id() }}" class="sync-confirm-dialog">
+                                            <form method="post" action="/accounts/{{ currentAccount.id }}/sync/abandon">
+                                                <p>Abandon this queued action? Local and remote mailbox state may diverge until the next resync.</p>
+                                                <input type="hidden" name="actionId" value="{{ action.id() }}">
+                                                <div class="sync-confirm-actions">
+                                                    <button type="submit">Abandon action</button>
+                                                    <button type="button" class="dialogcloser-button" onclick="this.closest('dialog').close()">Cancel</button>
+                                                </div>
+                                            </form>
+                                        </dialog>
+                                    {% endif %}
+                                    {% if action.canRollbackLocalMove() %}
+                                        <button type="button" class="sync-confirm-trigger" data-dialog="rollback-dialog-{{ action.id() }}">Rollback local move</button>
+                                        <dialog id="rollback-dialog-{{ action.id() }}" class="sync-confirm-dialog">
+                                            <form method="post" action="/accounts/{{ currentAccount.id }}/sync/rollback">
+                                                <p>Move this message back to its original local folder and stop retrying the remote action?</p>
+                                                <input type="hidden" name="actionId" value="{{ action.id() }}">
+                                                <div class="sync-confirm-actions">
+                                                    <button type="submit">Rollback local move</button>
+                                                    <button type="button" class="dialogcloser-button" onclick="this.closest('dialog').close()">Cancel</button>
+                                                </div>
+                                            </form>
+                                        </dialog>
+                                    {% endif %}
+                                </td>
                             </tr>
                         {% endfor %}
                         </tbody>
@@ -110,6 +155,34 @@
                 </div>
             {% endif %}
         </section>
+
+        <section class="sync-recovery-section">
+            <h3>Account recovery</h3>
+            <p class="settings-notice">
+                Reset rebuilds this account's local mailbox mirror from IMAP. Pending queued actions are abandoned.
+                Drafts and outbound messages are preserved.
+            </p>
+            <button type="button" class="sync-confirm-trigger" data-dialog="reset-mirror-dialog">Reset local mirror from server</button>
+            <dialog id="reset-mirror-dialog" class="sync-confirm-dialog">
+                <form method="post" action="/accounts/{{ currentAccount.id }}/sync/reset">
+                    <p>
+                        Reset the local mirror for {{ currentAccount.name }}? Pending mailbox actions will be
+                        abandoned and local folders/messages will be rebuilt from IMAP on the next sync.
+                    </p>
+                    <div class="sync-confirm-actions">
+                        <button type="submit">Reset local mirror</button>
+                        <button type="button" class="dialogcloser-button" onclick="this.closest('dialog').close()">Cancel</button>
+                    </div>
+                </form>
+            </dialog>
+        </section>
     </section>
 </main>
+<script>
+document.querySelectorAll('.sync-confirm-trigger').forEach((button) => {
+    button.addEventListener('click', () => {
+        document.getElementById(button.dataset.dialog).showModal();
+    });
+});
+</script>
 {% endblock %}

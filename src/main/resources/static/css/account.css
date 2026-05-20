@@ -461,6 +461,36 @@ body.accountpage.sync-status-page main.settings-layout {
     background: var(--muted-bgcolor);
 }
 
+.sync-action-controls {
+    display: grid;
+    gap: var(--gap-s);
+    min-width: 10rem;
+}
+
+.sync-action-controls form,
+.sync-action-controls button {
+    width: 100%;
+}
+
+.sync-recovery-section {
+    border: var(--standard-border);
+    background: var(--highlighted-bgcolor);
+    padding: var(--gap-l);
+    display: grid;
+    gap: var(--gap-m);
+}
+
+.sync-confirm-dialog {
+    max-width: 32rem;
+    padding: var(--dialog-padding-top) var(--dialog-padding-other) var(--dialog-padding-other) var(--dialog-padding-other);
+}
+
+.sync-confirm-actions {
+    display: flex;
+    gap: var(--gap-m);
+    margin-top: var(--gap-m);
+}
+
 .empty-state {
     color: var(--muted-text-color);
 }

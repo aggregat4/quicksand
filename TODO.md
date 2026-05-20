@@ -45,18 +45,11 @@ Local-first mailbox actions with queued IMAP replay. Spec: [`specs/imap-action-s
 | Drafts | Debounced `UPSERT_DRAFT` (`mailbox_action_sync.draft_debounce_seconds`, default 5s); `DELETE_DRAFT` on delete/send |
 | Tooling | Typed action enums; `./scripts/imap-probe.sh` |
 
-**Not in spec v1 (still open):** sync-status recovery POST actions, queue retention cleanup, COPY/delete fallback for servers without MOVE.
+**Not in spec v1 (still open):** COPY/delete fallback for servers without MOVE.
 
 ### Remaining to close this branch
 
-1. **Sync status actions** — view-only today; wire POST handlers:
-   - retry now
-   - dismiss resolved rows
-   - abandon (with confirmation)
-   - rollback for eligible failed move-like actions
-   - reset local mirror (account recovery; spec: last resort)
-2. **Queue retention job** — purge succeeded rows after 30d, resolved rows after 90d (columns exist; no job yet)
-3. **Tests** — retry/backoff integration coverage; sync-status action flows; optional Playwright for sync status page
+None — sync status recovery actions, queue retention cleanup, and tests are implemented on this branch.
 
 ### Deferred (someday / maybe)
 
@@ -68,9 +61,8 @@ Local-first mailbox actions with queued IMAP replay. Spec: [`specs/imap-action-s
 
 ### A. Finish and merge `feature/imap-action-sync-spec`
 
-1. **Sync status: retry now + dismiss** — smallest recovery win
-2. **Sync status: abandon** (+ rollback if v1 recovery should be complete before merge)
-3. **Optional:** §1b SPECIAL-USE setup UX if first-connect is still painful
+1. Push branch and open PR
+2. **Optional:** §1b SPECIAL-USE setup UX if first-connect is still painful
 
 ### B. After merge
 
@@ -125,6 +117,7 @@ Order: CONDSTORE → QRESYNC → IDLE. Probe: `./scripts/imap-probe.sh`.
 
 | When | What |
 |------|------|
+| branch | **Sync status recovery** — retry/dismiss/abandon/rollback/reset POST actions, queue retention job, tests |
 | `fe3487f` | **Drafts debounced sync** — `UPSERT_DRAFT` / `DELETE_DRAFT`, v4 migration, GreenMail tests |
 | `5b0c2be` | **Sent append sync** — `APPEND_SENT` after SMTP |
 | `ee3b1d3` | **IMAP capability probe** + backlog/planning refresh |
