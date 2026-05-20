@@ -27,13 +27,41 @@
             {% endif %}
         </header>
 
+        {% if showConfirmAll %}
+            <section class="folder-confirm-banner">
+                <p class="settings-notice">
+                    Quicksand auto-detected folder mappings from your IMAP server SPECIAL-USE attributes.
+                    Confirm them to finish setup, or adjust individual mappings below.
+                </p>
+                <form method="POST" action="/accounts/{{ currentAccount.id }}/settings/folders">
+                    <button type="submit" name="confirm_auto_detected" value="true">
+                        Confirm all auto-detected mappings
+                    </button>
+                </form>
+            </section>
+        {% endif %}
+
         <form method="POST" action="/accounts/{{ currentAccount.id }}/settings/folders" class="folder-mapping-form">
             {% for row in mappingRows %}
-                <fieldset class="folder-mapping-row">
+                <fieldset class="folder-mapping-row{% if row.hasConflict() %} folder-mapping-row-conflict{% elseif row.isMissing() %} folder-mapping-row-missing{% endif %}">
                     <legend>
                         {{ row.label() }}
                         <span>{{ row.statusLabel() }}</span>
                     </legend>
+
+                    {% if row.hasConflict() %}
+                        <p class="settings-error folder-mapping-hint">
+                            Multiple server folders advertise the {{ row.label() }} role. Choose the correct folder below.
+                        </p>
+                    {% elseif row.isMissing() %}
+                        <p class="settings-notice folder-mapping-hint">
+                            No server folder with the {{ row.label() }} role was found. Select an existing folder or create one on the server.
+                        </p>
+                    {% elseif row.needsConfirmation() %}
+                        <p class="settings-notice folder-mapping-hint">
+                            Auto-detected from server SPECIAL-USE attributes. Confirm above or pick a different folder.
+                        </p>
+                    {% endif %}
 
                     <div class="folder-choice-section">
                         <h3>Existing server folder</h3>
@@ -41,12 +69,26 @@
                             Select one of the folders discovered on the IMAP server
                             <select name="folder_{{ row.specialUse().name() }}">
                                 <option value="">No folder selected</option>
-                            {% for folder in row.availableFolders() %}
-                                <option value="{{ folder.id }}"
-                                        {% if row.mapping() != null and row.mapping().folderId() == folder.id %}selected{% endif %}>
-                                    Server: {{ folder.remoteName() == null ? folder.name : folder.remoteName() }} | Local: {{ folder.name }} | Detected role: {{ folder.specialUse() == null ? 'None' : folder.specialUse().name() }}
-                                </option>
-                            {% endfor %}
+                            {% if row.candidateFolders() is not empty %}
+                                <optgroup label="Suggested folders">
+                                {% for folder in row.candidateFolders() %}
+                                    <option value="{{ folder.id }}"
+                                            {% if row.mapping() != null and row.mapping().folderId() == folder.id %}selected{% endif %}>
+                                        {{ row.folderOptionLabel(folder) }}
+                                    </option>
+                                {% endfor %}
+                                </optgroup>
+                            {% endif %}
+                            {% if row.otherFolders() is not empty %}
+                                <optgroup label="Other folders">
+                                {% for folder in row.otherFolders() %}
+                                    <option value="{{ folder.id }}"
+                                            {% if row.mapping() != null and row.mapping().folderId() == folder.id %}selected{% endif %}>
+                                        {{ row.folderOptionLabel(folder) }}
+                                    </option>
+                                {% endfor %}
+                                </optgroup>
+                            {% endif %}
                             </select>
                         </label>
                     </div>

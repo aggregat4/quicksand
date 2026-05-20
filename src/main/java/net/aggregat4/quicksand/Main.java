@@ -112,12 +112,20 @@ public final class Main {
     List<Account> accounts = loadAccounts(config, demoEnabled);
     bootstrapAccounts(accounts, accountRepository);
 
+    AccountFolderMappingService accountFolderMappingService =
+        new AccountFolderMappingService(
+            accountFolderMappingRepository, folderRepository, accountRepository);
+
     boolean mailFetcherEnabled = config.get("mail_fetcher.enabled").asBoolean().orElse(demoEnabled);
     if (mailFetcherEnabled && !accounts.isEmpty()) {
       long fetchPeriodInSeconds = config.get("mail_fetcher.period_seconds").asLong().orElse(15L);
       mailFetcher =
           new MailFetcher(
-              accountRepository, fetchPeriodInSeconds, folderRepository, messageRepository);
+              accountRepository,
+              fetchPeriodInSeconds,
+              folderRepository,
+              messageRepository,
+              accountFolderMappingService);
       mailFetcher.fetchNow();
       mailFetcher.start();
     } else if (mailFetcherEnabled) {
@@ -169,9 +177,6 @@ public final class Main {
     }
 
     FolderService folderService = new FolderService(folderRepository);
-    AccountFolderMappingService accountFolderMappingService =
-        new AccountFolderMappingService(
-            accountFolderMappingRepository, folderRepository, accountRepository);
     Runnable backgroundSyncTrigger =
         () -> {
           if (mailFetcher != null) {

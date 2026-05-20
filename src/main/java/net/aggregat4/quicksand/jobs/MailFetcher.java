@@ -10,6 +10,7 @@ import net.aggregat4.quicksand.domain.*;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
+import net.aggregat4.quicksand.service.AccountFolderMappingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +22,7 @@ public class MailFetcher {
   private final DbAccountRepository accountRepository;
   private final FolderRepository folderRepository;
   private final EmailRepository messageRepository;
+  private final AccountFolderMappingService accountFolderMappingService;
 
   private final ConcurrentHashMap<Account, Store> accountStores = new ConcurrentHashMap<>();
 
@@ -28,11 +30,13 @@ public class MailFetcher {
       DbAccountRepository accountRepository,
       long fetchPeriodInSeconds,
       FolderRepository folderRepository,
-      EmailRepository emailRepository) {
+      EmailRepository emailRepository,
+      AccountFolderMappingService accountFolderMappingService) {
     this.accountRepository = accountRepository;
     this.fetchPeriodInSeconds = fetchPeriodInSeconds;
     this.folderRepository = folderRepository;
     this.messageRepository = emailRepository;
+    this.accountFolderMappingService = accountFolderMappingService;
   }
 
   public void start() {
@@ -71,6 +75,7 @@ public class MailFetcher {
       }
       long accountFetchStarted = System.nanoTime();
       ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
+      accountFolderMappingService.syncMappingsAfterFolderDiscovery(account.id());
       LOGGER.debug(
           "Finished mail fetch for account {} in {} ms",
           account.name(),

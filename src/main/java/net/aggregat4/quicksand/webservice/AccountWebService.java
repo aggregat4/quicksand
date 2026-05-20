@@ -302,6 +302,7 @@ public class AccountWebService implements HttpService {
     context.put("currentAccount", accountService.getAccount(accountId));
     context.put("accounts", accountService.getAccounts());
     context.put("mappingRows", accountFolderMappingService.getSetupRows(accountId));
+    context.put("showConfirmAll", accountFolderMappingService.hasAutoDetectedMappings(accountId));
     context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
     context.put("required", request.query().first("required"));
     context.put("saved", request.query().first("saved").isPresent());
@@ -377,6 +378,12 @@ public class AccountWebService implements HttpService {
     int accountId = RequestUtils.intPathParam(request, "accountId");
     Map<String, String> formParams = parseFormEncoded(request.content().as(String.class));
     try {
+      if ("true".equals(formParams.get("confirm_auto_detected"))) {
+        accountFolderMappingService.confirmAutoDetectedMappings(accountId);
+        ResponseUtils.redirectAfterPost(
+            response, URI.create("/accounts/%s/settings/folders?saved=true".formatted(accountId)));
+        return;
+      }
       Optional<FolderSpecialUse> createSpecialUse =
           Optional.ofNullable(formParams.get("create_special_use"))
               .filter(value -> !value.isBlank())

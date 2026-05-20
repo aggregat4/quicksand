@@ -37,6 +37,40 @@ public record FolderMappingSetupRow(
         .toList();
   }
 
+  public List<NamedFolder> candidateFolders() {
+    return folders.stream().filter(folder -> folder.specialUse() == specialUse).toList();
+  }
+
+  public List<NamedFolder> otherFolders() {
+    return folders.stream()
+        .filter(folder -> folder.specialUse() != FolderSpecialUse.INBOX)
+        .filter(folder -> folder.specialUse() != specialUse)
+        .toList();
+  }
+
+  public boolean needsConfirmation() {
+    return mapping != null && mapping.status() == FolderMappingStatus.AUTO_DETECTED;
+  }
+
+  public boolean hasConflict() {
+    return mapping != null && mapping.status() == FolderMappingStatus.CONFLICT;
+  }
+
+  public boolean isMissing() {
+    return mapping == null || mapping.status() == FolderMappingStatus.MISSING;
+  }
+
+  public String folderOptionLabel(NamedFolder folder) {
+    String remote =
+        folder.remoteName() == null || folder.remoteName().isBlank()
+            ? folder.name()
+            : folder.remoteName();
+    if (folder.specialUse() == null) {
+      return remote;
+    }
+    return "%s (%s)".formatted(remote, folder.specialUse().name());
+  }
+
   public String statusLabel() {
     if (mapping == null) {
       return "Missing";

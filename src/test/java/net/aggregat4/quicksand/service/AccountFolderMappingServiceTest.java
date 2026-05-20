@@ -62,6 +62,92 @@ class AccountFolderMappingServiceTest {
   }
 
   @Test
+  void syncMappingsAfterFolderDiscoveryPersistsAutoDetectedMappings() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Sync", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+    folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 123L);
+    AccountFolderMappingService service =
+        new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
+
+    service.syncMappingsAfterFolderDiscovery(account.id());
+
+    var archiveMapping =
+        mappingRepository.findByAccountId(account.id()).stream()
+            .filter(mapping -> mapping.specialUse() == FolderSpecialUse.ARCHIVE)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(FolderMappingStatus.AUTO_DETECTED, archiveMapping.status());
+  }
+
+  @Test
+  void confirmAutoDetectedMappingsMarksMappingsUserConfirmed() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Confirm", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+    NamedFolder archive =
+        folderRepository.createFolder(
+            account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 123L);
+    AccountFolderMappingService service =
+        new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
+
+    service.syncMappingsAfterFolderDiscovery(account.id());
+    assertTrue(service.hasAutoDetectedMappings(account.id()));
+    service.confirmAutoDetectedMappings(account.id());
+
+    var archiveMapping =
+        mappingRepository.findByAccountId(account.id()).stream()
+            .filter(mapping -> mapping.specialUse() == FolderSpecialUse.ARCHIVE)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(FolderMappingStatus.USER_CONFIRMED, archiveMapping.status());
+    assertEquals(archive.id(), archiveMapping.folderId());
+    assertFalse(service.hasAutoDetectedMappings(account.id()));
+  }
+
+  @Test
+  void marksAmbiguousSpecialUseFoldersAsConflict() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Conflict", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+    folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 1L);
+    folderRepository.createFolder(
+        account, "Archive Copy", "Archive Copy", FolderSpecialUse.ARCHIVE, 2L);
+    AccountFolderMappingService service =
+        new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
+
+    var archiveRow =
+        service.getSetupRows(account.id()).stream()
+            .filter(row -> row.specialUse() == FolderSpecialUse.ARCHIVE)
+            .findFirst()
+            .orElseThrow();
+
+    assertTrue(archiveRow.hasConflict());
+    assertEquals(
+        FolderMappingStatus.CONFLICT,
+        mappingRepository.findByAccountId(account.id()).stream()
+            .filter(mapping -> mapping.specialUse() == FolderSpecialUse.ARCHIVE)
+            .findFirst()
+            .orElseThrow()
+            .status());
+  }
+
+  @Test
   void rejectsMappingsToAnotherAccountFolder() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);

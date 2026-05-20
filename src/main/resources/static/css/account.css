@@ -374,6 +374,32 @@ body.accountpage.sync-status-page main.settings-layout {
     justify-content: flex-end;
 }
 
+.folder-confirm-banner {
+    display: grid;
+    gap: var(--gap-m);
+    padding: var(--gap-l);
+    border: var(--standard-border);
+    background: var(--highlighted-bgcolor);
+}
+
+.folder-confirm-banner form {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.folder-mapping-hint {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+
+.folder-mapping-row-conflict {
+    border-color: #b65d5d;
+}
+
+.folder-mapping-row-missing {
+    border-style: dashed;
+}
+
 .sync-attention-link {
     padding: var(--gap-s) var(--gap-m);
     border: 1px solid #b65d5d;

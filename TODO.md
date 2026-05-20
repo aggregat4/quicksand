@@ -66,17 +66,15 @@ Probe modern servers before §2: `./scripts/imap-probe.sh`.
 
 ## Active: §1b SPECIAL-USE folder setup UX
 
-**Done:** attribute parsing → `folders.special_use`; unambiguous auto-detect → `account_folder_mappings`; hints in `folder-settings.peb`; settings/blocker visit triggers auto-detect.
+**Shipped:**
 
-**In progress:**
+- auto-detect after each IMAP folder sync (`MailFetcher` → `syncMappingsAfterFolderDiscovery`)
+- confirm-all banner + POST for `AUTO_DETECTED` mappings
+- smarter pickers — suggested role candidates vs other folders (`optgroup`)
+- conflict/missing hint copy on folder settings rows
+- service + folder-settings web tests
 
-1. Auto-detect after IMAP folder sync (not only on settings/blocker visit)
-2. Confirm-all UI for `AUTO_DETECTED` mappings
-3. Smarter pickers — role candidates first, other folders collapsed
-4. Clear conflict/missing UX copy
-5. Tests (service + folder-settings web)
-
-Refs: `ImapStoreSync.java`, `MailFetcher.java`, `AccountFolderMappingService.java`, `folder-settings.peb`, `AccountWebService.java`.
+Refs: `MailFetcher.java`, `AccountFolderMappingService.java`, `folder-settings.peb`.
 
 ---
 

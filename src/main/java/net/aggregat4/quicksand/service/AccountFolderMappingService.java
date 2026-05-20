@@ -74,6 +74,33 @@ public class AccountFolderMappingService {
     return REQUIRED_SPECIAL_USES;
   }
 
+  public void syncMappingsAfterFolderDiscovery(int accountId) {
+    autoDetectMappings(accountId);
+  }
+
+  public boolean hasAutoDetectedMappings(int accountId) {
+    autoDetectMappings(accountId);
+    return mappingRepository.findByAccountId(accountId).stream()
+        .anyMatch(mapping -> mapping.status() == FolderMappingStatus.AUTO_DETECTED);
+  }
+
+  public void confirmAutoDetectedMappings(int accountId) {
+    for (AccountFolderMapping mapping : mappingRepository.findByAccountId(accountId)) {
+      if (mapping.status() != FolderMappingStatus.AUTO_DETECTED || mapping.folderId() == null) {
+        continue;
+      }
+      NamedFolder folder = folderRepository.getFolder(mapping.folderId());
+      mappingRepository.save(
+          accountId,
+          mapping.specialUse(),
+          folder.id(),
+          Optional.ofNullable(mapping.remoteName())
+              .orElse(Optional.ofNullable(folder.remoteName()).orElse(folder.name())),
+          FolderMappingStatus.USER_CONFIRMED);
+      folderRepository.updateMappingStatus(folder, FolderMappingStatus.USER_CONFIRMED);
+    }
+  }
+
   public void saveExistingFolderMapping(int accountId, FolderSpecialUse specialUse, int folderId) {
     saveExistingFolderMappings(accountId, Map.of(specialUse, folderId));
   }

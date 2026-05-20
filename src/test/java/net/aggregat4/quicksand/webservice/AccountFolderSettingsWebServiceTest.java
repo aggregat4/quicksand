@@ -186,6 +186,87 @@ class AccountFolderSettingsWebServiceTest {
   }
 
   @Test
+  void rendersConfirmAllBannerForAutoDetectedMappings() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Auto", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    folderRepository.createFolder(account, "Inbox", "INBOX", FolderSpecialUse.INBOX, 1L);
+    createRequiredSpecialUseFolders(account, folderRepository);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+
+    WebServer webServer = startServer(ds, accountRepository, folderRepository, mappingRepository);
+    try {
+      String baseUrl = "http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME);
+      HttpClient client = HttpClient.newHttpClient();
+
+      HttpResponse<String> getResponse =
+          client.send(
+              HttpRequest.newBuilder(
+                      URI.create(baseUrl + "/accounts/" + account.id() + "/settings/folders"))
+                  .GET()
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      assertEquals(200, getResponse.statusCode());
+      assertTrue(getResponse.body().contains("Confirm all auto-detected mappings"));
+      assertTrue(getResponse.body().contains("Suggested folders"));
+
+      HttpResponse<String> postResponse =
+          client.send(
+              HttpRequest.newBuilder(
+                      URI.create(baseUrl + "/accounts/" + account.id() + "/settings/folders"))
+                  .header("Content-Type", "application/x-www-form-urlencoded")
+                  .POST(HttpRequest.BodyPublishers.ofString("confirm_auto_detected=true"))
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      assertEquals(303, postResponse.statusCode());
+      assertTrue(
+          mappingRepository.findByAccountId(account.id()).stream()
+              .allMatch(mapping -> mapping.status() == FolderMappingStatus.USER_CONFIRMED));
+    } finally {
+      webServer.stop();
+    }
+  }
+
+  @Test
+  void rendersConflictHintWhenMultipleFoldersMatchRole() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Conflict", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    folderRepository.createFolder(account, "Inbox", "INBOX", FolderSpecialUse.INBOX, 1L);
+    folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 2L);
+    folderRepository.createFolder(
+        account, "Archive Copy", "Archive Copy", FolderSpecialUse.ARCHIVE, 3L);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+
+    WebServer webServer = startServer(ds, accountRepository, folderRepository, mappingRepository);
+    try {
+      String baseUrl = "http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME);
+      HttpResponse<String> getResponse =
+          HttpClient.newHttpClient()
+              .send(
+                  HttpRequest.newBuilder(
+                          URI.create(baseUrl + "/accounts/" + account.id() + "/settings/folders"))
+                      .GET()
+                      .build(),
+                  HttpResponse.BodyHandlers.ofString());
+
+      assertEquals(200, getResponse.statusCode());
+      assertTrue(getResponse.body().contains("Multiple server folders advertise the Archive role"));
+      assertTrue(getResponse.body().contains("Conflict"));
+    } finally {
+      webServer.stop();
+    }
+  }
+
+  @Test
   void rendersSyncStatusAndMailboxWarningForFailedActions() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
