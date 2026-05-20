@@ -74,7 +74,7 @@ public class ImapStoreSync {
         // unsure whether we will need it
         if ((folder.getType() & Folder.HOLDS_MESSAGES) != 0) {
           String remoteName = folder.getFullName();
-          FolderSpecialUse specialUse = specialUseFor(folder).orElse(null);
+          FolderSpecialUse remoteSpecialUse = specialUseFor(folder).orElse(null);
           NamedFolder localFolder =
               localFolders.stream()
                   .filter(f -> matchesRemoteFolder(f, remoteName))
@@ -82,10 +82,13 @@ public class ImapStoreSync {
                   .orElseGet(
                       () ->
                           folderRepository.createFolder(
-                              account, remoteName, remoteName, specialUse, null));
+                              account, remoteName, remoteName, remoteSpecialUse, null));
           localFolder =
               folderRepository.updateRemoteMetadata(
-                  localFolder, remoteName, specialUse, localFolder.uidValidity());
+                  localFolder,
+                  remoteName,
+                  resolveSpecialUse(localFolder, remoteSpecialUse),
+                  localFolder.uidValidity());
           seenFolders.add(localFolder);
           long folderSyncStarted = System.nanoTime();
           syncImapFolder(account.id(), localFolder, folder, folderRepository, messageRepository);
@@ -379,6 +382,18 @@ public class ImapStoreSync {
 
   private static boolean matchesRemoteFolder(NamedFolder localFolder, String remoteName) {
     return remoteName.equals(localFolder.remoteName()) || remoteName.equals(localFolder.name());
+  }
+
+  /**
+   * IMAP SPECIAL-USE attributes win when present. Servers such as GreenMail often omit them for
+   * user-created folders, so preserve locally assigned roles from folder setup.
+   */
+  static FolderSpecialUse resolveSpecialUse(
+      NamedFolder localFolder, FolderSpecialUse remoteSpecialUse) {
+    if (remoteSpecialUse != null) {
+      return remoteSpecialUse;
+    }
+    return localFolder.specialUse();
   }
 
   static Optional<FolderSpecialUse> specialUseFor(Folder folder) throws MessagingException {

@@ -1,9 +1,18 @@
 package net.aggregat4.quicksand.domain;
 
 import java.util.List;
+import java.util.Set;
 
 public record FolderMappingSetupRow(
-    FolderSpecialUse specialUse, AccountFolderMapping mapping, List<NamedFolder> folders) {
+    FolderSpecialUse specialUse,
+    AccountFolderMapping mapping,
+    List<NamedFolder> folders,
+    Set<Integer> folderIdsMappedToOtherRoles) {
+
+  public FolderMappingSetupRow(
+      FolderSpecialUse specialUse, AccountFolderMapping mapping, List<NamedFolder> folders) {
+    this(specialUse, mapping, folders, Set.of());
+  }
 
   public boolean configured() {
     return mapping != null && mapping.configured();
@@ -45,6 +54,8 @@ public record FolderMappingSetupRow(
     return folders.stream()
         .filter(folder -> folder.specialUse() != FolderSpecialUse.INBOX)
         .filter(folder -> folder.specialUse() != specialUse)
+        .filter(folder -> folder.specialUse() == null)
+        .filter(folder -> !folderIdsMappedToOtherRoles.contains(folder.id()))
         .toList();
   }
 

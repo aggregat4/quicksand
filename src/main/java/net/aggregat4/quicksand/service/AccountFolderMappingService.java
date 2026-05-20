@@ -8,6 +8,7 @@ import jakarta.mail.Store;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -52,8 +53,25 @@ public class AccountFolderMappingService {
     Map<FolderSpecialUse, AccountFolderMapping> mappingsByUse =
         mappingRepository.findByAccountId(accountId).stream()
             .collect(Collectors.toMap(AccountFolderMapping::specialUse, Function.identity()));
+    Set<Integer> mappedFolderIds =
+        mappingsByUse.values().stream()
+            .map(AccountFolderMapping::folderId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
     return REQUIRED_SPECIAL_USES.stream()
-        .map(use -> new FolderMappingSetupRow(use, mappingsByUse.get(use), folders))
+        .map(
+            use -> {
+              Integer currentFolderId =
+                  Optional.ofNullable(mappingsByUse.get(use))
+                      .map(AccountFolderMapping::folderId)
+                      .orElse(null);
+              Set<Integer> folderIdsMappedToOtherRoles =
+                  mappedFolderIds.stream()
+                      .filter(folderId -> !Objects.equals(folderId, currentFolderId))
+                      .collect(Collectors.toUnmodifiableSet());
+              return new FolderMappingSetupRow(
+                  use, mappingsByUse.get(use), folders, folderIdsMappedToOtherRoles);
+            })
         .toList();
   }
 

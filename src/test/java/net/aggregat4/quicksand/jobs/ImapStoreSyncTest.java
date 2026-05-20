@@ -113,6 +113,46 @@ public class ImapStoreSyncTest {
   }
 
   @Test
+  public void resolveSpecialUsePrefersRemoteAttributeButPreservesLocalRole() {
+    NamedFolder localArchive =
+        new NamedFolder(1, "Archive", 0, "Archive", FolderSpecialUse.ARCHIVE, 1L, true, null);
+    assertEquals(
+        FolderSpecialUse.ARCHIVE,
+        ImapStoreSync.resolveSpecialUse(localArchive, FolderSpecialUse.ARCHIVE));
+    assertEquals(FolderSpecialUse.ARCHIVE, ImapStoreSync.resolveSpecialUse(localArchive, null));
+    assertEquals(
+        FolderSpecialUse.ARCHIVE,
+        ImapStoreSync.resolveSpecialUse(
+            new NamedFolder(2, "Trash", 0, "Trash", FolderSpecialUse.TRASH, 1L, true, null),
+            FolderSpecialUse.ARCHIVE));
+  }
+
+  @Test
+  public void syncPreservesLocallyAssignedSpecialUseWhenImapOmitsAttributes()
+      throws MessagingException {
+    greenMail.setUser(TEST_ADDRESS, TEST_USERNAME, TEST_PASSWORD);
+    Store store = GreenmailUtils.getImapStore(greenMail);
+    Folder archiveFolder = store.getFolder("Archive");
+    if (!archiveFolder.exists()) {
+      assertTrue(archiveFolder.create(Folder.HOLDS_MESSAGES));
+    }
+
+    InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
+    InMemoryEmailRepository messageRepository = new InMemoryEmailRepository();
+    Account account = GreenmailUtils.getAccount();
+    folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 1L);
+
+    ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
+
+    NamedFolder syncedArchive =
+        folderRepository.getFolders(account.id()).stream()
+            .filter(folder -> "Archive".equals(folder.remoteName()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals(FolderSpecialUse.ARCHIVE, syncedArchive.specialUse());
+  }
+
+  @Test
   public void syncDoesNotDownloadSourceUidCoveredByPendingMoveLikeAction()
       throws MessagingException {
     String subject = GreenMailUtil.random();

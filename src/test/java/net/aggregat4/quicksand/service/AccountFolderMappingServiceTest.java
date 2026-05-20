@@ -148,6 +148,66 @@ class AccountFolderMappingServiceTest {
   }
 
   @Test
+  void otherFoldersExcludeSpecialUseFoldersMappedToOtherRoles() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Folders", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+    folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 1L);
+    folderRepository.createFolder(account, "Misc", "Misc", null, 2L);
+    AccountFolderMappingService service =
+        new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
+
+    var trashRow =
+        service.getSetupRows(account.id()).stream()
+            .filter(row -> row.specialUse() == FolderSpecialUse.TRASH)
+            .findFirst()
+            .orElseThrow();
+
+    assertTrue(trashRow.otherFolders().stream().anyMatch(folder -> "Misc".equals(folder.name())));
+    assertFalse(
+        trashRow.otherFolders().stream()
+            .anyMatch(folder -> folder.specialUse() == FolderSpecialUse.ARCHIVE));
+  }
+
+  @Test
+  void otherFoldersExcludeFoldersAlreadyMappedToOtherRolesEvenWithoutSpecialUse() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Folders", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+    int archiveFolderId =
+        folderRepository.createFolder(account, "Archive", "Archive", null, 1L).id();
+    mappingRepository.save(
+        account.id(),
+        FolderSpecialUse.ARCHIVE,
+        archiveFolderId,
+        "Archive",
+        FolderMappingStatus.USER_CONFIRMED);
+    folderRepository.createFolder(account, "Misc", "Misc", null, 2L);
+    AccountFolderMappingService service =
+        new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
+
+    var trashRow =
+        service.getSetupRows(account.id()).stream()
+            .filter(row -> row.specialUse() == FolderSpecialUse.TRASH)
+            .findFirst()
+            .orElseThrow();
+
+    assertTrue(trashRow.otherFolders().stream().anyMatch(folder -> "Misc".equals(folder.name())));
+    assertFalse(
+        trashRow.otherFolders().stream().anyMatch(folder -> "Archive".equals(folder.name())));
+  }
+
+  @Test
   void rejectsMappingsToAnotherAccountFolder() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);

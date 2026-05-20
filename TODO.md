@@ -54,11 +54,11 @@ Local-first mailbox actions with queued IMAP replay. Spec: [`specs/imap-action-s
 
 | # | Slice | Goal | When to pick |
 |---|-------|------|--------------|
-| 1 | **§1b SPECIAL-USE folder setup UX** | Smoother first connect; fewer mapping blockers | **Now** — best UX ROI, medium scope |
-| 2 | **§2a CONDSTORE inbound sync** | Cut poll cost on large mailboxes | When targeting Gmail/Fastmail-scale mailboxes |
-| 3 | **§2b QRESYNC → §2c IDLE** | Faster expunge/new-mail detection; optional push | After CONDSTORE checkpoints exist |
-| 4 | **§3 incoming attachments** | Real attachment bytes during IMAP sync | When viewer attachment UX matters |
-| 5 | **§4 runtime/schema hardening** | Safer non-local deployment | Before exposing beyond local/dev |
+| ~~1~~ | ~~**§1b SPECIAL-USE folder setup UX**~~ | ~~Smoother first connect~~ | **Done** |
+| 1 | **§2a CONDSTORE inbound sync** | Cut poll cost on large mailboxes | **Next** — when targeting Gmail/Fastmail-scale mailboxes |
+| 2 | **§2b QRESYNC → §2c IDLE** | Faster expunge/new-mail detection; optional push | After CONDSTORE checkpoints exist |
+| 3 | **§3 incoming attachments** | Real attachment bytes during IMAP sync | When viewer attachment UX matters |
+| 4 | **§4 runtime/schema hardening** | Safer non-local deployment | Before exposing beyond local/dev |
 
 Probe modern servers before §2: `./scripts/imap-probe.sh`.
 
@@ -111,6 +111,7 @@ Order: CONDSTORE → QRESYNC → IDLE. Probe: `./scripts/imap-probe.sh`.
 
 | When | What |
 |------|------|
+| main | **§1b folder setup UX** — post-sync auto-detect, confirm-all, smarter pickers, conflict/missing hints |
 | `16e6946` | **IMAP action sync merged** — queue replay, folder mappings, sync status recovery, Sent/Drafts sync |
 | `fe3487f` | **Drafts debounced sync** — `UPSERT_DRAFT` / `DELETE_DRAFT`, v4 migration, GreenMail tests |
 | `5b0c2be` | **Sent append sync** — `APPEND_SENT` after SMTP |
