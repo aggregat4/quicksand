@@ -4,7 +4,7 @@
 
 - Java 25 application on Helidon 4
 - runnable JVM artifact is `target/quicksand.jar`
-- `mvn clean test` is green (re-verify after merging `feature/imap-action-sync-spec`)
+- `mvn clean test` is green on `feature/imap-action-sync-spec` (re-run after merge)
 - `npm run test:e2e` is green
 - Maven enforces the Java/Maven baseline
 - Spotless with `google-java-format` and `removeUnusedImports` is wired into the Maven validate phase
@@ -26,60 +26,61 @@
 - **rich HTML demo emails** are available in demo mode for manual viewer testing (product launch digest, summer sale, flight confirmation, monthly invoice, security alert)
 - **IMAP capability probe** — `./scripts/imap-probe.sh` reports server extensions and Quicksand-relevant summaries
 
-## Branch: `feature/imap-action-sync-spec`
+## Branch: `feature/imap-action-sync-spec` (16 commits ahead of origin)
 
-Active work for local-first mailbox actions with queued IMAP replay. Spec: `specs/imap-action-sync.md`.
+Local-first mailbox actions with queued IMAP replay. Spec: [`specs/imap-action-sync.md`](specs/imap-action-sync.md).
 
-### Shipped on this branch (committed)
+### Shipped on this branch
 
 | Area | What |
 |------|------|
-| Schema | v3: folder remote metadata, `account_folder_mappings`, `mailbox_action_queue` |
+| Schema | v3 action-sync tables + **v4** `drafts.remote_imap_uid` / `remote_uidvalidity` |
 | Discovery | UIDVALIDITY + SPECIAL-USE on folder sync |
 | Setup | Folder mapping settings UI, remote folder creation, account blocker when mappings missing |
 | Local actions | Transactional enqueue; block when required mapping missing |
 | Inbound | Suppress re-import of UIDs with pending move-like actions |
-| UI | Account sync status view (`/accounts/{id}/sync`) + header warning when attention needed |
-| Background sync | `MailboxActionSync`: read/unread, move-like (`UID MOVE`), **Sent append**, **Drafts upsert/delete** |
-| Send gate | Composer send blocked until **Sent** mapping is configured |
-| Drafts gate | Composer blocked until **Drafts** mapping is configured |
-| Drafts sync | Debounced `UPSERT_DRAFT` (v4 migration for remote UID); `DELETE_DRAFT` on delete/send |
-| Tooling | Typed action enums, IMAP capability probe CLI |
+| UI | Sync status view (`/accounts/{id}/sync`) + header warning when attention needed |
+| Background sync | `MailboxActionSync`: read/unread, move-like (`UID MOVE`), Sent append, Drafts upsert/delete |
+| Gates | Send requires **Sent** mapping; composer requires **Drafts** mapping |
+| Drafts | Debounced `UPSERT_DRAFT` (`mailbox_action_sync.draft_debounce_seconds`, default 5s); `DELETE_DRAFT` on delete/send |
+| Tooling | Typed action enums; `./scripts/imap-probe.sh` |
 
-### Remaining on this branch (to close the action-sync slice)
+**Not in spec v1 (still open):** sync-status recovery POST actions, queue retention cleanup, COPY/delete fallback for servers without MOVE.
 
-1. **Sync status actions** (read-only table today; no POST handlers yet):
+### Remaining to close this branch
+
+1. **Sync status actions** — view-only today; wire POST handlers:
    - retry now
    - dismiss resolved rows
    - abandon (with confirmation)
    - rollback for eligible failed move-like actions
    - reset local mirror (account recovery; spec: last resort)
-3. **Queue retention job** — 30d succeeded / 90d resolved rows (schema has timestamps; no cleanup job yet)
-4. **Integration tests** — retry paths, sync-status actions, full Sent/Drafts flows per spec
+2. **Queue retention job** — purge succeeded rows after 30d, resolved rows after 90d (columns exist; no job yet)
+3. **Tests** — retry/backoff integration coverage; sync-status action flows; optional Playwright for sync status page
 
-### Deferred on this branch (someday / maybe)
+### Deferred (someday / maybe)
 
-- **UIDPLUS COPY/delete fallback** for servers without `UID MOVE`. Not needed when the server advertises MOVE (`./scripts/imap-probe.sh`). See `specs/imap-action-sync.md`.
+- **UIDPLUS COPY/delete fallback** when the server lacks `UID MOVE` (probe with `./scripts/imap-probe.sh`; see spec)
 
 ---
 
-## Next steps (recommended order)
+## Next steps
 
-### A. Close `feature/imap-action-sync-spec`
+### A. Finish and merge `feature/imap-action-sync-spec`
 
-1. **Sync status: retry now + dismiss** — smallest recovery win; unblocks users with stuck queue rows
-2. **Sync status: abandon** (+ rollback for move-like failures if you want v1 recovery complete)
-3. **Optional before merge:** §1b SPECIAL-USE setup UX (below) if first-connect friction is still painful
+1. **Sync status: retry now + dismiss** — smallest recovery win
+2. **Sync status: abandon** (+ rollback if v1 recovery should be complete before merge)
+3. **Optional:** §1b SPECIAL-USE setup UX if first-connect is still painful
 
-### B. After action-sync branch merges
+### B. After merge
 
-| Priority | Slice | Why |
-|----------|-------|-----|
-| 1 | **§1b SPECIAL-USE folder setup UX** | Auto-detect after sync, confirm-all UI, smarter pickers — high UX on modern servers |
-| 2 | **§2a CONDSTORE inbound sync** | Biggest poll-cost win for large mailboxes |
-| 3 | **§2b QRESYNC → §2c IDLE** | After CONDSTORE checkpoints exist |
-| 4 | **§3 incoming attachments** | Real attachment download during IMAP sync |
-| 5 | **§4 runtime/schema hardening** | Per-account folder uniqueness, indexes, secrets |
+| Priority | Slice | Notes |
+|----------|-------|-------|
+| 1 | **§1b SPECIAL-USE folder setup UX** | Auto-detect after sync, confirm-all UI, smarter pickers |
+| 2 | **§2a CONDSTORE inbound sync** | Largest poll-cost win on modern servers |
+| 3 | **§2b QRESYNC → §2c IDLE** | After CONDSTORE checkpoints |
+| 4 | **§3 incoming attachments** | Download during IMAP sync |
+| 5 | **§4 runtime/schema hardening** | Per-account folders, indexes, secrets |
 
 ---
 
@@ -87,72 +88,48 @@ Active work for local-first mailbox actions with queued IMAP replay. Spec: `spec
 
 ### 1b. SPECIAL-USE folder setup UX
 
-Discovery is wired; presentation and timing are not.
+**Done:** attribute parsing → `folders.special_use`; unambiguous auto-detect → `account_folder_mappings`; hints in `folder-settings.peb`.
 
-**Already done:** attribute parsing → `folders.special_use`; unambiguous auto-detect → `account_folder_mappings`; hints in `folder-settings.peb`.
+**Still needed:** auto-detect after first folder sync; confirm-all UI for `AUTO_DETECTED`; smarter pickers; conflict/missing UX; tests.
 
-**Still needed:**
+Refs: `ImapStoreSync.java`, `AccountFolderMappingService.java`, `folder-settings.peb`, `AccountWebService.java`.
 
-1. Auto-detect after first folder sync (not only on settings/blocker visit)
-2. Confirm-style UI when all five roles are `AUTO_DETECTED`
-3. Smarter per-role pickers (candidates first, “other folders” collapsed)
-4. Clear conflict/missing UX
-5. Tests (GreenMail SPECIAL-USE folders, blocker bypass)
+### 2. Inbound IMAP sync
 
-Reference: `ImapStoreSync.java`, `AccountFolderMappingService.java`, `folder-settings.peb`, `AccountWebService.java`.
+`MailFetcher` polls (~15s); `naiveFolderSync` fetches every UID’s flags each run. No MODSEQ/QRESYNC checkpoints yet.
 
-### 2. Inbound IMAP Sync (incremental improvements)
+- **2a CONDSTORE** — `CHANGEDSINCE` + per-folder `highest_modseq`; periodic full reconciliation; fallback to naive sync
+- **2b QRESYNC** — VANISHED/new UID sets after CONDSTORE
+- **2c IDLE** — optional push wake-up with polling backstop
 
-Today `MailFetcher` polls (~15s) and `naiveFolderSync` fetches every UID’s flags each run. Folder rows store `uidvalidity`; per-folder MODSEQ / QRESYNC checkpoints are not persisted.
-
-Probe: `./scripts/imap-probe.sh` · Reference: `ImapStoreSync.java`, RFC 4549 / 7167 / 5162.
-
-#### 2a. CONDSTORE-aware sync (do first)
-
-**Goal:** Re-check only changed messages via `CHANGEDSINCE` instead of full UID walks every poll.
-
-**Needs:** `CONDSTORE` + `ENABLE`; persist `highest_modseq` per folder; periodic full reconciliation; fallback to `naiveFolderSync`.
-
-#### 2b. QRESYNC (after CONDSTORE)
-
-**Goal:** Process VANISHED/new UID sets instead of inferring expunges by full UID diff.
-
-**Needs:** persisted `uidvalidity`, `modseq`, `uidnext`; integrate with pending action queue; fallback full sync on stale checkpoint.
-
-#### 2c. IDLE (optional, after CONDSTORE)
-
-**Goal:** Wake fetcher on server push; keep polling as backstop (`mail_fetcher.idle_enabled`).
-
-**Order:** CONDSTORE → QRESYNC → IDLE (each degrades gracefully).
+Order: CONDSTORE → QRESYNC → IDLE. Probe: `./scripts/imap-probe.sh`.
 
 ### 3. Other mailbox gaps
 
-- **Incoming attachment extraction** during IMAP sync (`ImapStoreSync.downloadNewMessages` still passes empty attachments).
+- **Incoming attachment extraction** — `ImapStoreSync.downloadNewMessages` still stores empty attachments
 
 ### 4. Runtime, schema, and storage hardening
 
-- safe default bind (`0.0.0.0` vs local)
-- SQLite/Hikari pooling clarity
-- indexes (e.g. `imap_uid` lookups)
+- bind address defaults (`0.0.0.0` vs local)
+- SQLite/Hikari pooling
+- indexes (`imap_uid`, folder paging, outbound retry scan)
 - per-account folder uniqueness (`folders.name` is globally unique today)
-- folder-scoped UID identity on messages
-- `NOT NULL` / FK cascades where invariants are clear
+- folder-scoped message UID identity
+- `NOT NULL` / FK cascades
 - replace plaintext account passwords before non-local use
-- targeted schema/constraint regression tests
+- schema/constraint regression tests
 
 ---
 
-## Recently completed (changelog)
+## Recently completed
 
-1. **Drafts debounced sync** — `UPSERT_DRAFT` / `DELETE_DRAFT`, coalesced autosave, remote UID on `drafts` (v4 migration).
-2. **Sent append sync** — `APPEND_SENT` after SMTP to configured Sent folder; send gated on Sent mapping (`5b0c2be`).
-3. **IMAP capability probe** — CLI + `./scripts/imap-probe.sh`; backlog reprioritized (CONDSTORE, deferred COPY/delete).
-3. **Remote read/unread and move-like sync** — `UID MOVE`; GreenMail tests.
-4. **IMAP action sync foundation** — v3 schema, mappings UI, blocker, queue, sync status view.
-5. **Typed mailbox action queue** — domain enums, `EnumSql`, repository/UI alignment.
-6. **Mark read/unread and local mailbox actions** — SSR flow + Playwright coverage.
-7. **HTML sanitization and rich demo emails** — fixture tests + demo viewer content.
+| When | What |
+|------|------|
+| `fe3487f` | **Drafts debounced sync** — `UPSERT_DRAFT` / `DELETE_DRAFT`, v4 migration, GreenMail tests |
+| `5b0c2be` | **Sent append sync** — `APPEND_SENT` after SMTP |
+| `ee3b1d3` | **IMAP capability probe** + backlog/planning refresh |
+| branch | Read/unread + move-like `UID MOVE`, typed queue, sync status view, mapping UI/blocker |
 
 ---
 
-Developer linting/tooling is sufficient for now unless new build pain appears.
+Developer linting/tooling is sufficient unless new build pain appears.
