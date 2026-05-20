@@ -50,31 +50,41 @@ Local-first mailbox actions with queued IMAP replay. Spec: [`specs/imap-action-s
 
 ---
 
-## Next steps
+## Roadmap (post action-sync)
 
-| Priority | Slice | Notes |
-|----------|-------|-------|
-| 1 | **§1b SPECIAL-USE folder setup UX** | Auto-detect after sync, confirm-all UI, smarter pickers |
-| 2 | **§2a CONDSTORE inbound sync** | Largest poll-cost win on modern servers |
-| 3 | **§2b QRESYNC → §2c IDLE** | After CONDSTORE checkpoints |
-| 4 | **§3 incoming attachments** | Download during IMAP sync |
-| 5 | **§4 runtime/schema hardening** | Per-account folders, indexes, secrets |
+| # | Slice | Goal | When to pick |
+|---|-------|------|--------------|
+| 1 | **§1b SPECIAL-USE folder setup UX** | Smoother first connect; fewer mapping blockers | **Now** — best UX ROI, medium scope |
+| 2 | **§2a CONDSTORE inbound sync** | Cut poll cost on large mailboxes | When targeting Gmail/Fastmail-scale mailboxes |
+| 3 | **§2b QRESYNC → §2c IDLE** | Faster expunge/new-mail detection; optional push | After CONDSTORE checkpoints exist |
+| 4 | **§3 incoming attachments** | Real attachment bytes during IMAP sync | When viewer attachment UX matters |
+| 5 | **§4 runtime/schema hardening** | Safer non-local deployment | Before exposing beyond local/dev |
+
+Probe modern servers before §2: `./scripts/imap-probe.sh`.
+
+---
+
+## Active: §1b SPECIAL-USE folder setup UX
+
+**Done:** attribute parsing → `folders.special_use`; unambiguous auto-detect → `account_folder_mappings`; hints in `folder-settings.peb`; settings/blocker visit triggers auto-detect.
+
+**In progress:**
+
+1. Auto-detect after IMAP folder sync (not only on settings/blocker visit)
+2. Confirm-all UI for `AUTO_DETECTED` mappings
+3. Smarter pickers — role candidates first, other folders collapsed
+4. Clear conflict/missing UX copy
+5. Tests (service + folder-settings web)
+
+Refs: `ImapStoreSync.java`, `MailFetcher.java`, `AccountFolderMappingService.java`, `folder-settings.peb`, `AccountWebService.java`.
 
 ---
 
 ## Backlog reference
 
-### 1b. SPECIAL-USE folder setup UX
-
-**Done:** attribute parsing → `folders.special_use`; unambiguous auto-detect → `account_folder_mappings`; hints in `folder-settings.peb`.
-
-**Still needed:** auto-detect after first folder sync; confirm-all UI for `AUTO_DETECTED`; smarter pickers; conflict/missing UX; tests.
-
-Refs: `ImapStoreSync.java`, `AccountFolderMappingService.java`, `folder-settings.peb`, `AccountWebService.java`.
-
 ### 2. Inbound IMAP sync
 
-`MailFetcher` polls (~15s); `naiveFolderSync` fetches every UID’s flags each run. No MODSEQ/QRESYNC checkpoints yet.
+`MailFetcher` polls (~15s); `naiveFolderSync` fetches every UID's flags each run. No MODSEQ/QRESYNC checkpoints yet.
 
 - **2a CONDSTORE** — `CHANGEDSINCE` + per-folder `highest_modseq`; periodic full reconciliation; fallback to naive sync
 - **2b QRESYNC** — VANISHED/new UID sets after CONDSTORE
@@ -104,11 +114,9 @@ Order: CONDSTORE → QRESYNC → IDLE. Probe: `./scripts/imap-probe.sh`.
 | When | What |
 |------|------|
 | `16e6946` | **IMAP action sync merged** — queue replay, folder mappings, sync status recovery, Sent/Drafts sync |
-| `16e6946` | Sync status recovery — retry/dismiss/abandon/rollback/reset; queue retention |
 | `fe3487f` | **Drafts debounced sync** — `UPSERT_DRAFT` / `DELETE_DRAFT`, v4 migration, GreenMail tests |
 | `5b0c2be` | **Sent append sync** — `APPEND_SENT` after SMTP |
 | `ee3b1d3` | **IMAP capability probe** + backlog/planning refresh |
-| branch | Read/unread + move-like `UID MOVE`, typed queue, sync status view, mapping UI/blocker |
 
 ---
 
