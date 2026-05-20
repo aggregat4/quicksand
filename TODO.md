@@ -4,7 +4,7 @@
 
 - Java 25 application on Helidon 4
 - runnable JVM artifact is `target/quicksand.jar`
-- `mvn clean test` is green on `feature/imap-action-sync-spec` (re-run after merge)
+- `mvn clean test` is green on `main`
 - `npm run test:e2e` is green
 - Maven enforces the Java/Maven baseline
 - Spotless with `google-java-format` and `removeUnusedImports` is wired into the Maven validate phase
@@ -26,11 +26,11 @@
 - **rich HTML demo emails** are available in demo mode for manual viewer testing (product launch digest, summer sale, flight confirmation, monthly invoice, security alert)
 - **IMAP capability probe** — `./scripts/imap-probe.sh` reports server extensions and Quicksand-relevant summaries
 
-## Branch: `feature/imap-action-sync-spec` (16 commits ahead of origin)
+## IMAP action sync (merged to `main`)
 
 Local-first mailbox actions with queued IMAP replay. Spec: [`specs/imap-action-sync.md`](specs/imap-action-sync.md).
 
-### Shipped on this branch
+### Shipped
 
 | Area | What |
 |------|------|
@@ -43,28 +43,14 @@ Local-first mailbox actions with queued IMAP replay. Spec: [`specs/imap-action-s
 | Background sync | `MailboxActionSync`: read/unread, move-like (`UID MOVE`), Sent append, Drafts upsert/delete |
 | Gates | Send requires **Sent** mapping; composer requires **Drafts** mapping |
 | Drafts | Debounced `UPSERT_DRAFT` (`mailbox_action_sync.draft_debounce_seconds`, default 5s); `DELETE_DRAFT` on delete/send |
+| Recovery | Sync status retry/dismiss/abandon/rollback/reset; queue retention cleanup |
 | Tooling | Typed action enums; `./scripts/imap-probe.sh` |
 
-**Not in spec v1 (still open):** COPY/delete fallback for servers without MOVE.
-
-### Remaining to close this branch
-
-None — sync status recovery actions, queue retention cleanup, and tests are implemented on this branch.
-
-### Deferred (someday / maybe)
-
-- **UIDPLUS COPY/delete fallback** when the server lacks `UID MOVE` (probe with `./scripts/imap-probe.sh`; see spec)
+**Deferred:** UIDPLUS COPY/delete fallback when the server lacks `UID MOVE`.
 
 ---
 
 ## Next steps
-
-### A. Finish and merge `feature/imap-action-sync-spec`
-
-1. Push branch and open PR
-2. **Optional:** §1b SPECIAL-USE setup UX if first-connect is still painful
-
-### B. After merge
 
 | Priority | Slice | Notes |
 |----------|-------|-------|
@@ -117,7 +103,8 @@ Order: CONDSTORE → QRESYNC → IDLE. Probe: `./scripts/imap-probe.sh`.
 
 | When | What |
 |------|------|
-| branch | **Sync status recovery** — retry/dismiss/abandon/rollback/reset POST actions, queue retention job, tests |
+| `16e6946` | **IMAP action sync merged** — queue replay, folder mappings, sync status recovery, Sent/Drafts sync |
+| `16e6946` | Sync status recovery — retry/dismiss/abandon/rollback/reset; queue retention |
 | `fe3487f` | **Drafts debounced sync** — `UPSERT_DRAFT` / `DELETE_DRAFT`, v4 migration, GreenMail tests |
 | `5b0c2be` | **Sent append sync** — `APPEND_SENT` after SMTP |
 | `ee3b1d3` | **IMAP capability probe** + backlog/planning refresh |
