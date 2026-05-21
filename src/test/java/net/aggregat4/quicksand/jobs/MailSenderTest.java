@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import io.helidon.http.HttpMediaType;
 import jakarta.mail.BodyPart;
+import jakarta.mail.Folder;
 import jakarta.mail.Multipart;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
@@ -23,9 +24,13 @@ import net.aggregat4.quicksand.GreenmailTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.DraftType;
+import net.aggregat4.quicksand.domain.FolderMappingStatus;
+import net.aggregat4.quicksand.domain.FolderSpecialUse;
+import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.domain.OutboundMessageStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
+import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
@@ -142,6 +147,152 @@ public class MailSenderTest {
     assertEquals(
         "smtp attachment body",
         new String(attachmentPart.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void deliveredMessageLeavesOutboxAndAppearsInLocalSentFolder() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+
+    String senderAddress = "sender@localhost";
+    String senderUsername = "sender";
+    String senderPassword = "secret";
+    String recipientAddress = "recipient@localhost";
+    greenMail.setUser(senderAddress, senderUsername, senderPassword);
+    greenMail.setUser(recipientAddress, "recipient", "secret");
+
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(
+            -1,
+            "Sent Folder Account",
+            "localhost",
+            greenMail.getImap().getServerSetup().getPort(),
+            senderUsername,
+            senderPassword,
+            "localhost",
+            greenMail.getSmtp().getServerSetup().getPort(),
+            senderUsername,
+            senderPassword));
+    Account account = accountRepository.getAccounts().getFirst();
+
+    Store setupStore = Session.getInstance(new Properties(), null).getStore("imap");
+    setupStore.connect(
+        "localhost",
+        greenMail.getImap().getServerSetup().getPort(),
+        senderUsername,
+        senderPassword);
+    Folder remoteSent = setupStore.getFolder("Sent");
+    if (!remoteSent.exists()) {
+      remoteSent.create(Folder.HOLDS_MESSAGES);
+    }
+    setupStore.close();
+
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbActorRepository(ds));
+    Store syncStore = Session.getInstance(new Properties(), null).getStore("imap");
+    syncStore.connect(
+        "localhost",
+        greenMail.getImap().getServerSetup().getPort(),
+        senderUsername,
+        senderPassword);
+    ImapStoreSync.syncImapFolders(account, syncStore, folderRepository, emailRepository);
+    syncStore.close();
+
+    NamedFolder sentFolder =
+        folderRepository.getFolders(account.id()).stream()
+            .filter(folder -> "Sent".equals(folder.remoteName()))
+            .findFirst()
+            .orElseThrow();
+    new DbAccountFolderMappingRepository(ds)
+        .save(
+            account.id(),
+            FolderSpecialUse.SENT,
+            sentFolder.id(),
+            sentFolder.remoteName(),
+            FolderMappingStatus.USER_CONFIRMED);
+
+    DbDraftRepository draftRepository = new DbDraftRepository(ds);
+    ZonedDateTime createdAt = ZonedDateTime.parse("2026-03-29T12:00:00+02:00[Europe/Berlin]");
+    Draft draft =
+        draftRepository.create(
+            new Draft(
+                0,
+                account.id(),
+                DraftType.NEW,
+                Optional.empty(),
+                recipientAddress,
+                "",
+                "",
+                "Reply subject",
+                "Reply body",
+                false,
+                createdAt,
+                createdAt.toEpochSecond()));
+
+    DbOutboundMessageRepository outboundMessageRepository = new DbOutboundMessageRepository(ds);
+    OutboundMessageService outboundMessageService =
+        new OutboundMessageService(
+            ds,
+            accountRepository,
+            draftRepository,
+            new DbAttachmentRepository(ds),
+            outboundMessageRepository,
+            emailRepository,
+            Clock.fixed(createdAt.toInstant(), ZoneId.of("Europe/Berlin")));
+    var queuedMessage = outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();
+
+    MailSender mailSender =
+        new MailSender(
+            accountRepository,
+            outboundMessageRepository,
+            new DbAttachmentRepository(ds),
+            emailRepository,
+            Clock.fixed(createdAt.plusMinutes(3).toInstant(), ZoneId.of("Europe/Berlin")),
+            60,
+            3,
+            60);
+    mailSender.sendNow();
+
+    assertEquals(
+        OutboundMessageStatus.SENT,
+        outboundMessageRepository.findById(queuedMessage.id()).orElseThrow().status());
+    assertEquals(
+        0,
+        outboundMessageService.getQueuedHeaders(account.id()).size(),
+        "Sent messages should leave the Outbox view");
+
+    MailboxActionSync mailboxActionSync =
+        new MailboxActionSync(
+            accountRepository,
+            emailRepository,
+            outboundMessageRepository,
+            new DbAttachmentRepository(ds),
+            draftRepository,
+            folderRepository,
+            Clock.fixed(createdAt.plusMinutes(4).toInstant(), ZoneId.of("Europe/Berlin")),
+            60,
+            60);
+    mailboxActionSync.syncNow();
+
+    var sentPage =
+        emailRepository.getMessages(
+            sentFolder.id(),
+            10,
+            Long.MAX_VALUE,
+            Integer.MAX_VALUE,
+            PageDirection.RIGHT,
+            SortOrder.DESCENDING);
+    assertEquals(
+        1, sentPage.emails().size(), "Sent folder mirror should contain the delivered reply");
+    assertEquals("Reply subject", sentPage.emails().getFirst().header().subject());
+    assertEquals(
+        "Reply body",
+        emailRepository
+            .findById(sentPage.emails().getFirst().header().id())
+            .orElseThrow()
+            .body()
+            .trim());
   }
 
   @Test

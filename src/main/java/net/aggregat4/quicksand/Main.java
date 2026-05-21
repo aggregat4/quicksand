@@ -166,6 +166,7 @@ public final class Main {
               outboundMessageRepository,
               attachmentRepository,
               draftRepository,
+              folderRepository,
               clock,
               syncPeriodInSeconds,
               retryDelaySeconds);

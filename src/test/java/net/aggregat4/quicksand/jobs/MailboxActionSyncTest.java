@@ -374,6 +374,7 @@ class MailboxActionSyncTest {
             new DbOutboundMessageRepository(fixture.dataSource()),
             new DbAttachmentRepository(fixture.dataSource()),
             new DbDraftRepository(fixture.dataSource()),
+            fixture.folderRepository(),
             FIXED_CLOCK,
             60,
             60)

@@ -79,6 +79,7 @@ public class OutboundMessageService {
 
   public List<EmailHeader> getQueuedHeaders(int accountId) {
     return outboundMessageRepository.findByAccountId(accountId).stream()
+        .filter(message -> message.status() != OutboundMessageStatus.SENT)
         .map(this::toEmailHeader)
         .toList();
   }
