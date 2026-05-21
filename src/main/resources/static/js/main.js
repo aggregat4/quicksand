@@ -137,6 +137,7 @@ function onEmailHeaderClick(event) {
     document.getElementById('messagepreview').show()
     markAllEmailHeadersInactive()
     event.currentTarget.classList.add('active')
+    markEmailHeaderReadLocally(event.currentTarget)
     // modify URL to reflect selected email
     const emailIdAttribute = event.currentTarget.getAttribute('id')
     const prefixLength = 'email'.length
@@ -151,6 +152,13 @@ function onEmailHeaderClick(event) {
 function markAllEmailHeadersInactive() {
     document.querySelectorAll('#messagelist a.active')
         .forEach(node => node.classList.remove('active'))
+}
+
+function markEmailHeaderReadLocally(header) {
+    if (!header || header.classList.contains('read')) {
+        return
+    }
+    header.classList.add('read')
 }
 
 function onCloseMessagePreview() {

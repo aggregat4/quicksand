@@ -113,6 +113,10 @@ public class EmailWebService implements HttpService {
       response.send();
       return;
     }
+    if (!email.get().header().read()) {
+      emailService.updateRead(emailId, true);
+      email = emailService.getMessage(emailId);
+    }
     Map<String, Object> context = new HashMap<>();
     context.put("showImages", showImages);
     context.put("email", email.get());

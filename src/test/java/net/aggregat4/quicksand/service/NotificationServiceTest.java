@@ -122,12 +122,21 @@ class NotificationServiceTest {
   }
 
   @Test
-  void shouldHideInboxStripWhenAlreadyViewingInbox() {
+  void shouldShowInboxBannerWhenAlreadyViewingInbox() {
     addMessage(inbox.id(), 1L, 1000L, false);
 
     AccountNotificationSummary summary = notificationService.getAccountSummary(accountId);
-    assertFalse(notificationService.shouldShowInboxStrip(summary, Optional.of(inbox.id()), inbox));
-    assertTrue(notificationService.shouldShowInboxStrip(summary, Optional.of(archive.id()), inbox));
+    NotificationService.InboxNotification onInbox =
+        notificationService.inboxNotification(summary, Optional.of(inbox.id()), inbox);
+    NotificationService.InboxNotification onArchive =
+        notificationService.inboxNotification(summary, Optional.of(archive.id()), inbox);
+
+    assertTrue(onInbox.show());
+    assertFalse(onInbox.linked());
+    assertEquals("1 new in this folder", onInbox.message());
+    assertTrue(onArchive.show());
+    assertTrue(onArchive.linked());
+    assertEquals("1 new in Inbox", onArchive.message());
   }
 
   private void addMessage(int folderId, long uid, long receivedEpochS, boolean read) {

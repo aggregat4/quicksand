@@ -242,6 +242,23 @@ class EmailWebServiceActionTest {
   }
 
   @Test
+  @Order(2)
+  void viewerMarksUnreadMessageAsRead() throws IOException, InterruptedException {
+    emailRepository.updateRead(firstMessageId, false);
+    assertFalse(emailRepository.findById(firstMessageId).orElseThrow().header().read());
+
+    HttpRequest viewer =
+        HttpRequest.newBuilder(
+                URI.create(baseUrl + "/emails/" + firstMessageId + "/viewer?showImages=false"))
+            .GET()
+            .build();
+    HttpResponse<String> response = httpClient.send(viewer, HttpResponse.BodyHandlers.ofString());
+
+    assertEquals(200, response.statusCode());
+    assertTrue(emailRepository.findById(firstMessageId).orElseThrow().header().read());
+  }
+
+  @Test
   @Order(4)
   void markSpamMovesMessageToSpamFolderAndRedirectsFromViewer()
       throws IOException, InterruptedException {

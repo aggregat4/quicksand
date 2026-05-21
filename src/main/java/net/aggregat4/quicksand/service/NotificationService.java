@@ -60,9 +60,25 @@ public class NotificationService {
 
   public boolean shouldShowInboxStrip(
       AccountNotificationSummary summary, Optional<Integer> currentFolderId, NamedFolder inbox) {
+    return inboxNotification(summary, currentFolderId, inbox).show();
+  }
+
+  public InboxNotification inboxNotification(
+      AccountNotificationSummary summary, Optional<Integer> currentFolderId, NamedFolder inbox) {
     if (summary.inboxNewSinceView() <= 0) {
-      return false;
+      return InboxNotification.hidden();
     }
-    return currentFolderId.filter(folderId -> folderId == inbox.id()).isEmpty();
+    boolean onInbox = currentFolderId.filter(folderId -> folderId == inbox.id()).isPresent();
+    String message =
+        onInbox
+            ? summary.inboxNewSinceView() + " new in this folder"
+            : summary.inboxNewSinceView() + " new in Inbox";
+    return new InboxNotification(true, !onInbox, message);
+  }
+
+  public record InboxNotification(boolean show, boolean linked, String message) {
+    static InboxNotification hidden() {
+      return new InboxNotification(false, false, "");
+    }
   }
 }

@@ -72,11 +72,12 @@
             return
         }
 
-        incomingHeaders.reverse().forEach((header) => {
-            if (document.getElementById(header.id)) {
-                return
+        [...updates.children].forEach((node) => {
+            if (node.classList.contains('emailgroup')) {
+                insertGroupHeaderIfNeeded(messagelist, node)
+            } else if (node.classList.contains('emailheader')) {
+                insertMessageIntoTopGroup(messagelist, node)
             }
-            messagelist.insertBefore(header.cloneNode(true), messagelist.firstChild)
         })
 
         const firstHeader = messagelist.querySelector('.emailheader')
@@ -99,6 +100,52 @@
         }
     }
 
+    function insertGroupHeaderIfNeeded(messagelist, groupNode) {
+        const label = groupNode.textContent.trim()
+        const firstGroup = messagelist.querySelector('.emailgroup')
+        if (firstGroup && firstGroup.textContent.trim() === label) {
+            return
+        }
+        messagelist.insertBefore(groupNode.cloneNode(true), messagelist.firstChild)
+    }
+
+    function insertMessageIntoTopGroup(messagelist, headerNode) {
+        if (document.getElementById(headerNode.id)) {
+            return
+        }
+        const clone = headerNode.cloneNode(true)
+        const firstGroup = messagelist.querySelector('.emailgroup')
+        if (!firstGroup) {
+            messagelist.insertBefore(clone, messagelist.firstChild)
+            return
+        }
+        let insertBefore = null
+        let node = firstGroup.nextElementSibling
+        while (node) {
+            if (node.classList.contains('emailheader')) {
+                insertBefore = node
+                break
+            }
+            if (node.classList.contains('emailgroup')) {
+                break
+            }
+            node = node.nextElementSibling
+        }
+        if (insertBefore) {
+            messagelist.insertBefore(clone, insertBefore)
+        } else {
+            firstGroup.insertAdjacentElement('afterend', clone)
+        }
+    }
+
+    function applyNotificationStrip(incomingStrip) {
+        const existingStrip = document.getElementById('notification-strip')
+        if (!incomingStrip || !existingStrip) {
+            return
+        }
+        existingStrip.replaceWith(incomingStrip.cloneNode(true))
+    }
+
     function applyPayload(doc) {
         const payload = doc.getElementById('notifications-payload')
         if (!payload) {
@@ -106,10 +153,7 @@
         }
 
         const incomingStrip = payload.querySelector('#notification-strip')
-        const existingStrip = document.getElementById('notification-strip')
-        if (incomingStrip && existingStrip) {
-            existingStrip.replaceWith(incomingStrip.cloneNode(true))
-        }
+        applyNotificationStrip(incomingStrip)
 
         applyFolderBadges(payload)
         applyMessageListUpdates(payload)

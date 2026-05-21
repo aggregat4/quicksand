@@ -507,7 +507,7 @@ public class AccountWebService implements HttpService {
         "sidebarFolders",
         toSidebarFolders(accountId, mailboxNavigationFolders, folder, notificationSummary));
     context.put("notificationSummary", notificationSummary);
-    context.put("showInboxStrip", showInboxStrip(notificationSummary, folder, folders));
+    putInboxNotificationContext(context, notificationSummary, folder, folders);
     context.put("emailGroupPage", emailGroupPage);
     context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
     context.put("currentFolder", folder);
@@ -559,7 +559,7 @@ public class AccountWebService implements HttpService {
         toSidebarFolders(
             accountId, mailboxNavigationFolders(folders), currentFolder, notificationSummary));
     context.put("notificationSummary", notificationSummary);
-    context.put("showInboxStrip", showInboxStrip(notificationSummary, currentFolder, folders));
+    putInboxNotificationContext(context, notificationSummary, currentFolder, folders);
     Optional<Long> listCursorReceived =
         request.query().first("listCursorReceived").flatMap(AccountWebService::parseOptionalLong);
     Optional<Integer> listCursorMessageId =
@@ -570,7 +570,11 @@ public class AccountWebService implements HttpService {
       List<EmailHeader> newMessageHeaders =
           emailService.getMessagesNewerThan(
               currentFolderId.get(), listCursorReceived.get(), listCursorMessageId.get(), 20);
-      context.put("newMessageHeaders", newMessageHeaders);
+      if (!newMessageHeaders.isEmpty()) {
+        context.put(
+            "newMessageGroups",
+            EmailGroup.createEmailGroups(newMessageHeaders, clock, SortOrder.DESCENDING));
+      }
       context.put("currentFolderIsDrafts", false);
       context.put("currentFolderIsOutbox", false);
       context.put("currentQuery", Optional.empty());
@@ -602,20 +606,30 @@ public class AccountWebService implements HttpService {
         && pagination.messageIdOffset().isEmpty();
   }
 
-  private boolean showInboxStrip(
-      AccountNotificationSummary summary, Folder currentFolder, List<NamedFolder> folders) {
+  private void putInboxNotificationContext(
+      Map<String, Object> context,
+      AccountNotificationSummary summary,
+      Folder currentFolder,
+      List<NamedFolder> folders) {
     Optional<NamedFolder> inbox =
         folders.stream()
             .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
             .findFirst();
     if (inbox.isEmpty()) {
-      return false;
+      context.put("showInboxStrip", false);
+      context.put("inboxStripLinked", false);
+      context.put("inboxStripMessage", "");
+      return;
     }
     Optional<Integer> currentFolderId =
         currentFolder instanceof NamedFolder namedFolder
             ? Optional.of(namedFolder.id())
             : Optional.empty();
-    return notificationService.shouldShowInboxStrip(summary, currentFolderId, inbox.get());
+    NotificationService.InboxNotification notification =
+        notificationService.inboxNotification(summary, currentFolderId, inbox.get());
+    context.put("showInboxStrip", notification.show());
+    context.put("inboxStripLinked", notification.linked());
+    context.put("inboxStripMessage", notification.message());
   }
 
   private List<SidebarFolderLink> toSidebarFolders(

@@ -1,8 +1,12 @@
 <div id="notifications-payload">
     {% if showInboxStrip %}
+        {% if inboxStripLinked %}
         <a id="notification-strip" class="notification-strip" href="{{ notificationSummary.inboxHref }}" data-inbox-new="{{ notificationSummary.inboxNewSinceView }}">
-            {{ notificationSummary.inboxNewSinceView }} new in Inbox
+            {{ inboxStripMessage }}
         </a>
+        {% else %}
+        <span id="notification-strip" class="notification-strip" data-inbox-new="{{ notificationSummary.inboxNewSinceView }}">{{ inboxStripMessage }}</span>
+        {% endif %}
     {% else %}
         <span id="notification-strip" class="notification-strip" data-inbox-new="{{ notificationSummary.inboxNewSinceView }}" hidden></span>
     {% endif %}
@@ -13,11 +17,16 @@
             <span class="folder-unread-badge" data-folder-id="{{ folder.folderId }}" hidden></span>
         {% endif %}
     {% endfor %}
-    {% if newMessageHeaders != null and not newMessageHeaders.isEmpty() %}
+    {% if newMessageGroups != null and not newMessageGroups.isEmpty() %}
         <div id="messagelist-updates">
             {% set emailActive = false %}
-            {% for emailHeader in newMessageHeaders %}
-                {% include 'templates/emailheader.peb' %}
+            {% for group in newMessageGroups %}
+                {% if group.name().isPresent() %}
+                    <div class="emailgroup">{{ group.name().get() }}</div>
+                {% endif %}
+                {% for emailHeader in group.headers() %}
+                    {% include 'templates/emailheader.peb' %}
+                {% endfor %}
             {% endfor %}
         </div>
     {% endif %}

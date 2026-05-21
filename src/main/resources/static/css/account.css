@@ -192,12 +192,17 @@ body.accountpage.sync-status-page main.settings-layout {
     color: var(--text-color);
 }
 
-.emailheader:hover {
+.emailheader:hover:not(.active) {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.emailheader.active,
+.emailheader.active:hover {
     background-color: var(--selected-bgcolor);
+    color: var(--selected-color);
 }
 
 .emailheader.active {
-    background-color: var(--selected-bgcolor);
     color: var(--selected-color);
 }
 
