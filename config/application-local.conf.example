@@ -1,0 +1,57 @@
+# Copy to application-local.conf and fill in your credentials.
+# application-local.conf is gitignored.
+#
+#   cp config/application-local.conf.example config/application-local.conf
+#
+# Then start the server (after `mvn -DskipTests package`):
+#
+#   ./scripts/start-real-server.sh
+#
+# Probe your server first: ./scripts/imap-probe.sh --host HOST --user USER --password PASS
+# Standard ports (993 IMAP / 587 SMTP) use TLS automatically.
+
+server = {
+  port: 8080,
+  host: "127.0.0.1"
+}
+
+database = {
+  path: "./target/db/quicksand-real.sqlite"
+}
+
+mail_fetcher = {
+  enabled: true,
+  period_seconds: 15
+}
+
+mail_sender = {
+  enabled: true,
+  period_seconds: 15,
+  max_attempts: 3,
+  retry_delay_seconds: 60
+}
+
+mailbox_action_sync = {
+  enabled: true,
+  period_seconds: 15,
+  retry_delay_seconds: 60,
+  draft_debounce_seconds: 5
+}
+
+demo = {
+  enabled: false
+}
+
+accounts = [
+  {
+    name: "My Mailbox"
+    imap_host: "imap.example.com"
+    imap_port: 993
+    imap_username: "you@example.com"
+    imap_password: "your-app-password"
+    smtp_host: "smtp.example.com"
+    smtp_port: 587
+    smtp_username: "you@example.com"
+    smtp_password: "your-app-password"
+  }
+]
