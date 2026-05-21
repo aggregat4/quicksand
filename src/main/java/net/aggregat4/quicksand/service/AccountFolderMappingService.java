@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -20,6 +19,7 @@ import net.aggregat4.quicksand.domain.FolderMappingSetupRow;
 import net.aggregat4.quicksand.domain.FolderMappingStatus;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
+import net.aggregat4.quicksand.jobs.JakartaMailSessionProperties;
 import net.aggregat4.quicksand.repository.AccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
@@ -233,15 +233,15 @@ public class AccountFolderMappingService {
   }
 
   private Store createConnectedStore(Account account) throws MessagingException {
-    Store store = createStore();
+    Store store = createStore(account);
     store.connect(
         account.imapHost(), account.imapPort(), account.imapUsername(), account.imapPassword());
     return store;
   }
 
-  private Store createStore() {
+  private Store createStore(Account account) {
     try {
-      return Session.getInstance(new Properties(), null).getStore("imap");
+      return Session.getInstance(JakartaMailSessionProperties.imap(account), null).getStore("imap");
     } catch (NoSuchProviderException e) {
       throw new IllegalStateException("There is no imap provider, this should not happen.");
     }

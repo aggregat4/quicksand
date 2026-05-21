@@ -94,8 +94,7 @@ public class MailFetcher {
 
   /** package private for test */
   Store createStore(Account account) {
-    Properties props = new Properties();
-    Session session = Session.getInstance(props, null);
+    Session session = Session.getInstance(JakartaMailSessionProperties.imap(account), null);
     try {
       return session.getStore("imap");
     } catch (NoSuchProviderException e) {

@@ -11,7 +11,6 @@ import jakarta.mail.internet.MimeMessage;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -19,12 +18,14 @@ import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
 import net.aggregat4.quicksand.domain.MailboxActionType;
+import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.domain.OutboundMessage;
 import net.aggregat4.quicksand.domain.StoredAttachment;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DraftRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
+import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.repository.OutboundMessageRepository;
 import org.eclipse.angus.mail.imap.AppendUID;
 import org.eclipse.angus.mail.imap.IMAPFolder;
@@ -43,6 +44,7 @@ public class MailboxActionSync {
   private final OutboundMessageRepository outboundMessageRepository;
   private final AttachmentRepository attachmentRepository;
   private final DraftRepository draftRepository;
+  private final FolderRepository folderRepository;
   private final Clock clock;
   private final long syncPeriodInSeconds;
   private final long retryDelaySeconds;
@@ -53,6 +55,7 @@ public class MailboxActionSync {
       OutboundMessageRepository outboundMessageRepository,
       AttachmentRepository attachmentRepository,
       DraftRepository draftRepository,
+      FolderRepository folderRepository,
       Clock clock,
       long syncPeriodInSeconds,
       long retryDelaySeconds) {
@@ -61,6 +64,7 @@ public class MailboxActionSync {
     this.outboundMessageRepository = outboundMessageRepository;
     this.attachmentRepository = attachmentRepository;
     this.draftRepository = draftRepository;
+    this.folderRepository = folderRepository;
     this.clock = clock;
     this.syncPeriodInSeconds = syncPeriodInSeconds;
     this.retryDelaySeconds = retryDelaySeconds;
@@ -247,6 +251,16 @@ public class MailboxActionSync {
       } finally {
         imapFolder.close(false);
       }
+      if (action.targetFolderId() != null) {
+        NamedFolder localSentFolder = folderRepository.getFolder(action.targetFolderId());
+        ImapFolderSyncEngine.syncFolder(
+            action.accountId(),
+            localSentFolder,
+            imapFolder,
+            store,
+            folderRepository,
+            emailRepository);
+      }
     }
   }
 
@@ -322,15 +336,15 @@ public class MailboxActionSync {
   }
 
   private Store createConnectedStore(Account account) throws MessagingException {
-    Store store = createStore();
+    Store store = createStore(account);
     store.connect(
         account.imapHost(), account.imapPort(), account.imapUsername(), account.imapPassword());
     return store;
   }
 
-  Store createStore() {
+  Store createStore(Account account) {
     try {
-      return Session.getInstance(new Properties(), null).getStore("imap");
+      return Session.getInstance(JakartaMailSessionProperties.imap(account), null).getStore("imap");
     } catch (NoSuchProviderException e) {
       throw new IllegalStateException("There is no imap provider, this should not happen.");
     }

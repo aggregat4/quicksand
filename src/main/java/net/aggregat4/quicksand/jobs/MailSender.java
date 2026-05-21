@@ -98,8 +98,7 @@ public class MailSender {
     Session session = mimeMessage.getSession();
 
     try (Transport transport = session.getTransport("smtp")) {
-      transport.connect(
-          account.smtpHost(), account.smtpPort(), account.smtpUsername(), account.smtpPassword());
+      transport.connect(account.smtpUsername(), account.smtpPassword());
       transport.sendMessage(mimeMessage, mimeMessage.getAllRecipients());
     }
   }

@@ -65,11 +65,7 @@ final class OutboundMimeMessageBuilder {
   }
 
   private static Properties smtpProperties(Account account) {
-    Properties properties = new Properties();
-    properties.put("mail.smtp.host", account.smtpHost());
-    properties.put("mail.smtp.port", Integer.toString(account.smtpPort()));
-    properties.put("mail.smtp.auth", "true");
-    return properties;
+    return JakartaMailSessionProperties.smtp(account);
   }
 
   private static String blankToNull(String value) {
