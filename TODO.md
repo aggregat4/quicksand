@@ -55,12 +55,38 @@ Local-first mailbox actions with queued IMAP replay. Spec: [`specs/imap-action-s
 | # | Slice | Goal | When to pick |
 |---|-------|------|--------------|
 | ~~1~~ | ~~**§1b SPECIAL-USE folder setup UX**~~ | ~~Smoother first connect~~ | **Done** |
-| 1 | **§2a CONDSTORE inbound sync** | Cut poll cost on large mailboxes | **Next** — when targeting Gmail/Fastmail-scale mailboxes |
-| 2 | **§2b QRESYNC → §2c IDLE** | Faster expunge/new-mail detection; optional push | After CONDSTORE checkpoints exist |
-| 3 | **§3 incoming attachments** | Real attachment bytes during IMAP sync | When viewer attachment UX matters |
-| 4 | **§4 runtime/schema hardening** | Safer non-local deployment | Before exposing beyond local/dev |
+| ~~1~~ | ~~**§2a CONDSTORE inbound sync**~~ | ~~Cut poll cost on large mailboxes~~ | **Done** |
+| ~~1~~ | ~~**§2b QRESYNC → §2c IDLE**~~ | ~~Faster expunge/new-mail detection; optional push~~ | **Done** |
+| 1 | **§3 incoming attachments** | Real attachment bytes during IMAP sync | **Next** — when viewer attachment UX matters |
+| 2 | **§4 runtime/schema hardening** | Safer non-local deployment | Before exposing beyond local/dev |
+| ~~3~~ | ~~**§4a Real IMAP/SMTP TLS**~~ | ~~Connect to Gmail/Fastmail-style servers~~ | **Done** |
+| 4 | **§5 new-mail notifications** | Subtle in-app cues + optional desktop alerts | After §2c or alongside polling |
 
 Probe modern servers before §2: `./scripts/imap-probe.sh`.
+
+---
+
+## Backlog: real IMAP server connections
+
+Use `./scripts/start-real-server.sh` against a configured account (not demo/GreenMail).
+
+1. Build: `mvn -DskipTests package`
+2. Copy and edit local credentials: `cp config/application-local.conf.example config/application-local.conf`
+3. Start: `./scripts/start-real-server.sh` (or pass `IMAP_HOST` / `IMAP_USER` / `IMAP_PASSWORD`; use `--help`)
+   - Uses a separate DB path by default (`target/db/quicksand-real.sqlite`) so demo data stays untouched
+   - `--wipe-db` when switching credentials — accounts are bootstrapped with `INSERT OR IGNORE`; config changes do **not** update an existing row
+4. Optional faster wake-up: set `mail_fetcher.idle_enabled = true` when the server advertises `IDLE`
+5. Open `http://127.0.0.1:8080/` — expect folder-setup redirect on first connect (Archive/Trash/Sent/Drafts mapping)
+
+Probe the server first: `./scripts/imap-probe.sh --host HOST --user USER --password PASS`, or `./scripts/start-real-server.sh --probe`.
+
+| Scenario | Status |
+|----------|--------|
+| Demo / GreenMail via `./scripts/start-test-server.sh` | Works |
+| Real IMAP/SMTP via `./scripts/start-real-server.sh` (993/587 TLS) | Works |
+| `./scripts/imap-probe.sh` against IMAPS 993 | Works |
+| Account UI / OAuth2 (Gmail sign-in) | Not implemented — config/DB credentials only |
+| Password storage | Plaintext in SQLite (pre-production) |
 
 ---
 
@@ -78,21 +104,54 @@ Refs: `MailFetcher.java`, `AccountFolderMappingService.java`, `folder-settings.p
 
 ---
 
+## Active: §2a CONDSTORE inbound sync
+
+**Shipped:**
+
+- schema v5: per-folder `highest_modseq` + `last_full_sync_epoch_s` checkpoints
+- `ImapFolderSyncEngine`: CONDSTORE incremental sync via `UID FETCH … (CHANGEDSINCE)` when supported
+- daily full reconciliation fallback + naive sync on non-CONDSTORE servers (GreenMail)
+- UIDVALIDITY change clears local folder mirror before resync
+- unit tests for policy, engine (fake IMAP access), checkpoint persistence, GreenMail fallback
+
+Refs: `ImapFolderSyncEngine.java`, `CondstoreSyncPolicy.java`, `ImapFolderAccess.java`.
+
+---
+
+## Active: §2b QRESYNC + §2c IDLE
+
+**Shipped:**
+
+- **QRESYNC:** open folders with stored `UIDVALIDITY` + `highest_modseq` when supported; apply `VANISHED` UIDs without a full UID scan on incremental sync
+- **IDLE:** optional `mail_fetcher.idle_enabled` uses a dedicated IMAP connection + `IdleManager` on INBOX; triggers `MailFetcher.fetchNow()` while polling remains the backstop
+- unit test for QRESYNC vanished-UID handling in `ImapFolderSyncEngineTest`
+
+Refs: `AngusImapFolderAccess.java`, `ImapIdleMonitor.java`, `ImapIdleWatcher.java`, `MailFetcher.java`.
+
+---
+
 ## Backlog reference
 
 ### 2. Inbound IMAP sync
 
-`MailFetcher` polls (~15s); `naiveFolderSync` fetches every UID's flags each run. No MODSEQ/QRESYNC checkpoints yet.
+`MailFetcher` polls (~15s). CONDSTORE/QRESYNC incremental sync when supported; daily full reconcile fallback; optional IDLE wake-up.
 
-- **2a CONDSTORE** — `CHANGEDSINCE` + per-folder `highest_modseq`; periodic full reconciliation; fallback to naive sync
-- **2b QRESYNC** — VANISHED/new UID sets after CONDSTORE
-- **2c IDLE** — optional push wake-up with polling backstop
-
-Order: CONDSTORE → QRESYNC → IDLE. Probe: `./scripts/imap-probe.sh`.
+- **2a CONDSTORE** — shipped
+- **2b QRESYNC** — shipped
+- **2c IDLE** — shipped (opt-in via config)
 
 ### 3. Other mailbox gaps
 
 - **Incoming attachment extraction** — `ImapStoreSync.downloadNewMessages` still stores empty attachments
+
+### 5. New-mail notifications
+
+Notify the user when background sync imports new messages, without turning Quicksand into a live SPA.
+
+- **In-app (required):** subtle, SSR-friendly cues when the mailbox changes — e.g. account/folder badge counts, a quiet header or sidebar indicator, optional non-blocking toast/banner after poll/sync. Should respect current account/folder context and not steal focus from compose/viewer flows.
+- **Desktop (optional add-on):** browser notifications via the [Notifications API](https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API) for new mail when the tab is backgrounded; explicit opt-in, permission prompt, per-account/per-folder toggles, and sensible deduping (one summary vs one per message).
+- **Trigger model:** derive “new since last view” from sync checkpoints / last-seen folder state rather than client-side polling of JSON endpoints; small enhancement JS in `static/js` can subscribe to lightweight poll or future push wake-up (§2c IDLE).
+- **Coverage:** unit/integration tests for server-side “unseen since visit” state; Playwright cases for in-app indicator; optional manual/browser test notes for notification permission flows.
 
 ### 4. Runtime, schema, and storage hardening
 
@@ -111,11 +170,12 @@ Order: CONDSTORE → QRESYNC → IDLE. Probe: `./scripts/imap-probe.sh`.
 
 | When | What |
 |------|------|
-| main | **§1b folder setup UX** — post-sync auto-detect, confirm-all, smarter pickers, conflict/missing hints |
+| main | **§2b QRESYNC + §2c IDLE** — VANISHED UID handling, optional INBOX IDLE wake-up |
+| main | **§4a Real IMAP/SMTP TLS** + `./scripts/start-real-server.sh` for manual real-account testing |
+| main | **Outbox → Sent mirror fix** — hide delivered rows from Outbox; refresh Sent after `APPEND_SENT` |
+| main | **§2a CONDSTORE inbound sync** — incremental CHANGEDSINCE sync, folder checkpoints, daily full reconcile fallback |
+| main | **INBOX-first folder sidebar** + folder setup create-and-map fixes |
 | `16e6946` | **IMAP action sync merged** — queue replay, folder mappings, sync status recovery, Sent/Drafts sync |
-| `fe3487f` | **Drafts debounced sync** — `UPSERT_DRAFT` / `DELETE_DRAFT`, v4 migration, GreenMail tests |
-| `5b0c2be` | **Sent append sync** — `APPEND_SENT` after SMTP |
-| `ee3b1d3` | **IMAP capability probe** + backlog/planning refresh |
 
 ---
 
