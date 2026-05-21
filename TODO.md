@@ -60,7 +60,7 @@ Local-first mailbox actions with queued IMAP replay. Spec: [`specs/imap-action-s
 | 1 | **§3 incoming attachments** | Real attachment bytes during IMAP sync | **Next** — when viewer attachment UX matters |
 | 2 | **§4 runtime/schema hardening** | Safer non-local deployment | Before exposing beyond local/dev |
 | ~~3~~ | ~~**§4a Real IMAP/SMTP TLS**~~ | ~~Connect to Gmail/Fastmail-style servers~~ | **Done** |
-| 4 | **§5 new-mail notifications** | Subtle in-app cues + optional desktop alerts | After §2c or alongside polling |
+| 4 | **§5 new-mail notifications** | Unread badges + poll strip — see [`specs/new-mail-notifications.md`](specs/new-mail-notifications.md) | **Shipped v1** (poll); **§5b SSE** next |
 
 Probe modern servers before §2: `./scripts/imap-probe.sh`.
 
@@ -146,12 +146,27 @@ Refs: `AngusImapFolderAccess.java`, `ImapIdleMonitor.java`, `ImapIdleWatcher.jav
 
 ### 5. New-mail notifications
 
-Notify the user when background sync imports new messages, without turning Quicksand into a live SPA.
+**Spec:** [`specs/new-mail-notifications.md`](specs/new-mail-notifications.md)
 
-- **In-app (required):** subtle, SSR-friendly cues when the mailbox changes — e.g. account/folder badge counts, a quiet header or sidebar indicator, optional non-blocking toast/banner after poll/sync. Should respect current account/folder context and not steal focus from compose/viewer flows.
-- **Desktop (optional add-on):** browser notifications via the [Notifications API](https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API) for new mail when the tab is backgrounded; explicit opt-in, permission prompt, per-account/per-folder toggles, and sensible deduping (one summary vs one per message).
-- **Trigger model:** derive “new since last view” from sync checkpoints / last-seen folder state rather than client-side polling of JSON endpoints; small enhancement JS in `static/js` can subscribe to lightweight poll or future push wake-up (§2c IDLE).
-- **Coverage:** unit/integration tests for server-side “unseen since visit” state; Playwright cases for in-app indicator; optional manual/browser test notes for notification permission flows.
+**Shipped (v1):** unread sidebar badges, INBOX “new since view” strip, HTML fragment poll (`notifications.js`, 15s), prepend new rows on folder page 1, optional desktop notify when tab is hidden.
+
+**§5b — SSE push + live list/badge sync (next):**
+
+Replace client polling with **Server-Sent Events** so the browser reacts as soon as the local mirror changes.
+
+- **Backend trigger:** assumes **IDLE + CONDSTORE/QRESYNC** keep the SQLite mirror near-realtime (`mail_fetcher.idle_enabled=true` on IDLE-capable servers; existing ~15s poll remains backstop when IDLE is off).
+- **`GET /accounts/{id}/events` (SSE):** server pushes lightweight events after sync completes (or on debounced mirror writes), e.g. `mailbox-updated` with account/folder scope — not full HTML fragments.
+- **Client (`notifications.js` → event subscriber):** on event, fetch or apply deltas for:
+  - folder **unread badge** counts (add/remove/update)
+  - **new message rows** on the current folder list (prepend, same rules as today: page 1, named folder, no search)
+  - **read/unread styling** on existing `#messagelist` rows when `\Seen` changes sync in (toggle `.read`, bold/normal weight) — no full list reload, no viewer iframe refresh
+- **Preserve SSR model:** SSE is a wake-up channel only; HTML still comes from Pebble fragments or small patch payloads, not a JSON inbox API.
+- **Fallback:** keep poll (or long-poll) when SSE unavailable; suppress pushes while compose dialog is open (same as today).
+- **Coverage:** unit tests for event emission after sync; Playwright or integration test for badge + row + read-state patch without navigation.
+
+**Other (optional):** Playwright coverage for v1 poll path; explicit desktop opt-in UI in settings; per-folder desktop toggles.
+
+**Prerequisite check before §5b:** confirm IDLE path is “good enough” on a real account (new mail visible in SQLite within ~1–2s of delivery when `idle_enabled=true`); if not, tune IDLE/sync wake-up first.
 
 ### 4. Runtime, schema, and storage hardening
 
@@ -170,6 +185,7 @@ Notify the user when background sync imports new messages, without turning Quick
 
 | When | What |
 |------|------|
+| main | **§5 new-mail notifications** — unread folder badges, INBOX strip, HTML poll fragment |
 | main | **§2b QRESYNC + §2c IDLE** — VANISHED UID handling, optional INBOX IDLE wake-up |
 | main | **§4a Real IMAP/SMTP TLS** + `./scripts/start-real-server.sh` for manual real-account testing |
 | main | **Outbox → Sent mirror fix** — hide delivered rows from Outbox; refresh Sent after `APPEND_SENT` |
