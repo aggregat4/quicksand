@@ -27,6 +27,8 @@
             <a class="sync-attention-link" href="/accounts/{{ currentAccount.id }}/sync">Sync needs attention</a>
         {% endif %}
 
+        {% block notificationStrip %}{% endblock %}
+
         {{ submitButton(true, 'newmail', false, 'create_new_email', 'New Mail', clickHandler = 'void createEmailAndShowComposer()', type = 'button') }}
         <dialog id="newmail-composer-dialog">
             <form class="dialogcloser" method="dialog">
@@ -70,11 +72,14 @@
     </nav>
 </header>
     {% block content %}{% endblock %}
+    {% if currentAccount != null %}
     <script>
         window.quicksand = {
             currentAccountId: parseInt("{{ currentAccount.id }}")
         }
     </script>
+    {% endif %}
     <script src="/js/main.js" async></script>
+    {% block additionalScripts %}{% endblock %}
 </body>
 </html>

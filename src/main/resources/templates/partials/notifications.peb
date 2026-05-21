@@ -1,0 +1,24 @@
+<div id="notifications-payload">
+    {% if showInboxStrip %}
+        <a id="notification-strip" class="notification-strip" href="{{ notificationSummary.inboxHref }}" data-inbox-new="{{ notificationSummary.inboxNewSinceView }}">
+            {{ notificationSummary.inboxNewSinceView }} new in Inbox
+        </a>
+    {% else %}
+        <span id="notification-strip" class="notification-strip" data-inbox-new="{{ notificationSummary.inboxNewSinceView }}" hidden></span>
+    {% endif %}
+    {% for folder in sidebarFolders %}
+        {% if folder.folderId >= 0 and folder.unreadCount > 0 %}
+            <span class="folder-unread-badge" data-folder-id="{{ folder.folderId }}">{{ folder.unreadCount }}</span>
+        {% elseif folder.folderId >= 0 %}
+            <span class="folder-unread-badge" data-folder-id="{{ folder.folderId }}" hidden></span>
+        {% endif %}
+    {% endfor %}
+    {% if newMessageHeaders != null and not newMessageHeaders.isEmpty() %}
+        <div id="messagelist-updates">
+            {% set emailActive = false %}
+            {% for emailHeader in newMessageHeaders %}
+                {% include 'templates/emailheader.peb' %}
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>

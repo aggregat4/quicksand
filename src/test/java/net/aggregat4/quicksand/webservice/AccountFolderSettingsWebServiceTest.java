@@ -38,6 +38,7 @@ import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 import net.aggregat4.quicksand.service.MailboxSyncRecoveryService;
+import net.aggregat4.quicksand.service.NotificationService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 import org.junit.jupiter.api.Test;
 
@@ -375,6 +376,8 @@ class AccountFolderSettingsWebServiceTest {
     MailboxSyncRecoveryService mailboxSyncRecoveryService =
         new MailboxSyncRecoveryService(
             emailRepository, mappingRepository, () -> {}, Clock.systemDefaultZone());
+    NotificationService notificationService =
+        new NotificationService(folderRepository, emailRepository, Clock.systemDefaultZone());
     HttpRouting.Builder routing =
         HttpRouting.builder()
             .register(
@@ -392,6 +395,7 @@ class AccountFolderSettingsWebServiceTest {
                         Clock.systemDefaultZone()),
                     outboundMessageService,
                     mailboxSyncRecoveryService,
+                    notificationService,
                     Clock.systemDefaultZone()));
     return WebServer.builder().port(0).host("127.0.0.1").routing(routing).build().start();
   }

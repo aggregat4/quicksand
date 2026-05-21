@@ -44,6 +44,7 @@ import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 import net.aggregat4.quicksand.service.MailboxSyncRecoveryService;
+import net.aggregat4.quicksand.service.NotificationService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 import net.aggregat4.quicksand.time.ApplicationClock;
 import net.aggregat4.quicksand.webservice.AccountWebService;
@@ -192,6 +193,8 @@ public final class Main {
     MailboxSyncRecoveryService mailboxSyncRecoveryService =
         new MailboxSyncRecoveryService(
             messageRepository, accountFolderMappingRepository, backgroundSyncTrigger, clock);
+    NotificationService notificationService =
+        new NotificationService(folderRepository, messageRepository, clock);
 
     HttpRouting.Builder routing =
         HttpRouting.builder()
@@ -205,6 +208,7 @@ public final class Main {
                     draftService,
                     outboundMessageService,
                     mailboxSyncRecoveryService,
+                    notificationService,
                     clock))
             .register(
                 "/emails",

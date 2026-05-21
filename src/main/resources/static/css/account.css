@@ -279,9 +279,14 @@ body.accountpage.sync-status-page main.settings-layout {
     align-items: center;
 }
 
+.emailheader:not(.read) .fromname,
+.emailheader:not(.read) .subjectline {
+    font-weight: bold;
+}
+
 .emailheader.read .fromname,
 .emailheader.read .subjectline {
-    font-weight: bold;
+    font-weight: normal;
 }
 
 /* settings --------- */
@@ -406,6 +411,40 @@ body.accountpage.sync-status-page main.settings-layout {
     color: #6f2424;
     background: #fff4f4;
     white-space: nowrap;
+}
+
+.notification-strip {
+    padding: var(--gap-s) var(--gap-m);
+    border: 1px solid #4a7c59;
+    color: #1f4d2c;
+    background: #f3fbf5;
+    white-space: nowrap;
+}
+
+#folderlist .folder-sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-s);
+    justify-content: space-between;
+}
+
+.folder-unread-badge {
+    min-width: 1.25rem;
+    padding: 0 var(--gap-xs);
+    border-radius: 999px;
+    background: #2f6fed;
+    color: #fff;
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    text-align: center;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.folder-sidebar-link.selected .folder-unread-badge {
+    background: var(--selected-bgcolor);
+    color: var(--selected-color);
+    outline: 1px solid currentColor;
 }
 
 .sync-status {

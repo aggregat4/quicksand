@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
+import net.aggregat4.quicksand.domain.AccountNotificationSummary;
 import net.aggregat4.quicksand.domain.DraftsFolder;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailGroup;
@@ -41,6 +42,7 @@ import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 import net.aggregat4.quicksand.service.MailboxSyncRecoveryService;
+import net.aggregat4.quicksand.service.NotificationService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 
 public class AccountWebService implements HttpService {
@@ -55,6 +57,8 @@ public class AccountWebService implements HttpService {
       PebbleConfig.getEngine().getTemplate("templates/folder-settings.peb");
   private static final PebbleTemplate syncStatusTemplate =
       PebbleConfig.getEngine().getTemplate("templates/sync-status.peb");
+  private static final PebbleTemplate notificationsTemplate =
+      PebbleConfig.getEngine().getTemplate("templates/partials/notifications.peb");
   private final FolderService folderService;
   private final AccountService accountService;
   private final AccountFolderMappingService accountFolderMappingService;
@@ -63,6 +67,7 @@ public class AccountWebService implements HttpService {
   private final DraftService draftService;
   private final OutboundMessageService outboundMessageService;
   private final MailboxSyncRecoveryService mailboxSyncRecoveryService;
+  private final NotificationService notificationService;
   private final Clock clock;
 
   public AccountWebService(
@@ -73,6 +78,7 @@ public class AccountWebService implements HttpService {
       DraftService draftService,
       OutboundMessageService outboundMessageService,
       MailboxSyncRecoveryService mailboxSyncRecoveryService,
+      NotificationService notificationService,
       Clock clock) {
     this.folderService = folderService;
     this.accountService = accountService;
@@ -81,6 +87,7 @@ public class AccountWebService implements HttpService {
     this.draftService = draftService;
     this.outboundMessageService = outboundMessageService;
     this.mailboxSyncRecoveryService = mailboxSyncRecoveryService;
+    this.notificationService = notificationService;
     this.clock = clock;
   }
 
@@ -92,6 +99,7 @@ public class AccountWebService implements HttpService {
     rules.get("/{accountId}/outbox", this::getOutboxHandler);
     rules.get("/{accountId}/search", this::getSearchHandler);
     rules.get("/{accountId}/sync", this::getSyncStatusHandler);
+    rules.get("/{accountId}/notifications", this::getNotificationsHandler);
     rules.post("/{accountId}/sync/retry", this::postSyncRetryHandler);
     rules.post("/{accountId}/sync/dismiss", this::postSyncDismissHandler);
     rules.post("/{accountId}/sync/abandon", this::postSyncAbandonHandler);
@@ -113,6 +121,7 @@ public class AccountWebService implements HttpService {
     PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
     if (!folders.isEmpty()) {
       NamedFolder firstFolder = folders.getFirst();
+      notificationService.markFolderViewed(firstFolder.id());
       EmailPage emailPage =
           emailService.getMessages(
               firstFolder.id(),
@@ -155,6 +164,7 @@ public class AccountWebService implements HttpService {
     PageParams pageParams = parseEmailPageParams(request);
     var selectedEmailId = request.query().first("selectedEmailId").map(Integer::parseInt);
     NamedFolder folder = findFolder(folderId);
+    notificationService.markFolderViewed(folderId);
     int messageCount = emailService.getMessageCount(accountId, folder.id());
     int effectivePageSize = isEndJump(request) ? terminalPageSize(messageCount) : PAGE_SIZE;
     EmailPage emailPage =
@@ -486,12 +496,18 @@ public class AccountWebService implements HttpService {
                 emailHeaders, clock, pagination.pageParams().sortOrder());
     EmailGroupPage emailGroupPage = new EmailGroupPage(emailGroups, pagination);
     List<NamedFolder> mailboxNavigationFolders = mailboxNavigationFolders(folders);
+    AccountNotificationSummary notificationSummary =
+        notificationService.getAccountSummary(accountId);
     Map<String, Object> context = new HashMap<>();
     context.put("bodyclass", "accountpage");
     context.put("currentAccount", accountService.getAccount(accountId));
     context.put("accounts", accountService.getAccounts());
     context.put("moveFolders", mailboxNavigationFolders);
-    context.put("sidebarFolders", toSidebarFolders(accountId, mailboxNavigationFolders, folder));
+    context.put(
+        "sidebarFolders",
+        toSidebarFolders(accountId, mailboxNavigationFolders, folder, notificationSummary));
+    context.put("notificationSummary", notificationSummary);
+    context.put("showInboxStrip", showInboxStrip(notificationSummary, folder, folders));
     context.put("emailGroupPage", emailGroupPage);
     context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
     context.put("currentFolder", folder);
@@ -500,13 +516,113 @@ public class AccountWebService implements HttpService {
     if (selectedEmailId.isPresent()) {
       context.put("selectedEmailId", selectedEmailId.get());
     }
+    if (folder instanceof NamedFolder namedFolder) {
+      context.put("currentNamedFolderId", namedFolder.id());
+    }
+    boolean messageListLiveUpdates =
+        folder instanceof NamedFolder && query.isEmpty() && isAtListHead(pagination);
+    context.put("messageListLiveUpdates", messageListLiveUpdates);
+    if (messageListLiveUpdates) {
+      emailGroupPage
+          .getFirstEmailHeader()
+          .ifPresentOrElse(
+              header -> {
+                context.put("listCursorReceived", header.receivedDateTimeEpochSeconds());
+                context.put("listCursorMessageId", header.id());
+              },
+              () -> {
+                context.put("listCursorReceived", 0L);
+                context.put("listCursorMessageId", 0);
+              });
+    }
     context.put("currentQuery", query);
     response.headers().contentType(TEXT_HTML);
     response.send(PebbleRenderer.renderTemplate(context, accountTemplate));
   }
 
+  private void getNotificationsHandler(ServerRequest request, ServerResponse response) {
+    int accountId = RequestUtils.intPathParam(request, "accountId");
+    Optional<Integer> currentFolderId =
+        request.query().first("folderId").flatMap(AccountWebService::parseOptionalInt);
+    List<NamedFolder> folders = folderService.getFolders(accountId);
+    AccountNotificationSummary notificationSummary =
+        notificationService.getAccountSummary(accountId);
+    Folder currentFolder =
+        currentFolderId
+            .flatMap(
+                folderId -> folders.stream().filter(folder -> folder.id() == folderId).findFirst())
+            .map(folder -> (Folder) folder)
+            .orElse(new DraftsFolder());
+    Map<String, Object> context = new HashMap<>();
+    context.put(
+        "sidebarFolders",
+        toSidebarFolders(
+            accountId, mailboxNavigationFolders(folders), currentFolder, notificationSummary));
+    context.put("notificationSummary", notificationSummary);
+    context.put("showInboxStrip", showInboxStrip(notificationSummary, currentFolder, folders));
+    Optional<Long> listCursorReceived =
+        request.query().first("listCursorReceived").flatMap(AccountWebService::parseOptionalLong);
+    Optional<Integer> listCursorMessageId =
+        request.query().first("listCursorMessageId").flatMap(AccountWebService::parseOptionalInt);
+    if (currentFolderId.isPresent()
+        && listCursorReceived.isPresent()
+        && listCursorMessageId.isPresent()) {
+      List<EmailHeader> newMessageHeaders =
+          emailService.getMessagesNewerThan(
+              currentFolderId.get(), listCursorReceived.get(), listCursorMessageId.get(), 20);
+      context.put("newMessageHeaders", newMessageHeaders);
+      context.put("currentFolderIsDrafts", false);
+      context.put("currentFolderIsOutbox", false);
+      context.put("currentQuery", Optional.empty());
+    }
+    response.headers().contentType(TEXT_HTML);
+    response.send(PebbleRenderer.renderTemplate(context, notificationsTemplate));
+  }
+
+  private static Optional<Integer> parseOptionalInt(String value) {
+    try {
+      return Optional.of(Integer.parseInt(value));
+    } catch (NumberFormatException e) {
+      return Optional.empty();
+    }
+  }
+
+  private static Optional<Long> parseOptionalLong(String value) {
+    try {
+      return Optional.of(Long.parseLong(value));
+    } catch (NumberFormatException e) {
+      return Optional.empty();
+    }
+  }
+
+  private boolean isAtListHead(Pagination pagination) {
+    return pagination.pageParams().sortOrder() == SortOrder.DESCENDING
+        && pagination.pageParams().pageDirection() == PageDirection.RIGHT
+        && pagination.receivedDateOffsetInSeconds().isEmpty()
+        && pagination.messageIdOffset().isEmpty();
+  }
+
+  private boolean showInboxStrip(
+      AccountNotificationSummary summary, Folder currentFolder, List<NamedFolder> folders) {
+    Optional<NamedFolder> inbox =
+        folders.stream()
+            .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
+            .findFirst();
+    if (inbox.isEmpty()) {
+      return false;
+    }
+    Optional<Integer> currentFolderId =
+        currentFolder instanceof NamedFolder namedFolder
+            ? Optional.of(namedFolder.id())
+            : Optional.empty();
+    return notificationService.shouldShowInboxStrip(summary, currentFolderId, inbox.get());
+  }
+
   private List<SidebarFolderLink> toSidebarFolders(
-      int accountId, List<NamedFolder> folders, Folder currentFolder) {
+      int accountId,
+      List<NamedFolder> folders,
+      Folder currentFolder,
+      AccountNotificationSummary notificationSummary) {
     List<SidebarFolderLink> sidebarFolders =
         folders.stream()
             .map(
@@ -515,7 +631,9 @@ public class AccountWebService implements HttpService {
                         folder.name(),
                         "/accounts/%s/folders/%s".formatted(accountId, folder.id()),
                         currentFolder instanceof NamedFolder namedFolder
-                            && namedFolder.id() == folder.id()))
+                            && namedFolder.id() == folder.id(),
+                        notificationSummary.unreadCount(folder.id()),
+                        folder.id()))
             .toList();
     List<SidebarFolderLink> links = new java.util.ArrayList<>(sidebarFolders);
     links.add(
