@@ -10,11 +10,27 @@ public record NamedFolder(
     FolderSpecialUse specialUse,
     Long uidValidity,
     boolean syncEnabled,
-    FolderMappingStatus mappingStatus)
+    FolderMappingStatus mappingStatus,
+    Long highestModSeq,
+    Long lastFullSyncEpochS)
     implements Folder {
 
   public NamedFolder(int id, String name, long lastSeenUid) {
-    this(id, name, lastSeenUid, null, null, null, true, FolderMappingStatus.MISSING);
+    this(id, name, lastSeenUid, null, null, null, true, FolderMappingStatus.MISSING, null, null);
+  }
+
+  public NamedFolder withSyncCheckpoint(Long highestModSeq, Long lastFullSyncEpochS) {
+    return new NamedFolder(
+        id,
+        name,
+        lastSeenUid,
+        remoteName,
+        specialUse,
+        uidValidity,
+        syncEnabled,
+        mappingStatus,
+        highestModSeq,
+        lastFullSyncEpochS);
   }
 
   @Override

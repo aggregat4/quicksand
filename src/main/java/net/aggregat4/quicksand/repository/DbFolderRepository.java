@@ -1,5 +1,7 @@
 package net.aggregat4.quicksand.repository;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import javax.sql.DataSource;
@@ -10,6 +12,11 @@ import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
 
 public class DbFolderRepository implements FolderRepository {
+
+  private static final String FOLDER_COLUMNS =
+      """
+          id, name, last_seen_uid, remote_name, special_use, uidvalidity,
+          sync_enabled, mapping_status, highest_modseq, last_full_sync_epoch_s""";
 
   private final DataSource ds;
 
@@ -22,10 +29,10 @@ public class DbFolderRepository implements FolderRepository {
     return DbUtil.withPreparedStmtFunction(
         ds,
         """
-            SELECT id, name, last_seen_uid, remote_name, special_use, uidvalidity,
-                   sync_enabled, mapping_status
+            SELECT %s
             FROM folders
-            WHERE account_id = ?""",
+            WHERE account_id = ?"""
+            .formatted(FOLDER_COLUMNS),
         stmt -> {
           stmt.setInt(1, accountId);
           return DbUtil.withResultSetFunction(
@@ -33,16 +40,7 @@ public class DbFolderRepository implements FolderRepository {
               rs -> {
                 List<NamedFolder> folders = new ArrayList<>();
                 while (rs.next()) {
-                  folders.add(
-                      new NamedFolder(
-                          rs.getInt(1),
-                          rs.getString(2),
-                          rs.getLong(3),
-                          rs.getString(4),
-                          nullableEnum(FolderSpecialUse.class, rs.getString(5)),
-                          getNullableLong(rs, 6),
-                          rs.getBoolean(7),
-                          FolderMappingStatus.valueOf(rs.getString(8))));
+                  folders.add(readFolder(rs));
                 }
                 return folders;
               });
@@ -82,7 +80,9 @@ public class DbFolderRepository implements FolderRepository {
               specialUse,
               uidValidity,
               true,
-              FolderMappingStatus.MISSING);
+              FolderMappingStatus.MISSING,
+              null,
+              null);
         });
   }
 
@@ -111,7 +111,35 @@ public class DbFolderRepository implements FolderRepository {
         specialUse,
         uidValidity,
         folder.syncEnabled(),
-        folder.mappingStatus());
+        folder.mappingStatus(),
+        folder.highestModSeq(),
+        folder.lastFullSyncEpochS());
+  }
+
+  @Override
+  public NamedFolder updateSyncCheckpoint(
+      NamedFolder folder, Long highestModSeq, Long lastFullSyncEpochS) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        """
+            UPDATE folders
+            SET highest_modseq = ?, last_full_sync_epoch_s = ?
+            WHERE id = ?""",
+        stmt -> {
+          if (highestModSeq == null) {
+            stmt.setNull(1, java.sql.Types.BIGINT);
+          } else {
+            stmt.setLong(1, highestModSeq);
+          }
+          if (lastFullSyncEpochS == null) {
+            stmt.setNull(2, java.sql.Types.BIGINT);
+          } else {
+            stmt.setLong(2, lastFullSyncEpochS);
+          }
+          stmt.setInt(3, folder.id());
+          stmt.executeUpdate();
+        });
+    return folder.withSyncCheckpoint(highestModSeq, lastFullSyncEpochS);
   }
 
   @Override
@@ -143,25 +171,17 @@ public class DbFolderRepository implements FolderRepository {
     return DbUtil.withPreparedStmtFunction(
         ds,
         """
-            SELECT id, name, last_seen_uid, remote_name, special_use, uidvalidity,
-                   sync_enabled, mapping_status
+            SELECT %s
             FROM folders
-            WHERE id = ?""",
+            WHERE id = ?"""
+            .formatted(FOLDER_COLUMNS),
         stmt -> {
           stmt.setInt(1, folderId);
           return DbUtil.withResultSetFunction(
               stmt,
               rs -> {
                 if (rs.next()) {
-                  return new NamedFolder(
-                      rs.getInt(1),
-                      rs.getString(2),
-                      rs.getLong(3),
-                      rs.getString(4),
-                      nullableEnum(FolderSpecialUse.class, rs.getString(5)),
-                      getNullableLong(rs, 6),
-                      rs.getBoolean(7),
-                      FolderMappingStatus.valueOf(rs.getString(8)));
+                  return readFolder(rs);
                 } else {
                   throw new IllegalStateException("No folder with id " + folderId);
                 }
@@ -169,8 +189,21 @@ public class DbFolderRepository implements FolderRepository {
         });
   }
 
-  private static Long getNullableLong(java.sql.ResultSet rs, int columnIndex)
-      throws java.sql.SQLException {
+  private static NamedFolder readFolder(ResultSet rs) throws SQLException {
+    return new NamedFolder(
+        rs.getInt(1),
+        rs.getString(2),
+        rs.getLong(3),
+        rs.getString(4),
+        nullableEnum(FolderSpecialUse.class, rs.getString(5)),
+        getNullableLong(rs, 6),
+        rs.getBoolean(7),
+        FolderMappingStatus.valueOf(rs.getString(8)),
+        getNullableLong(rs, 9),
+        getNullableLong(rs, 10));
+  }
+
+  private static Long getNullableLong(ResultSet rs, int columnIndex) throws SQLException {
     long value = rs.getLong(columnIndex);
     return rs.wasNull() ? null : value;
   }

@@ -51,4 +51,36 @@ class DbFolderRepositoryTest {
     assertEquals(FolderSpecialUse.ARCHIVE, updated.specialUse());
     assertEquals(987654321L, updated.uidValidity());
   }
+
+  @Test
+  void storesCondstoreSyncCheckpoint() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(
+            -1,
+            "Checkpoint",
+            "imap.example.test",
+            993,
+            "user",
+            "secret",
+            "smtp.example.test",
+            587,
+            "user",
+            "secret"));
+    Account account = accountRepository.getAccounts().getFirst();
+    NamedFolder folder =
+        folderRepository.createFolder(
+            account, "Inbox", "INBOX", FolderSpecialUse.INBOX, 123456789L);
+
+    NamedFolder updated = folderRepository.updateSyncCheckpoint(folder, 4242L, 1_700_000_000L);
+
+    assertEquals(4242L, updated.highestModSeq());
+    assertEquals(1_700_000_000L, updated.lastFullSyncEpochS());
+    NamedFolder loaded = folderRepository.getFolder(folder.id());
+    assertEquals(4242L, loaded.highestModSeq());
+    assertEquals(1_700_000_000L, loaded.lastFullSyncEpochS());
+  }
 }

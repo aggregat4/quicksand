@@ -36,7 +36,9 @@ class InMemoryFolderRepository implements FolderRepository {
             specialUse,
             uidValidity,
             true,
-            FolderMappingStatus.MISSING);
+            FolderMappingStatus.MISSING,
+            null,
+            null);
     folders.add(folder);
     return folder;
   }
@@ -44,7 +46,8 @@ class InMemoryFolderRepository implements FolderRepository {
   @Override
   public NamedFolder updateRemoteMetadata(
       NamedFolder folder, String remoteName, FolderSpecialUse specialUse, Long uidValidity) {
-    NamedFolder updated =
+    return replaceFolder(
+        folder,
         new NamedFolder(
             folder.id(),
             folder.name(),
@@ -53,20 +56,21 @@ class InMemoryFolderRepository implements FolderRepository {
             specialUse,
             uidValidity,
             folder.syncEnabled(),
-            folder.mappingStatus());
-    for (List<NamedFolder> folders : foldersByAccount.values()) {
-      int index = folders.indexOf(folder);
-      if (index >= 0) {
-        folders.set(index, updated);
-        return updated;
-      }
-    }
-    throw new IllegalStateException("Folder not found: " + folder.id());
+            folder.mappingStatus(),
+            folder.highestModSeq(),
+            folder.lastFullSyncEpochS()));
+  }
+
+  @Override
+  public NamedFolder updateSyncCheckpoint(
+      NamedFolder folder, Long highestModSeq, Long lastFullSyncEpochS) {
+    return replaceFolder(folder, folder.withSyncCheckpoint(highestModSeq, lastFullSyncEpochS));
   }
 
   @Override
   public void updateMappingStatus(NamedFolder folder, FolderMappingStatus mappingStatus) {
-    NamedFolder updated =
+    replaceFolder(
+        folder,
         new NamedFolder(
             folder.id(),
             folder.name(),
@@ -75,15 +79,9 @@ class InMemoryFolderRepository implements FolderRepository {
             folder.specialUse(),
             folder.uidValidity(),
             folder.syncEnabled(),
-            mappingStatus);
-    for (List<NamedFolder> folders : foldersByAccount.values()) {
-      int index = folders.indexOf(folder);
-      if (index >= 0) {
-        folders.set(index, updated);
-        return;
-      }
-    }
-    throw new IllegalStateException("Folder not found: " + folder.id());
+            mappingStatus,
+            folder.highestModSeq(),
+            folder.lastFullSyncEpochS()));
   }
 
   @Override
@@ -103,5 +101,16 @@ class InMemoryFolderRepository implements FolderRepository {
       }
     }
     throw new IllegalStateException("Folder not found: " + folderId);
+  }
+
+  private NamedFolder replaceFolder(NamedFolder folder, NamedFolder updated) {
+    for (List<NamedFolder> folders : foldersByAccount.values()) {
+      int index = folders.indexOf(folder);
+      if (index >= 0) {
+        folders.set(index, updated);
+        return updated;
+      }
+    }
+    throw new IllegalStateException("Folder not found: " + folder.id());
   }
 }

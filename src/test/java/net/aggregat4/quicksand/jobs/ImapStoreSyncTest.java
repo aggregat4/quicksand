@@ -20,6 +20,7 @@ import java.util.Properties;
 import net.aggregat4.quicksand.GreenmailTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Email;
+import net.aggregat4.quicksand.domain.FolderMappingStatus;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
@@ -34,6 +35,24 @@ public class ImapStoreSyncTest {
 
   @RegisterExtension
   static GreenMailExtension greenMail = GreenmailTestUtils.configureTestGreenMailExtension();
+
+  @Test
+  public void fullSyncStoresCheckpointOnServersWithoutCondstore() throws MessagingException {
+    String subject = GreenMailUtil.random();
+    String body = GreenMailUtil.random();
+    GreenmailUtils.deliverOneMessage(greenMail, subject, body, "from@foo.bar", "to@foo.bar");
+    Store store = GreenmailUtils.getImapStore(greenMail);
+
+    InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
+    InMemoryEmailRepository messageRepository = new InMemoryEmailRepository();
+    Account account = GreenmailUtils.getAccount();
+
+    ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
+
+    NamedFolder inbox = folderRepository.getFolders(account.id()).getFirst();
+    assertNotNull(inbox.lastFullSyncEpochS());
+    assertNull(inbox.highestModSeq());
+  }
 
   @Test
   public void naiveFolderSyncAgainstEmptyDatabase() throws MessagingException {
@@ -115,7 +134,17 @@ public class ImapStoreSyncTest {
   @Test
   public void resolveSpecialUsePrefersRemoteAttributeButPreservesLocalRole() {
     NamedFolder localArchive =
-        new NamedFolder(1, "Archive", 0, "Archive", FolderSpecialUse.ARCHIVE, 1L, true, null);
+        new NamedFolder(
+            1,
+            "Archive",
+            0,
+            "Archive",
+            FolderSpecialUse.ARCHIVE,
+            1L,
+            true,
+            FolderMappingStatus.MISSING,
+            null,
+            null);
     assertEquals(
         FolderSpecialUse.ARCHIVE,
         ImapStoreSync.resolveSpecialUse(localArchive, FolderSpecialUse.ARCHIVE));
@@ -123,7 +152,17 @@ public class ImapStoreSyncTest {
     assertEquals(
         FolderSpecialUse.ARCHIVE,
         ImapStoreSync.resolveSpecialUse(
-            new NamedFolder(2, "Trash", 0, "Trash", FolderSpecialUse.TRASH, 1L, true, null),
+            new NamedFolder(
+                2,
+                "Trash",
+                0,
+                "Trash",
+                FolderSpecialUse.TRASH,
+                1L,
+                true,
+                FolderMappingStatus.MISSING,
+                null,
+                null),
             FolderSpecialUse.ARCHIVE));
   }
 

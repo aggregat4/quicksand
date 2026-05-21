@@ -23,6 +23,8 @@ public interface FolderRepository {
   NamedFolder updateRemoteMetadata(
       NamedFolder folder, String remoteName, FolderSpecialUse specialUse, Long uidValidity);
 
+  NamedFolder updateSyncCheckpoint(NamedFolder folder, Long highestModSeq, Long lastFullSyncEpochS);
+
   void updateMappingStatus(NamedFolder folder, FolderMappingStatus mappingStatus);
 
   void deleteFolder(NamedFolder folder);

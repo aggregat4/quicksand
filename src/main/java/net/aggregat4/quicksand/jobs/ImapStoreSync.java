@@ -91,7 +91,16 @@ public class ImapStoreSync {
                   localFolder.uidValidity());
           seenFolders.add(localFolder);
           long folderSyncStarted = System.nanoTime();
-          syncImapFolder(account.id(), localFolder, folder, folderRepository, messageRepository);
+          localFolder =
+              ImapFolderSyncEngine.syncFolder(
+                  account.id(),
+                  localFolder,
+                  (IMAPFolder) folder,
+                  store,
+                  folderRepository,
+                  messageRepository);
+          seenFolders.remove(localFolder);
+          seenFolders.add(localFolder);
           LOGGER.debug(
               "Synced folder {} for account {} in {} ms",
               remoteName,
@@ -111,177 +120,47 @@ public class ImapStoreSync {
     }
   }
 
-  /**
-   * There are multiple ways to synchronize an imap folder: - The naive way is to get all message
-   * UIDs and flags from the server and then check which ones we need to locally remove, update the
-   * flags of and which ones to download - There are more efficient ways to sync using QRESYNC and
-   * CONDSTORE that we definitely need to implement
-   */
-  private static void syncImapFolder(
-      int accountId,
+  static void downloadNewMessages(
       NamedFolder localFolder,
-      Folder remoteFolder,
-      FolderRepository folderRepository,
-      EmailRepository messageRepository)
+      ImapFolderAccess imapFolder,
+      EmailRepository emailRepository,
+      List<Message> messagesToDownload)
       throws MessagingException {
-    if (!(remoteFolder instanceof IMAPFolder imapFolder)) {
-      throw new IllegalStateException(
-          "Expected IMAPFolder but got " + remoteFolder.getClass().getName());
+    if (messagesToDownload.isEmpty()) {
+      return;
     }
-    long openStarted = System.nanoTime();
-    imapFolder.open(Folder.READ_ONLY);
-    LOGGER.debug(
-        "Opened remote folder {} with {} messages in {} ms",
-        imapFolder.getFullName(),
-        imapFolder.getMessageCount(),
-        elapsedMillis(openStarted));
-    localFolder =
-        folderRepository.updateRemoteMetadata(
-            localFolder,
-            imapFolder.getFullName(),
-            localFolder.specialUse(),
-            imapFolder.getUIDValidity());
-    naiveFolderSync(accountId, localFolder, imapFolder, messageRepository);
-    //        try {
-    //            // TODO: purge deleted messages
-    //
-    ////            // get new messages
-    ////            Message[] messagesByUID = uidFolder.getMessagesByUID(localFolder.lastSeenUid(),
-    // UIDFolder.LASTUID);
-    ////            System.out.println("Found " + messagesByUID.length + " new messages");
-    ////            for (Message message : messagesByUID) {
-    //////                System.out.println("Message: " + message.getSubject());
-    //////                messageRepositor
-    ////            }
-    //        } finally {
-    //            imapFolder.close();
-    //        }
-  }
-
-  private static void naiveFolderSync(
-      int accountId,
-      NamedFolder localFolder,
-      IMAPFolder imapFolder,
-      EmailRepository messageRepository)
-      throws MessagingException {
-    // TODO: verify that all messages already have their UID set since we use that below
-    Set<Long> remoteUids = new HashSet<>();
-    Set<Long> pendingMoveLikeSourceUids =
-        messageRepository.getPendingMoveLikeActionSourceUids(
-            accountId, localFolder.remoteName(), localFolder.uidValidity());
-    long updateStarted = System.nanoTime();
-    List<IMAPMessage> messagesToDownload =
-        updateLocalMessages(imapFolder, messageRepository, remoteUids, pendingMoveLikeSourceUids);
-    LOGGER.debug(
-        "Checked {} remote messages in folder {}; {} new messages need download; took {} ms",
-        remoteUids.size(),
-        imapFolder.getFullName(),
-        messagesToDownload.size(),
-        elapsedMillis(updateStarted));
-    long deleteStarted = System.nanoTime();
-    deleteExpungedMessages(localFolder, messageRepository, remoteUids);
-    LOGGER.debug(
-        "Deleted expunged local messages for folder {} in {} ms",
-        imapFolder.getFullName(),
-        elapsedMillis(deleteStarted));
-    long downloadStarted = System.nanoTime();
-    downloadNewMessages(localFolder, imapFolder, messageRepository, messagesToDownload);
-    LOGGER.debug(
-        "Downloaded {} new messages for folder {} in {} ms",
-        messagesToDownload.size(),
-        imapFolder.getFullName(),
-        elapsedMillis(downloadStarted));
-  }
-
-  private static List<IMAPMessage> updateLocalMessages(
-      IMAPFolder imapFolder,
-      EmailRepository messageRepository,
-      Set<Long> remoteUids,
-      Set<Long> pendingMoveLikeSourceUids)
-      throws MessagingException {
-    long getMessagesStarted = System.nanoTime();
-    var remoteMessages = imapFolder.getMessages();
-    LOGGER.debug(
-        "Loaded {} remote message handles for folder {} in {} ms",
-        remoteMessages.length,
-        imapFolder.getFullName(),
-        elapsedMillis(getMessagesStarted));
-    FetchProfile fp = new FetchProfile();
-    fp.add(FetchProfile.Item.FLAGS);
-    fp.add(UIDFolder.FetchProfileItem.UID);
-    long fetchMetadataStarted = System.nanoTime();
-    imapFolder.fetch(remoteMessages, fp);
-    LOGGER.debug(
-        "Fetched flags and UIDs for {} messages in folder {} in {} ms",
-        remoteMessages.length,
-        imapFolder.getFullName(),
-        elapsedMillis(fetchMetadataStarted));
-    ArrayList<IMAPMessage> messagesToDownload = new ArrayList<>();
-    for (Message msg : remoteMessages) {
-      IMAPMessage imapMessage = (IMAPMessage) msg;
-      Flags flags = msg.getFlags();
-      long uid = imapFolder.getUID(imapMessage);
-      remoteUids.add(uid);
-      Optional<Email> existingMessage = messageRepository.findByMessageUid(uid);
-      if (existingMessage.isPresent()) {
-        Email localMessage = existingMessage.get();
-        boolean imapMessageStarred = flags.contains(Flags.Flag.FLAGGED);
-        boolean imapMessageRead = flags.contains(Flags.Flag.SEEN);
-        // Update existing messages if any metadata was changed
-        // TODO: check if there are more things to sync for a message
-        boolean localMessageNeedsUpdate =
-            (imapMessageRead != localMessage.header().read())
-                || (imapMessageStarred != localMessage.header().starred());
-        if (localMessageNeedsUpdate) {
-          messageRepository.updateFlags(
-              localMessage.header().id(), imapMessageStarred, imapMessageRead);
-        }
+    List<IMAPMessage> imapMessages = new ArrayList<>();
+    for (Message message : messagesToDownload) {
+      if (message instanceof IMAPMessage imapMessage) {
+        imapMessages.add(imapMessage);
       } else {
-        // Add new messages to our list of messages to download
-        if (!pendingMoveLikeSourceUids.contains(uid)) {
-          messagesToDownload.add(imapMessage);
-        }
+        throw new IllegalStateException(
+            "Expected IMAPMessage but got " + message.getClass().getName());
       }
     }
-    return messagesToDownload;
-  }
-
-  private static void deleteExpungedMessages(
-      NamedFolder localFolder, EmailRepository emailRepository, Set<Long> remoteUids) {
-    Set<Long> localUids = emailRepository.getAllMessageIds(localFolder.id());
-    localUids.removeAll(remoteUids);
-    emailRepository.removeAllByUid(localUids);
-  }
-
-  private static void downloadNewMessages(
-      NamedFolder localFolder,
-      IMAPFolder imapFolder,
-      EmailRepository emailRepository,
-      List<IMAPMessage> messagesToDownload)
-      throws MessagingException {
     FetchProfile newMessageProfile = new FetchProfile();
     newMessageProfile.add(FetchProfile.Item.ENVELOPE);
     newMessageProfile.add(FetchProfile.Item.CONTENT_INFO);
     newMessageProfile.add(UIDFolder.FetchProfileItem.UID);
-    IMAPMessage[] messageToDownloadArray = messagesToDownload.toArray(new IMAPMessage[0]);
+    IMAPMessage[] messageToDownloadArray = imapMessages.toArray(new IMAPMessage[0]);
     long fetchNewMetadataStarted = System.nanoTime();
     imapFolder.fetch(messageToDownloadArray, newMessageProfile);
     LOGGER.debug(
         "Fetched envelope/content metadata for {} new messages in folder {} in {} ms",
-        messagesToDownload.size(),
+        imapMessages.size(),
         imapFolder.getFullName(),
         elapsedMillis(fetchNewMetadataStarted));
     long extractBodiesStarted = System.nanoTime();
     Map<IMAPMessage, ImapBodyExtractor.StoredBody> storedBodies =
-        ImapBodyExtractor.extractBodies(imapFolder, messagesToDownload);
+        ImapBodyExtractor.extractBodies(imapFolder.unwrapImapFolder(), imapMessages);
     LOGGER.debug(
         "Extracted selected bodies for {} new messages in folder {} in {} ms",
-        messagesToDownload.size(),
+        imapMessages.size(),
         imapFolder.getFullName(),
         elapsedMillis(extractBodiesStarted));
     List<Email> newEmails = new ArrayList<>();
     int downloadedCount = 0;
-    for (IMAPMessage newMessage : messagesToDownload) {
+    for (IMAPMessage newMessage : imapMessages) {
       List<Actor> actors = getActorsForImapMessage(newMessage);
       addSenderIfPresent(newMessage, actors);
       ZonedDateTime sentDateTime =
@@ -293,7 +172,7 @@ public class ImapStoreSync {
           new Email(
               new EmailHeader(
                   -1,
-                  imapFolder.getUID(newMessage),
+                  imapFolder.getUid(newMessage),
                   actors,
                   newMessage.getSubject(),
                   sentDateTime,
@@ -309,11 +188,11 @@ public class ImapStoreSync {
               Collections.emptyList() /* TODO attachment handling */);
       newEmails.add(newEmail);
       downloadedCount++;
-      if (downloadedCount % 50 == 0 || downloadedCount == messagesToDownload.size()) {
+      if (downloadedCount % 50 == 0 || downloadedCount == imapMessages.size()) {
         LOGGER.debug(
             "Prepared {}/{} new messages for folder {}",
             downloadedCount,
-            messagesToDownload.size(),
+            imapMessages.size(),
             imapFolder.getFullName());
       }
     }

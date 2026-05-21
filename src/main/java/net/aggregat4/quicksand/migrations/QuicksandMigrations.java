@@ -251,13 +251,20 @@ public class QuicksandMigrations implements Migrations {
         return 4;
       };
 
+  private static final Function<Connection, Integer> v5Migration =
+      (con) -> {
+        executeUpdate(con, "ALTER TABLE folders ADD COLUMN highest_modseq INTEGER");
+        executeUpdate(con, "ALTER TABLE folders ADD COLUMN last_full_sync_epoch_s INTEGER");
+        return 5;
+      };
+
   @Override
   public Map<Integer, Function<Connection, Integer>> getMigrations() {
-    return Map.of(2, v2Migration, 3, v3Migration, 4, v4Migration);
+    return Map.of(2, v2Migration, 3, v3Migration, 4, v4Migration, 5, v5Migration);
   }
 
   @Override
   public int getCurrentVersion() {
-    return 4;
+    return 5;
   }
 }
