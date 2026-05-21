@@ -182,7 +182,7 @@ public class ImapStoreSync {
                   storedBody.excerpt(),
                   newMessage.getFlags().contains(Flags.Flag.FLAGGED),
                   false /* TODO attachment handling */,
-                  newMessage.getFlags().contains(Flags.Flag.SEEN)),
+                  isMessageRead(localFolder, newMessage)),
               storedBody.plainText(),
               storedBody.body(),
               Collections.emptyList() /* TODO attachment handling */);
@@ -203,6 +203,14 @@ public class ImapStoreSync {
         newEmails.size(),
         imapFolder.getFullName(),
         elapsedMillis(storeMessagesStarted));
+  }
+
+  private static boolean isMessageRead(NamedFolder localFolder, IMAPMessage newMessage)
+      throws MessagingException {
+    if (localFolder.specialUse() == FolderSpecialUse.SENT) {
+      return true;
+    }
+    return newMessage.getFlags().contains(Flags.Flag.SEEN);
   }
 
   private static void addSenderIfPresent(IMAPMessage message, List<Actor> actors)

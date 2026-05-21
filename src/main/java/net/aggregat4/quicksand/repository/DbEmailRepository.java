@@ -955,6 +955,108 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
+  public Map<Integer, Integer> countUnreadByFolder(int accountId) {
+    return DbUtil.withPreparedStmtFunction(
+        ds,
+        """
+            SELECT m.folder_id, COUNT(*)
+            FROM messages m
+            JOIN folders f ON f.id = m.folder_id
+            WHERE f.account_id = ? AND m.read = 0
+            GROUP BY m.folder_id""",
+        stmt -> {
+          stmt.setInt(1, accountId);
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                Map<Integer, Integer> counts = new HashMap<>();
+                while (rs.next()) {
+                  counts.put(rs.getInt(1), rs.getInt(2));
+                }
+                return counts;
+              });
+        });
+  }
+
+  @Override
+  public int countNewSinceLastView(int folderId) {
+    return DbUtil.withPreparedStmtFunction(
+        ds,
+        """
+            SELECT COUNT(*)
+            FROM messages m
+            JOIN folders f ON f.id = m.folder_id
+            WHERE m.folder_id = ?
+              AND m.received_date_epoch_s > COALESCE(f.last_viewed_epoch_s, 0)""",
+        stmt -> {
+          stmt.setInt(1, folderId);
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                if (!rs.next()) {
+                  throw new IllegalStateException(
+                      "We are expecting to get a result when counting new messages");
+                }
+                return rs.getInt(1);
+              });
+        });
+  }
+
+  @Override
+  public long maxReceivedEpochSeconds(int folderId) {
+    return DbUtil.withPreparedStmtFunction(
+        ds,
+        """
+            SELECT COALESCE(MAX(received_date_epoch_s), 0)
+            FROM messages
+            WHERE folder_id = ?""",
+        stmt -> {
+          stmt.setInt(1, folderId);
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                if (!rs.next()) {
+                  throw new IllegalStateException(
+                      "We are expecting to get a result when reading max received date");
+                }
+                return rs.getLong(1);
+              });
+        });
+  }
+
+  @Override
+  public List<EmailHeader> getMessagesNewerThan(
+      int folderId, long afterReceivedEpochSeconds, int afterMessageId, int limit) {
+    return DbUtil.withPreparedStmtFunction(
+        ds,
+        """
+            SELECT %s
+            FROM messages
+            WHERE folder_id = ?
+              AND (received_date_epoch_s, id) > (?, ?)
+            ORDER BY received_date_epoch_s DESC, id DESC
+            LIMIT ?"""
+            .formatted(MESSAGE_HEADER_COLUMNS),
+        stmt -> {
+          stmt.setInt(1, folderId);
+          stmt.setLong(2, afterReceivedEpochSeconds);
+          stmt.setInt(3, afterMessageId);
+          stmt.setInt(4, limit);
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                List<EmailHeader> headers = new ArrayList<>();
+                while (rs.next()) {
+                  int messageId = rs.getInt(1);
+                  List<Actor> actors = getActors(messageId);
+                  headers.add(convertRowToHeader(rs, actors));
+                }
+                return headers;
+              });
+        });
+  }
+
+  @Override
   public EmailPage searchMessages(
       int accountId,
       String query,

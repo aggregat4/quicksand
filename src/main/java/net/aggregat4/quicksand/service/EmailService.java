@@ -1,7 +1,9 @@
 package net.aggregat4.quicksand.service;
 
+import java.util.List;
 import java.util.Optional;
 import net.aggregat4.quicksand.domain.Email;
+import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
@@ -37,6 +39,12 @@ public class EmailService {
 
   public int getMessageCount(int accountId, int folderId) {
     return emailRepository.getMessageCount(accountId, folderId);
+  }
+
+  public List<EmailHeader> getMessagesNewerThan(
+      int folderId, long afterReceivedEpochSeconds, int afterMessageId, int limit) {
+    return emailRepository.getMessagesNewerThan(
+        folderId, afterReceivedEpochSeconds, afterMessageId, limit);
   }
 
   public EmailPage searchMessages(

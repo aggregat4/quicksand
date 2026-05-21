@@ -13,6 +13,7 @@ import net.aggregat4.quicksand.repository.FolderRepository;
 class InMemoryFolderRepository implements FolderRepository {
 
   private final Map<Integer, List<NamedFolder>> foldersByAccount = new HashMap<>();
+  private final Map<Integer, Long> lastViewedEpochSByFolderId = new HashMap<>();
 
   @Override
   public List<NamedFolder> getFolders(int accountId) {
@@ -101,6 +102,15 @@ class InMemoryFolderRepository implements FolderRepository {
       }
     }
     throw new IllegalStateException("Folder not found: " + folderId);
+  }
+
+  @Override
+  public void markFolderViewed(int folderId, long viewedAtEpochS) {
+    lastViewedEpochSByFolderId.put(folderId, viewedAtEpochS);
+  }
+
+  long getLastViewedEpochS(int folderId) {
+    return lastViewedEpochSByFolderId.getOrDefault(folderId, 0L);
   }
 
   private NamedFolder replaceFolder(NamedFolder folder, NamedFolder updated) {

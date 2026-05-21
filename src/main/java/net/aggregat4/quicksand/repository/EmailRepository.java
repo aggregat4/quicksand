@@ -4,9 +4,11 @@ import java.sql.Connection;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import net.aggregat4.quicksand.domain.Email;
+import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
 import net.aggregat4.quicksand.domain.MailboxActionResolutionType;
@@ -98,6 +100,15 @@ public interface EmailRepository {
       SortOrder order);
 
   int getMessageCount(int accountId, int folderId);
+
+  Map<Integer, Integer> countUnreadByFolder(int accountId);
+
+  int countNewSinceLastView(int folderId);
+
+  long maxReceivedEpochSeconds(int folderId);
+
+  List<EmailHeader> getMessagesNewerThan(
+      int folderId, long afterReceivedEpochSeconds, int afterMessageId, int limit);
 
   EmailPage searchMessages(
       int accountId,

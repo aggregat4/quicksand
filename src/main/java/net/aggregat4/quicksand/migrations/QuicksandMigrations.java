@@ -258,13 +258,19 @@ public class QuicksandMigrations implements Migrations {
         return 5;
       };
 
+  private static final Function<Connection, Integer> v6Migration =
+      (con) -> {
+        executeUpdate(con, "ALTER TABLE folders ADD COLUMN last_viewed_epoch_s INTEGER");
+        return 6;
+      };
+
   @Override
   public Map<Integer, Function<Connection, Integer>> getMigrations() {
-    return Map.of(2, v2Migration, 3, v3Migration, 4, v4Migration, 5, v5Migration);
+    return Map.of(2, v2Migration, 3, v3Migration, 4, v4Migration, 5, v5Migration, 6, v6Migration);
   }
 
   @Override
   public int getCurrentVersion() {
-    return 5;
+    return 6;
   }
 }

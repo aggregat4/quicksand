@@ -25,6 +25,8 @@ public interface FolderRepository {
 
   NamedFolder updateSyncCheckpoint(NamedFolder folder, Long highestModSeq, Long lastFullSyncEpochS);
 
+  void markFolderViewed(int folderId, long viewedAtEpochS);
+
   void updateMappingStatus(NamedFolder folder, FolderMappingStatus mappingStatus);
 
   void deleteFolder(NamedFolder folder);

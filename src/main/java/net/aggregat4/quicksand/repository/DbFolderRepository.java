@@ -189,6 +189,18 @@ public class DbFolderRepository implements FolderRepository {
         });
   }
 
+  @Override
+  public void markFolderViewed(int folderId, long viewedAtEpochS) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        "UPDATE folders SET last_viewed_epoch_s = ? WHERE id = ?",
+        stmt -> {
+          stmt.setLong(1, viewedAtEpochS);
+          stmt.setInt(2, folderId);
+          stmt.executeUpdate();
+        });
+  }
+
   private static NamedFolder readFolder(ResultSet rs) throws SQLException {
     return new NamedFolder(
         rs.getInt(1),

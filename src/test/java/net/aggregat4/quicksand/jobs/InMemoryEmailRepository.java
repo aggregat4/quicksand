@@ -286,7 +286,59 @@ public class InMemoryEmailRepository implements EmailRepository {
 
   @Override
   public int getMessageCount(int accountId, int folderId) {
-    return 1234;
+    return messages.getOrDefault(folderId, List.of()).size();
+  }
+
+  @Override
+  public Map<Integer, Integer> countUnreadByFolder(int accountId) {
+    Map<Integer, Integer> counts = new HashMap<>();
+    for (Map.Entry<Integer, List<Email>> entry : messages.entrySet()) {
+      int unread = (int) entry.getValue().stream().filter(email -> !email.header().read()).count();
+      if (unread > 0) {
+        counts.put(entry.getKey(), unread);
+      }
+    }
+    return counts;
+  }
+
+  @Override
+  public int countNewSinceLastView(int folderId) {
+    throw new UnsupportedOperationException("countNewSinceLastView not implemented");
+  }
+
+  @Override
+  public long maxReceivedEpochSeconds(int folderId) {
+    return messages.getOrDefault(folderId, List.of()).stream()
+        .mapToLong(email -> email.header().receivedDateTimeEpochSeconds())
+        .max()
+        .orElse(0L);
+  }
+
+  @Override
+  public List<EmailHeader> getMessagesNewerThan(
+      int folderId, long afterReceivedEpochSeconds, int afterMessageId, int limit) {
+    return messages.getOrDefault(folderId, List.of()).stream()
+        .filter(
+            email -> {
+              long received = email.header().receivedDateTimeEpochSeconds();
+              int id = email.header().id();
+              return received > afterReceivedEpochSeconds
+                  || (received == afterReceivedEpochSeconds && id > afterMessageId);
+            })
+        .sorted(
+            (left, right) -> {
+              int byDate =
+                  Long.compare(
+                      right.header().receivedDateTimeEpochSeconds(),
+                      left.header().receivedDateTimeEpochSeconds());
+              if (byDate != 0) {
+                return byDate;
+              }
+              return Integer.compare(right.header().id(), left.header().id());
+            })
+        .limit(limit)
+        .map(Email::header)
+        .toList();
   }
 
   @Override
