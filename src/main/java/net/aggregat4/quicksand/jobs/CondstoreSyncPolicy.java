@@ -47,4 +47,11 @@ public final class CondstoreSyncPolicy {
     }
     return imapStore.hasCapability("CONDSTORE") || imapStore.hasCapability("QRESYNC");
   }
+
+  public static boolean supportsQresync(Store store) throws MessagingException {
+    if (!(store instanceof IMAPStore imapStore)) {
+      return false;
+    }
+    return imapStore.hasCapability("QRESYNC");
+  }
 }

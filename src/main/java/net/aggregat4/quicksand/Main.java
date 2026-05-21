@@ -119,13 +119,15 @@ public final class Main {
     boolean mailFetcherEnabled = config.get("mail_fetcher.enabled").asBoolean().orElse(demoEnabled);
     if (mailFetcherEnabled && !accounts.isEmpty()) {
       long fetchPeriodInSeconds = config.get("mail_fetcher.period_seconds").asLong().orElse(15L);
+      boolean idleEnabled = config.get("mail_fetcher.idle_enabled").asBoolean().orElse(false);
       mailFetcher =
           new MailFetcher(
               accountRepository,
               fetchPeriodInSeconds,
               folderRepository,
               messageRepository,
-              accountFolderMappingService);
+              accountFolderMappingService,
+              idleEnabled);
       mailFetcher.fetchNow();
       mailFetcher.start();
     } else if (mailFetcherEnabled) {

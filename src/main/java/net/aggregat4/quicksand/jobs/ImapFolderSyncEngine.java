@@ -40,6 +40,7 @@ final class ImapFolderSyncEngine {
           localFolder,
           access,
           CondstoreSyncPolicy.supportsCondstore(store),
+          CondstoreSyncPolicy.supportsQresync(store),
           folderRepository,
           messageRepository);
     } finally {
@@ -60,6 +61,7 @@ final class ImapFolderSyncEngine {
         localFolder,
         access,
         CondstoreSyncPolicy.supportsCondstore(store),
+        CondstoreSyncPolicy.supportsQresync(store),
         folderRepository,
         messageRepository);
   }
@@ -69,15 +71,17 @@ final class ImapFolderSyncEngine {
       NamedFolder localFolder,
       ImapFolderAccess access,
       boolean condstoreSupported,
+      boolean qresyncSupported,
       FolderRepository folderRepository,
       EmailRepository messageRepository)
       throws MessagingException {
-    access.openReadOnly(condstoreSupported);
+    access.openReadOnly(
+        ImapSyncOpenParameters.forFolder(localFolder, condstoreSupported, qresyncSupported));
     LOGGER.debug(
-        "Opened remote folder {} with {} messages (condstore={})",
+        "Opened remote folder {} (condstore={}, qresync={})",
         access.getFullName(),
-        access.getMessages().length,
-        condstoreSupported);
+        condstoreSupported,
+        qresyncSupported);
 
     long remoteUidValidity = access.getUidValidity();
     if (CondstoreSyncPolicy.uidValidityChanged(localFolder.uidValidity(), remoteUidValidity)) {
@@ -110,7 +114,7 @@ final class ImapFolderSyncEngine {
           "Running CONDSTORE incremental sync for folder {} since modseq {}",
           access.getFullName(),
           localFolder.highestModSeq());
-      condstoreIncrementalSync(accountId, localFolder, access, messageRepository);
+      condstoreIncrementalSync(accountId, localFolder, access, messageRepository, qresyncSupported);
       return folderRepository.updateSyncCheckpoint(
           localFolder, checkpointModSeq, localFolder.lastFullSyncEpochS());
     }
@@ -124,7 +128,8 @@ final class ImapFolderSyncEngine {
       int accountId,
       NamedFolder localFolder,
       ImapFolderAccess access,
-      EmailRepository messageRepository)
+      EmailRepository messageRepository,
+      boolean qresyncSupported)
       throws MessagingException {
     long storedModSeq = localFolder.highestModSeq();
     Set<Long> pendingMoveLikeSourceUids =
@@ -153,9 +158,24 @@ final class ImapFolderSyncEngine {
       }
     }
 
-    collectRemoteUids(access, remoteUids);
-    deleteExpungedMessages(localFolder, messageRepository, remoteUids);
+    if (qresyncSupported && access.openedWithQresync()) {
+      deleteVanishedUids(messageRepository, access.getVanishedUids());
+    } else {
+      collectRemoteUids(access, remoteUids);
+      deleteExpungedMessages(localFolder, messageRepository, remoteUids);
+    }
     downloadNewMessages(localFolder, access, messageRepository, messagesToDownload);
+  }
+
+  private static void deleteVanishedUids(EmailRepository messageRepository, long[] vanishedUids) {
+    if (vanishedUids.length == 0) {
+      return;
+    }
+    Set<Long> uids = new HashSet<>();
+    for (long uid : vanishedUids) {
+      uids.add(uid);
+    }
+    messageRepository.removeAllByUid(uids);
   }
 
   private static void naiveFolderSync(

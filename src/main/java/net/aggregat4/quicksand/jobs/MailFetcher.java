@@ -18,6 +18,7 @@ public class MailFetcher {
   private static final Logger LOGGER = LoggerFactory.getLogger(MailFetcher.class);
 
   private final long fetchPeriodInSeconds;
+  private final boolean idleEnabled;
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
   private final DbAccountRepository accountRepository;
   private final FolderRepository folderRepository;
@@ -25,18 +26,22 @@ public class MailFetcher {
   private final AccountFolderMappingService accountFolderMappingService;
 
   private final ConcurrentHashMap<Account, Store> accountStores = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<Account, ImapIdleWatcher> idleWatchers =
+      new ConcurrentHashMap<>();
 
   public MailFetcher(
       DbAccountRepository accountRepository,
       long fetchPeriodInSeconds,
       FolderRepository folderRepository,
       EmailRepository emailRepository,
-      AccountFolderMappingService accountFolderMappingService) {
+      AccountFolderMappingService accountFolderMappingService,
+      boolean idleEnabled) {
     this.accountRepository = accountRepository;
     this.fetchPeriodInSeconds = fetchPeriodInSeconds;
     this.folderRepository = folderRepository;
     this.messageRepository = emailRepository;
     this.accountFolderMappingService = accountFolderMappingService;
+    this.idleEnabled = idleEnabled;
   }
 
   public void start() {
@@ -50,6 +55,25 @@ public class MailFetcher {
 
   public void stop() {
     this.scheduler.shutdown();
+    idleWatchers.values().forEach(ImapIdleWatcher::stop);
+    idleWatchers.clear();
+  }
+
+  private void ensureIdleWatch(Account account, Store store) {
+    if (!idleEnabled || idleWatchers.containsKey(account)) {
+      return;
+    }
+    try {
+      if (!ImapIdleWatcher.supportsIdle(store)) {
+        LOGGER.debug("IMAP IDLE unavailable for account {}", account.name());
+        return;
+      }
+      ImapIdleWatcher watcher = new ImapIdleWatcher(folderRepository, this::fetchNow);
+      watcher.refreshForAccount(account);
+      idleWatchers.put(account, watcher);
+    } catch (MessagingException e) {
+      LOGGER.warn("Failed to start IMAP IDLE for account {}", account.name(), e);
+    }
   }
 
   /** Package private for testing. */
@@ -76,6 +100,7 @@ public class MailFetcher {
       long accountFetchStarted = System.nanoTime();
       ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
       accountFolderMappingService.syncMappingsAfterFolderDiscovery(account.id());
+      ensureIdleWatch(account, store);
       LOGGER.debug(
           "Finished mail fetch for account {} in {} ms",
           account.name(),
