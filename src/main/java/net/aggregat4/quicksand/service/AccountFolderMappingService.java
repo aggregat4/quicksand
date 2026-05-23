@@ -22,7 +22,7 @@ import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.imap.FolderRemoteNameMatcher;
 import net.aggregat4.quicksand.jobs.JakartaMailSessionProperties;
 import net.aggregat4.quicksand.repository.AccountFolderMappingRepository;
-import net.aggregat4.quicksand.repository.DbAccountRepository;
+import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 
 public class AccountFolderMappingService {
@@ -37,12 +37,12 @@ public class AccountFolderMappingService {
 
   private final AccountFolderMappingRepository mappingRepository;
   private final FolderRepository folderRepository;
-  private final DbAccountRepository accountRepository;
+  private final AccountRepository accountRepository;
 
   public AccountFolderMappingService(
       AccountFolderMappingRepository mappingRepository,
       FolderRepository folderRepository,
-      DbAccountRepository accountRepository) {
+      AccountRepository accountRepository) {
     this.mappingRepository = mappingRepository;
     this.folderRepository = folderRepository;
     this.accountRepository = accountRepository;

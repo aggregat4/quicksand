@@ -22,8 +22,8 @@ import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.domain.OutboundMessage;
 import net.aggregat4.quicksand.domain.StoredAttachment;
+import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
-import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DraftRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
@@ -41,7 +41,7 @@ public class MailboxActionSync {
 
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
   private ScheduledFuture<?> scheduledTask;
-  private final DbAccountRepository accountRepository;
+  private final AccountRepository accountRepository;
   private final EmailRepository emailRepository;
   private final OutboundMessageRepository outboundMessageRepository;
   private final AttachmentRepository attachmentRepository;
@@ -52,7 +52,7 @@ public class MailboxActionSync {
   private final long retryDelaySeconds;
 
   public MailboxActionSync(
-      DbAccountRepository accountRepository,
+      AccountRepository accountRepository,
       EmailRepository emailRepository,
       OutboundMessageRepository outboundMessageRepository,
       AttachmentRepository attachmentRepository,

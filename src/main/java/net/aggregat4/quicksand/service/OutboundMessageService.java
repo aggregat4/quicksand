@@ -15,7 +15,7 @@ import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.OutboundMessage;
 import net.aggregat4.quicksand.domain.OutboundMessageStatus;
-import net.aggregat4.quicksand.repository.DbAccountRepository;
+import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
@@ -23,7 +23,7 @@ import net.aggregat4.quicksand.repository.OutboundMessageRepository;
 
 public class OutboundMessageService {
   private final DataSource ds;
-  private final DbAccountRepository accountRepository;
+  private final AccountRepository accountRepository;
   private final DbDraftRepository draftRepository;
   private final DbAttachmentRepository attachmentRepository;
   private final OutboundMessageRepository outboundMessageRepository;
@@ -32,7 +32,7 @@ public class OutboundMessageService {
 
   public OutboundMessageService(
       DataSource ds,
-      DbAccountRepository accountRepository,
+      AccountRepository accountRepository,
       DbDraftRepository draftRepository,
       DbAttachmentRepository attachmentRepository,
       OutboundMessageRepository outboundMessageRepository,

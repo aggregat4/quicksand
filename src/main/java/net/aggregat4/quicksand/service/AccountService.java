@@ -2,12 +2,12 @@ package net.aggregat4.quicksand.service;
 
 import java.util.List;
 import net.aggregat4.quicksand.domain.Account;
-import net.aggregat4.quicksand.repository.DbAccountRepository;
+import net.aggregat4.quicksand.repository.AccountRepository;
 
 public class AccountService {
-  private final DbAccountRepository accountRepository;
+  private final AccountRepository accountRepository;
 
-  public AccountService(DbAccountRepository accountRepository) {
+  public AccountService(AccountRepository accountRepository) {
     this.accountRepository = accountRepository;
   }
 

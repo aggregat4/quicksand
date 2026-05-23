@@ -23,6 +23,7 @@ import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.MailboxActionExecutionState;
 import net.aggregat4.quicksand.domain.MailboxActionStatus;
 import net.aggregat4.quicksand.domain.MailboxActionType;
+import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
@@ -356,7 +357,7 @@ class AccountFolderSettingsWebServiceTest {
 
   private static WebServer startServer(
       DataSource ds,
-      DbAccountRepository accountRepository,
+      AccountRepository accountRepository,
       DbFolderRepository folderRepository,
       DbAccountFolderMappingRepository mappingRepository)
       throws IOException {

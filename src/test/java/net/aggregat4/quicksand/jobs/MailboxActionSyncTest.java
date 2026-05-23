@@ -33,6 +33,7 @@ import net.aggregat4.quicksand.domain.OutboundMessage;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
+import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
@@ -459,7 +460,7 @@ class MailboxActionSyncTest {
   private record SyncFixture(
       DataSource dataSource,
       Account account,
-      DbAccountRepository accountRepository,
+      AccountRepository accountRepository,
       DbFolderRepository folderRepository,
       DbEmailRepository emailRepository,
       Email message) {}

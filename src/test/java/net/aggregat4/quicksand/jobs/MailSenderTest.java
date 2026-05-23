@@ -30,6 +30,7 @@ import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.domain.OutboundMessageStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
+import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
@@ -656,7 +657,7 @@ public class MailSenderTest {
   }
 
   private static int queueDraft(
-      DbAccountRepository accountRepository,
+      AccountRepository accountRepository,
       DbAttachmentRepository attachmentRepository,
       DbOutboundMessageRepository outboundMessageRepository,
       DataSource ds,

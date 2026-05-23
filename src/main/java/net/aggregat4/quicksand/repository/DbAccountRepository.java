@@ -9,7 +9,7 @@ import net.aggregat4.quicksand.security.AccountCredentialCipher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DbAccountRepository {
+public class DbAccountRepository implements AccountRepository {
   private static final Logger LOGGER = LoggerFactory.getLogger(DbAccountRepository.class);
 
   private final DataSource ds;
@@ -24,6 +24,7 @@ public class DbAccountRepository {
     this.credentialCipher = credentialCipher;
   }
 
+  @Override
   public List<Account> getAccounts() {
     return DbUtil.withPreparedStmtFunction(
         ds,
@@ -40,7 +41,7 @@ public class DbAccountRepository {
                 }));
   }
 
-  /** Only create the account if it does not already exist, otherwise just ignores it. */
+  @Override
   public void createAccountIfNew(Account account) {
     DbUtil.withPreparedStmtConsumer(
         ds,
@@ -64,6 +65,7 @@ public class DbAccountRepository {
         });
   }
 
+  @Override
   public Account getAccount(int accountId) {
     return DbUtil.withPreparedStmtFunction(
         ds,

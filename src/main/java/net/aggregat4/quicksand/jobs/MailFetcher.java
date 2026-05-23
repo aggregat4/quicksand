@@ -8,7 +8,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.domain.*;
-import net.aggregat4.quicksand.repository.DbAccountRepository;
+import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.service.AccountFolderMappingService;
@@ -23,7 +23,7 @@ public class MailFetcher {
   private final boolean idleEnabled;
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
   private ScheduledFuture<?> scheduledTask;
-  private final DbAccountRepository accountRepository;
+  private final AccountRepository accountRepository;
   private final FolderRepository folderRepository;
   private final EmailRepository messageRepository;
   private final AccountFolderMappingService accountFolderMappingService;
@@ -34,7 +34,7 @@ public class MailFetcher {
       new ConcurrentHashMap<>();
 
   public MailFetcher(
-      DbAccountRepository accountRepository,
+      AccountRepository accountRepository,
       long fetchPeriodInSeconds,
       FolderRepository folderRepository,
       EmailRepository emailRepository,

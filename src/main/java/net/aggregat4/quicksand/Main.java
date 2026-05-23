@@ -23,6 +23,7 @@ import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.jobs.MailSender;
 import net.aggregat4.quicksand.jobs.MailboxActionSync;
 import net.aggregat4.quicksand.repository.AccountFolderMappingRepository;
+import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DatabaseMaintenance;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
@@ -277,7 +278,7 @@ public final class Main {
    * it.
    */
   private static void bootstrapAccounts(
-      List<Account> accounts, DbAccountRepository accountRepository) {
+      List<Account> accounts, AccountRepository accountRepository) {
     for (Account account : accounts) {
       accountRepository.createAccountIfNew(account);
     }

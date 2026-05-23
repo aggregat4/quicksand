@@ -15,8 +15,8 @@ import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.OutboundMessage;
 import net.aggregat4.quicksand.domain.StoredAttachment;
+import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.AttachmentRepository;
-import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.OutboundMessageRepository;
 import org.slf4j.Logger;
@@ -28,7 +28,7 @@ public class MailSender {
   private static final long INITIAL_DELAY_SECONDS = 0;
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
   private ScheduledFuture<?> scheduledTask;
-  private final DbAccountRepository accountRepository;
+  private final AccountRepository accountRepository;
   private final OutboundMessageRepository outboundMessageRepository;
   private final AttachmentRepository attachmentRepository;
   private final EmailRepository emailRepository;
@@ -38,7 +38,7 @@ public class MailSender {
   private final long retryDelaySeconds;
 
   public MailSender(
-      DbAccountRepository accountRepository,
+      AccountRepository accountRepository,
       OutboundMessageRepository outboundMessageRepository,
       AttachmentRepository attachmentRepository,
       EmailRepository emailRepository,
