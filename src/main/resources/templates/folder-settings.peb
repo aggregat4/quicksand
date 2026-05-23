@@ -41,10 +41,7 @@
             </section>
         {% endif %}
 
-        <form method="POST"
-              action="/accounts/{{ currentAccount.id }}/settings/folders"
-              id="folder-mapping-save-form"
-              class="folder-mapping-form">
+        <div class="folder-mapping-form">
             {% for row in mappingRows %}
                 <fieldset class="folder-mapping-row{% if row.hasConflict() %} folder-mapping-row-conflict{% elseif row.isMissing() %} folder-mapping-row-missing{% endif %}">
                     <legend>
@@ -70,7 +67,8 @@
                         <h3>Existing server folder</h3>
                         <label class="folder-select-label">
                             Select one of the folders discovered on the IMAP server
-                            <select name="folder_{{ row.specialUse().name() }}">
+                            <select name="folder_{{ row.specialUse().name() }}"
+                                    form="folder-mapping-save-form">
                                 <option value="">No folder selected</option>
                             {% if row.candidateFolders() is not empty %}
                                 <optgroup label="Suggested folders">
@@ -95,37 +93,38 @@
                             </select>
                         </label>
                     </div>
+
+                    <div class="folder-create-section">
+                        <h3>Create server folder</h3>
+                        <form method="POST"
+                              action="/accounts/{{ currentAccount.id }}/settings/folders"
+                              class="folder-create-form">
+                            <div class="folder-create-controls">
+                                <label>
+                                    Server mailbox name
+                                    <input type="text"
+                                           name="create_name_{{ row.specialUse().name() }}"
+                                           value="{{ row.suggestedRemoteName() }}">
+                                </label>
+                                <button type="submit"
+                                        name="create_special_use"
+                                        value="{{ row.specialUse().name() }}">
+                                    Create and map
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </fieldset>
             {% endfor %}
 
-            <div class="settings-actions folder-mapping-save-form">
-                <button type="submit" name="save_mappings" value="true">Save mappings</button>
-            </div>
-        </form>
-
-        <div class="folder-create-forms">
-            {% for row in mappingRows %}
-                <section class="folder-create-section">
-                    <h3>Create server folder for {{ row.label() }}</h3>
-                    <form method="POST"
-                          action="/accounts/{{ currentAccount.id }}/settings/folders"
-                          class="folder-create-form">
-                        <div class="folder-create-controls">
-                            <label>
-                                Server mailbox name
-                                <input type="text"
-                                       name="create_name_{{ row.specialUse().name() }}"
-                                       value="{{ row.suggestedRemoteName() }}">
-                            </label>
-                            <button type="submit"
-                                    name="create_special_use"
-                                    value="{{ row.specialUse().name() }}">
-                                Create and map
-                            </button>
-                        </div>
-                    </form>
-                </section>
-            {% endfor %}
+            <form method="POST"
+                  action="/accounts/{{ currentAccount.id }}/settings/folders"
+                  id="folder-mapping-save-form"
+                  class="folder-mapping-save-form">
+                <div class="settings-actions">
+                    <button type="submit" name="save_mappings" value="true">Save mappings</button>
+                </div>
+            </form>
         </div>
     </section>
 </main>
