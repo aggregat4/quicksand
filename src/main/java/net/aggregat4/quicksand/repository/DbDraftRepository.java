@@ -85,6 +85,7 @@ public class DbDraftRepository implements DraftRepository {
         });
   }
 
+  @Override
   public Optional<Draft> findById(Connection con, int id) {
     return DbUtil.withPreparedStmtFunction(
         con,
@@ -167,6 +168,7 @@ public class DbDraftRepository implements DraftRepository {
         });
   }
 
+  @Override
   public void delete(Connection con, int id) {
     DbUtil.withPreparedStmtConsumer(
         con,

@@ -107,8 +107,8 @@ public final class Main {
         new OutboundMessageService(
             ds,
             accountRepository,
-            dbDraftRepository,
-            dbAttachmentRepository,
+            draftRepository,
+            attachmentRepository,
             outboundMessageRepository,
             messageRepository,
             clock);
