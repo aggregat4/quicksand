@@ -71,6 +71,10 @@ mvn -DskipTests package            # build the jar without running tests
 npm run test:e2e                   # full Playwright e2e suite (builds jar + starts server)
 ```
 
+### Runtime database (SQLite + Hikari)
+
+See [`docs/runtime-database.md`](docs/runtime-database.md) for WAL mode, pool size `1`, schema v8 constraints, and backup notes.
+
 ### Account credentials (IMAP/SMTP)
 
 Passwords in SQLite are encrypted at rest (`qsenc1:` + AES-256-GCM). The JVM still needs the real password when talking to mail servers.

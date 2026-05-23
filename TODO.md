@@ -13,11 +13,7 @@ After `mvn -DskipTests package` and `./scripts/start-real-server.sh` (see [`docs
 
 ## §4 Runtime, schema, and storage hardening
 
-- [ ] SQLite/Hikari pool tuning documentation
-- [ ] Per-account folder uniqueness cleanup (`folders.name` legacy global unique)
-- [ ] Folder-scoped message UID identity enforcement
-- [ ] Broader `NOT NULL` / FK cascades
-- [ ] Schema/constraint regression tests
+Done in schema v8 — see [`docs/runtime-database.md`](docs/runtime-database.md).
 
 ---
 

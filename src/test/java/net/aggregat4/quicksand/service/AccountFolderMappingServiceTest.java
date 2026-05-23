@@ -299,7 +299,11 @@ class AccountFolderMappingServiceTest {
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
     DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
     mappingRepository.save(
-        account.id(), FolderSpecialUse.ARCHIVE, 999, "Archive", FolderMappingStatus.USER_CONFIRMED);
+        account.id(),
+        FolderSpecialUse.ARCHIVE,
+        null,
+        "Archive",
+        FolderMappingStatus.USER_CONFIRMED);
     NamedFolder archive =
         folderRepository.createFolder(account, "Archive", "INBOX.Archive", null, 123L);
     AccountFolderMappingService service =

@@ -50,12 +50,14 @@ public class DbEmailRepositoryTest {
 
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
     DbActorRepository actorRepository = new DbActorRepository(ds);
     DbEmailRepository emailRepository =
         new DbEmailRepository(ds, actorRepository, new DbAttachmentRepository(ds));
 
-    Account account = GreenmailUtils.getAccount();
+    accountRepository.createAccountIfNew(GreenmailUtils.getAccount());
+    Account account = accountRepository.getAccounts().getFirst();
     assertEquals(0, folderRepository.getFolders(account.id()).size());
     ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
     assertEquals(1, folderRepository.getFolders(account.id()).size());
@@ -136,12 +138,14 @@ public class DbEmailRepositoryTest {
 
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
     DbActorRepository actorRepository = new DbActorRepository(ds);
     DbEmailRepository emailRepository =
         new DbEmailRepository(ds, actorRepository, new DbAttachmentRepository(ds));
 
-    Account account = GreenmailUtils.getAccount();
+    accountRepository.createAccountIfNew(GreenmailUtils.getAccount());
+    Account account = accountRepository.getAccounts().getFirst();
     ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
 
     EmailPage subjectResults =
@@ -199,6 +203,7 @@ public class DbEmailRepositoryTest {
 
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
     DbActorRepository actorRepository = new DbActorRepository(ds);
     DbAttachmentRepository attachmentRepository = new DbAttachmentRepository(ds);
@@ -206,7 +211,8 @@ public class DbEmailRepositoryTest {
         new DbEmailRepository(ds, actorRepository, attachmentRepository);
     AttachmentService attachmentService = new AttachmentService(attachmentRepository);
 
-    Account account = GreenmailUtils.getAccount();
+    accountRepository.createAccountIfNew(GreenmailUtils.getAccount());
+    Account account = accountRepository.getAccounts().getFirst();
     Store store = GreenmailUtils.getImapStore(greenMail);
     ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
 

@@ -352,7 +352,10 @@ public final class Main {
 
     hkConfig.setJdbcUrl("jdbc:sqlite:%s".formatted(dbPath.toString()));
     hkConfig.setDataSourceProperties(sqliteConfig.toProperties());
-    //        hkConfig.setMaximumPoolSize(1);
+    // SQLite serializes writers, but repository code may open nested connections (e.g. load
+    // actors while iterating messages). Keep the pool tiny, not single-connection.
+    hkConfig.setMaximumPoolSize(2);
+    hkConfig.setMinimumIdle(1);
     return new HikariDataSource(hkConfig);
   }
 }
