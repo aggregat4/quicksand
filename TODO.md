@@ -11,12 +11,6 @@ After `mvn -DskipTests package` and `./scripts/start-real-server.sh` (see [`docs
 
 ---
 
-## §4 Runtime, schema, and storage hardening
-
-Done in schema v8 — see [`docs/runtime-database.md`](docs/runtime-database.md).
-
----
-
 ## Notifications
 
 Spec: [`specs/new-mail-notifications.md`](specs/new-mail-notifications.md)
@@ -29,4 +23,3 @@ Spec: [`specs/new-mail-notifications.md`](specs/new-mail-notifications.md)
 ## Accounts
 
 - Account management UI
-- OAuth2 sign-in (e.g. Gmail) instead of config-file passwords

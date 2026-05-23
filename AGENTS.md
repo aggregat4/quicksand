@@ -73,7 +73,7 @@ npm run test:e2e                   # full Playwright e2e suite (builds jar + sta
 
 ### Runtime database (SQLite + Hikari)
 
-See [`docs/runtime-database.md`](docs/runtime-database.md) for WAL mode, pool size `1`, schema v8 constraints, and backup notes.
+See [`docs/runtime-database.md`](docs/runtime-database.md) for WAL mode, Hikari pool sizing, schema constraints, and backup notes.
 
 ### Account credentials (IMAP/SMTP)
 

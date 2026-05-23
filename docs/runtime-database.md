@@ -9,10 +9,10 @@ Configured in `Main.createDataSource()`:
 | Setting | Value | Why |
 |---------|-------|-----|
 | Journal mode | WAL | Concurrent readers while the writer syncs |
-| Foreign keys | `ON` (`enforceForeignKeys`) | Migrations v8+ rely on `ON DELETE CASCADE` |
+| Foreign keys | `ON` (`enforceForeignKeys`) | Schema uses `ON DELETE CASCADE` on mirrored mail tables |
 | Open mode | `READWRITE`, `CREATE`, `NOMUTEX` | Single-process JVM; driver handles locking |
 
-After schema v8, deleting a folder cascades to its mirrored messages and actors. Deleting an account cascades to its folders (and thus messages).
+Deleting a folder cascades to its mirrored messages and actors. Deleting an account cascades to its folders (and thus messages).
 
 ## HikariCP pool
 
@@ -23,13 +23,13 @@ After schema v8, deleting a folder cascades to its mirrored messages and actors.
 
 Do not set the pool to `1` with the current repository layer — some code paths nest `DataSource.getConnection()` calls and will time out. If Quicksand ever moves to a server-grade database, revisit pool sizing separately.
 
-## Schema constraints (v8+)
+## Schema constraints
 
 - **Folders:** unique on `(account_id, name)` — not globally on `name`. Two accounts may both have a display name `Inbox`.
 - **Messages:** `folder_id` and `imap_uid` are `NOT NULL`; unique on `(folder_id, imap_uid)` enforces per-folder IMAP identity.
 - **Actors:** `message_id` is `NOT NULL` with `ON DELETE CASCADE`.
 
-Upgrading an existing database runs migration v8 automatically on startup (`DatabaseMaintenance.migrateDb`).
+Schema version is tracked in `schema_version` (currently `2`). Existing databases with an older version must be wiped before starting the server.
 
 ## Operations
 

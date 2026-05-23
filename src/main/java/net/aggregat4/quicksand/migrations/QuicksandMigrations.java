@@ -11,9 +11,8 @@ import net.aggregat4.dblib.Migrations;
 public class QuicksandMigrations implements Migrations {
 
   // IMAP/SMTP passwords are stored encrypted at rest (see AccountCredentialCipher).
-  // Quicksand is still pre-production, so keep the schema definition collapsed into one
-  // explicit migration to make the current data model easy to read in one place.
-  private static final Function<Connection, Integer> v2Migration =
+  // Single initial schema for pre-production Quicksand; bump getCurrentVersion() when it changes.
+  private static final Function<Connection, Integer> schemaMigration =
       (con) -> {
         executeUpdate(
             con,
@@ -34,21 +33,25 @@ public class QuicksandMigrations implements Migrations {
             """
                 CREATE TABLE folders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                account_id INTEGER,
-                name TEXT UNIQUE,
+                account_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
                 last_seen_uid INTEGER,
-                FOREIGN KEY (account_id) REFERENCES accounts(id))""");
-        // STRING dates are ISO strings with ms precision
-        // starred and read are booleans with 0 and 1 as possible values
-        // TODO index on imap_uid since we do lookups there
-        // TODO attachment handling
+                remote_name TEXT,
+                special_use TEXT,
+                uidvalidity INTEGER,
+                sync_enabled INTEGER NOT NULL DEFAULT 1,
+                mapping_status TEXT NOT NULL DEFAULT 'MISSING',
+                highest_modseq INTEGER,
+                last_full_sync_epoch_s INTEGER,
+                last_viewed_epoch_s INTEGER,
+                FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE)""");
         executeUpdate(
             con,
             """
                 CREATE TABLE messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                folder_id INTEGER,
-                imap_uid INTEGER,
+                folder_id INTEGER NOT NULL,
+                imap_uid INTEGER NOT NULL,
                 subject TEXT,
                 sent_date TEXT,
                 sent_date_epoch_s INTEGER,
@@ -59,24 +62,17 @@ public class QuicksandMigrations implements Migrations {
                 read INTEGER,
                 body TEXT,
                 plain_text INTEGER NOT NULL DEFAULT 1,
-                FOREIGN KEY (folder_id) REFERENCES folders(id))""");
-        // TODO consider adding NOT NULL constraints
-        // TODO this design does not consolidate addresses at all, we will have many duplicate
-        // addresses here as they are the raw addresses from the original message
-        // I'm not even sure that this is wrong. We could build a separate address book structure
-        // that does not even need to be linked to this
-        // we can probably just fulltext search the address fields anyway
-        // see ActorType for possible values of actor type
+                FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE)""");
         executeUpdate(
             con,
             """
                 CREATE TABLE actors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                message_id INTEGER,
+                message_id INTEGER NOT NULL,
                 type INTEGER NOT NULL,
                 name TEXT,
                 email_address TEXT NOT NULL,
-                FOREIGN KEY (message_id) REFERENCES messages(id))""");
+                FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE)""");
         executeUpdate(
             con,
             """
@@ -93,6 +89,8 @@ public class QuicksandMigrations implements Migrations {
                 queued INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL,
                 updated_at_epoch_s INTEGER NOT NULL,
+                remote_imap_uid INTEGER,
+                remote_uidvalidity INTEGER,
                 FOREIGN KEY (account_id) REFERENCES accounts(id),
                 FOREIGN KEY (source_message_id) REFERENCES messages(id))""");
         executeUpdate(
@@ -136,32 +134,6 @@ public class QuicksandMigrations implements Migrations {
                 FOREIGN KEY (draft_id) REFERENCES drafts(id) ON DELETE CASCADE,
                 FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
                 FOREIGN KEY (outbound_message_id) REFERENCES outbound_messages(id) ON DELETE CASCADE)""");
-        executeUpdate(
-            con,
-            """
-                CREATE VIRTUAL TABLE message_search USING fts5(
-                subject,
-                body_excerpt,
-                body,
-                actors,
-                tokenize = 'unicode61 remove_diacritics 2')""");
-        // Enable WAL mode on the database to allow for concurrent reads and writes
-        executeQuery(
-            con,
-            """
-                PRAGMA journal_mode=WAL;""");
-        return 2;
-      };
-
-  private static final Function<Connection, Integer> v3Migration =
-      (con) -> {
-        executeUpdate(con, "ALTER TABLE folders ADD COLUMN remote_name TEXT");
-        executeUpdate(con, "ALTER TABLE folders ADD COLUMN special_use TEXT");
-        executeUpdate(con, "ALTER TABLE folders ADD COLUMN uidvalidity INTEGER");
-        executeUpdate(
-            con, "ALTER TABLE folders ADD COLUMN sync_enabled INTEGER NOT NULL DEFAULT 1");
-        executeUpdate(
-            con, "ALTER TABLE folders ADD COLUMN mapping_status TEXT NOT NULL DEFAULT 'MISSING'");
         executeUpdate(
             con,
             """
@@ -211,6 +183,16 @@ public class QuicksandMigrations implements Migrations {
                 FOREIGN KEY (source_folder_id) REFERENCES folders(id),
                 FOREIGN KEY (target_folder_id) REFERENCES folders(id))""");
         executeUpdate(
+            con,
+            """
+                CREATE VIRTUAL TABLE message_search USING fts5(
+                subject,
+                body_excerpt,
+                body,
+                actors,
+                tokenize = 'unicode61 remove_diacritics 2')""");
+
+        executeUpdate(
             con, "CREATE UNIQUE INDEX folders_account_name_idx ON folders(account_id, name)");
         executeUpdate(
             con,
@@ -224,6 +206,21 @@ public class QuicksandMigrations implements Migrations {
         executeUpdate(
             con,
             "CREATE INDEX account_folder_mappings_account_status_idx ON account_folder_mappings(account_id, status)");
+        executeUpdate(
+            con,
+            """
+                CREATE INDEX messages_folder_paging_idx
+                ON messages(folder_id, received_date_epoch_s, id)""");
+        executeUpdate(
+            con,
+            """
+                CREATE UNIQUE INDEX messages_folder_imap_uid_idx
+                ON messages(folder_id, imap_uid)""");
+        executeUpdate(
+            con,
+            """
+                CREATE INDEX outbound_messages_status_next_attempt_idx
+                ON outbound_messages(status, next_attempt_at_epoch_s)""");
         executeUpdate(
             con,
             "CREATE INDEX mailbox_action_queue_status_next_attempt_idx ON mailbox_action_queue(status, next_attempt_at_epoch_s)");
@@ -241,202 +238,18 @@ public class QuicksandMigrations implements Migrations {
         executeUpdate(
             con,
             "CREATE INDEX mailbox_action_queue_resolution_resolved_idx ON mailbox_action_queue(resolution_type, resolved_at)");
-        return 3;
+
+        executeQuery(con, "PRAGMA journal_mode=WAL");
+        return 2;
       };
-
-  private static final Function<Connection, Integer> v4Migration =
-      (con) -> {
-        executeUpdate(con, "ALTER TABLE drafts ADD COLUMN remote_imap_uid INTEGER");
-        executeUpdate(con, "ALTER TABLE drafts ADD COLUMN remote_uidvalidity INTEGER");
-        return 4;
-      };
-
-  private static final Function<Connection, Integer> v5Migration =
-      (con) -> {
-        executeUpdate(con, "ALTER TABLE folders ADD COLUMN highest_modseq INTEGER");
-        executeUpdate(con, "ALTER TABLE folders ADD COLUMN last_full_sync_epoch_s INTEGER");
-        return 5;
-      };
-
-  private static final Function<Connection, Integer> v6Migration =
-      (con) -> {
-        executeUpdate(con, "ALTER TABLE folders ADD COLUMN last_viewed_epoch_s INTEGER");
-        return 6;
-      };
-
-  private static final Function<Connection, Integer> v7Migration =
-      (con) -> {
-        executeUpdate(
-            con,
-            """
-                CREATE INDEX messages_folder_paging_idx
-                ON messages(folder_id, received_date_epoch_s, id)""");
-        executeUpdate(
-            con,
-            """
-                CREATE UNIQUE INDEX messages_folder_imap_uid_idx
-                ON messages(folder_id, imap_uid)""");
-        executeUpdate(
-            con,
-            """
-                CREATE INDEX outbound_messages_status_next_attempt_idx
-                ON outbound_messages(status, next_attempt_at_epoch_s)""");
-        return 7;
-      };
-
-  private static final Function<Connection, Integer> v8Migration =
-      (con) -> {
-        executeUpdate(con, "PRAGMA foreign_keys=OFF");
-        executeUpdate(
-            con,
-            """
-                CREATE TABLE folders_hardened (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                account_id INTEGER NOT NULL,
-                name TEXT NOT NULL,
-                last_seen_uid INTEGER,
-                remote_name TEXT,
-                special_use TEXT,
-                uidvalidity INTEGER,
-                sync_enabled INTEGER NOT NULL DEFAULT 1,
-                mapping_status TEXT NOT NULL DEFAULT 'MISSING',
-                highest_modseq INTEGER,
-                last_full_sync_epoch_s INTEGER,
-                last_viewed_epoch_s INTEGER,
-                FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE)""");
-        executeUpdate(
-            con,
-            """
-                INSERT INTO folders_hardened (
-                    id, account_id, name, last_seen_uid, remote_name, special_use, uidvalidity,
-                    sync_enabled, mapping_status, highest_modseq, last_full_sync_epoch_s,
-                    last_viewed_epoch_s)
-                SELECT
-                    id, account_id, name, last_seen_uid, remote_name, special_use, uidvalidity,
-                    sync_enabled, mapping_status, highest_modseq, last_full_sync_epoch_s,
-                    last_viewed_epoch_s
-                FROM folders""");
-        executeUpdate(con, "DROP TABLE folders");
-        executeUpdate(con, "ALTER TABLE folders_hardened RENAME TO folders");
-        recreateFolderIndexes(con);
-
-        executeUpdate(
-            con,
-            """
-                CREATE TABLE messages_hardened (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                folder_id INTEGER NOT NULL,
-                imap_uid INTEGER NOT NULL,
-                subject TEXT,
-                sent_date TEXT,
-                sent_date_epoch_s INTEGER,
-                received_date TEXT,
-                received_date_epoch_s INTEGER,
-                body_excerpt TEXT,
-                starred INTEGER,
-                read INTEGER,
-                body TEXT,
-                plain_text INTEGER NOT NULL DEFAULT 1,
-                FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE)""");
-        executeUpdate(
-            con,
-            """
-                INSERT INTO messages_hardened (
-                    id, folder_id, imap_uid, subject, sent_date, sent_date_epoch_s, received_date,
-                    received_date_epoch_s, body_excerpt, starred, read, body, plain_text)
-                SELECT
-                    id, folder_id, imap_uid, subject, sent_date, sent_date_epoch_s, received_date,
-                    received_date_epoch_s, body_excerpt, starred, read, body, plain_text
-                FROM messages
-                WHERE folder_id IS NOT NULL AND imap_uid IS NOT NULL""");
-        executeUpdate(con, "DROP TABLE messages");
-        executeUpdate(con, "ALTER TABLE messages_hardened RENAME TO messages");
-        recreateMessageIndexes(con);
-        rebuildMessageSearchIndex(con);
-
-        executeUpdate(
-            con,
-            """
-                CREATE TABLE actors_hardened (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                message_id INTEGER NOT NULL,
-                type INTEGER NOT NULL,
-                name TEXT,
-                email_address TEXT NOT NULL,
-                FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE)""");
-        executeUpdate(
-            con,
-            """
-                INSERT INTO actors_hardened (id, message_id, type, name, email_address)
-                SELECT id, message_id, type, name, email_address
-                FROM actors
-                WHERE message_id IS NOT NULL""");
-        executeUpdate(con, "DROP TABLE actors");
-        executeUpdate(con, "ALTER TABLE actors_hardened RENAME TO actors");
-        executeUpdate(con, "PRAGMA foreign_keys=ON");
-        return 8;
-      };
-
-  private static void recreateFolderIndexes(Connection con) {
-    executeUpdate(con, "CREATE UNIQUE INDEX folders_account_name_idx ON folders(account_id, name)");
-    executeUpdate(
-        con,
-        """
-            CREATE UNIQUE INDEX folders_account_remote_name_idx
-            ON folders(account_id, remote_name)
-            WHERE remote_name IS NOT NULL""");
-    executeUpdate(
-        con, "CREATE INDEX folders_account_special_use_idx ON folders(account_id, special_use)");
-  }
-
-  private static void recreateMessageIndexes(Connection con) {
-    executeUpdate(
-        con,
-        """
-            CREATE INDEX messages_folder_paging_idx
-            ON messages(folder_id, received_date_epoch_s, id)""");
-    executeUpdate(
-        con,
-        """
-            CREATE UNIQUE INDEX messages_folder_imap_uid_idx
-            ON messages(folder_id, imap_uid)""");
-  }
-
-  private static void rebuildMessageSearchIndex(Connection con) {
-    executeUpdate(con, "DELETE FROM message_search");
-    executeUpdate(
-        con,
-        """
-            INSERT INTO message_search(rowid, subject, body_excerpt, body, actors)
-            SELECT
-                m.id,
-                COALESCE(m.subject, ''),
-                COALESCE(m.body_excerpt, ''),
-                COALESCE(m.body, ''),
-                COALESCE(
-                    (
-                        SELECT group_concat(trim(COALESCE(a.name, '') || ' ' || a.email_address), ' ')
-                        FROM actors a
-                        WHERE a.message_id = m.id
-                    ),
-                    '')
-            FROM messages m""");
-  }
 
   @Override
   public Map<Integer, Function<Connection, Integer>> getMigrations() {
-    return Map.of(
-        2, v2Migration,
-        3, v3Migration,
-        4, v4Migration,
-        5, v5Migration,
-        6, v6Migration,
-        7, v7Migration,
-        8, v8Migration);
+    return Map.of(2, schemaMigration);
   }
 
   @Override
   public int getCurrentVersion() {
-    return 8;
+    return 2;
   }
 }

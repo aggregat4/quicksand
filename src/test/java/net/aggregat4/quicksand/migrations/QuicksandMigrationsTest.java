@@ -2,6 +2,7 @@ package net.aggregat4.quicksand.migrations;
 
 import static net.aggregat4.quicksand.repository.DatabaseMaintenance.migrateDb;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,6 +11,7 @@ import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Set;
 import javax.sql.DataSource;
+import net.aggregat4.dblib.DbUtil;
 import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
@@ -18,36 +20,83 @@ import org.junit.jupiter.api.Test;
 
 class QuicksandMigrationsTest {
 
+  private static final Set<String> EXPECTED_TABLES =
+      Set.of(
+          "schema_version",
+          "accounts",
+          "folders",
+          "messages",
+          "actors",
+          "drafts",
+          "outbound_messages",
+          "attachments",
+          "message_search",
+          "account_folder_mappings",
+          "mailbox_action_queue");
+
+  private static final Set<String> FOLDER_COLUMNS =
+      Set.of(
+          "id",
+          "account_id",
+          "name",
+          "last_seen_uid",
+          "remote_name",
+          "special_use",
+          "uidvalidity",
+          "sync_enabled",
+          "mapping_status",
+          "highest_modseq",
+          "last_full_sync_epoch_s",
+          "last_viewed_epoch_s");
+
+  private static final Set<String> FOLDER_INDEXES =
+      Set.of(
+          "folders_account_name_idx",
+          "folders_account_remote_name_idx",
+          "folders_account_special_use_idx");
+
+  private static final Set<String> MESSAGE_INDEXES =
+      Set.of("messages_folder_paging_idx", "messages_folder_imap_uid_idx");
+
+  private static final Set<String> MAILBOX_ACTION_QUEUE_INDEXES =
+      Set.of(
+          "mailbox_action_queue_status_next_attempt_idx",
+          "mailbox_action_queue_account_status_idx",
+          "mailbox_action_queue_message_status_idx",
+          "mailbox_action_queue_source_identity_status_idx",
+          "mailbox_action_queue_resolution_resolved_idx");
+
   @Test
-  void createsImapActionSyncSchema() throws Exception {
+  void freshDatabaseCreatesFullSchema() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
 
     try (Connection con = ds.getConnection()) {
-      assertTrue(
-          columns(con, "folders")
-              .containsAll(
-                  Set.of(
-                      "remote_name",
-                      "special_use",
-                      "uidvalidity",
-                      "sync_enabled",
-                      "mapping_status")));
-      assertTrue(tableExists(con, "account_folder_mappings"));
-      assertTrue(tableExists(con, "mailbox_action_queue"));
+      assertEquals(2, schemaVersion(con));
+      assertEquals(EXPECTED_TABLES, applicationTableNames(con));
+      assertFalse(
+          applicationTableNames(con).stream().anyMatch(name -> name.contains("hardened")),
+          "staging table names must not remain after migration");
+
+      assertEquals(FOLDER_COLUMNS, columns(con, "folders"));
+      assertEquals(FOLDER_INDEXES, indexes(con, "folders"));
+      assertEquals(MESSAGE_INDEXES, indexes(con, "messages"));
+      assertEquals(MAILBOX_ACTION_QUEUE_INDEXES, indexes(con, "mailbox_action_queue"));
+      assertEquals(
+          Set.of("outbound_messages_status_next_attempt_idx"), indexes(con, "outbound_messages"));
+      assertEquals(
+          Set.of("account_folder_mappings_account_status_idx"),
+          indexes(con, "account_folder_mappings"));
+
       assertTrue(
           columns(con, "drafts").containsAll(Set.of("remote_imap_uid", "remote_uidvalidity")));
       assertTrue(
-          columns(con, "account_folder_mappings")
+          columns(con, "messages").containsAll(Set.of("folder_id", "imap_uid", "plain_text")));
+      assertTrue(columns(con, "actors").containsAll(Set.of("message_id", "email_address")));
+      assertTrue(
+          columns(con, "attachments")
               .containsAll(
-                  Set.of(
-                      "account_id",
-                      "special_use",
-                      "folder_id",
-                      "remote_name",
-                      "status",
-                      "created_at",
-                      "updated_at")));
+                  Set.of("draft_id", "message_id", "outbound_message_id", "content_hash")));
       assertTrue(
           columns(con, "mailbox_action_queue")
               .containsAll(
@@ -77,19 +126,25 @@ class QuicksandMigrationsTest {
                       "dismissed_at",
                       "abandoned_at")));
       assertTrue(
-          indexes(con, "mailbox_action_queue")
+          columns(con, "account_folder_mappings")
               .containsAll(
                   Set.of(
-                      "mailbox_action_queue_status_next_attempt_idx",
-                      "mailbox_action_queue_account_status_idx",
-                      "mailbox_action_queue_message_status_idx",
-                      "mailbox_action_queue_source_identity_status_idx",
-                      "mailbox_action_queue_resolution_resolved_idx")));
+                      "account_id",
+                      "special_use",
+                      "folder_id",
+                      "remote_name",
+                      "status",
+                      "created_at",
+                      "updated_at")));
+
+      assertTrue(tableSql(con, "message_search").contains("USING fts5"));
+      assertTrue(!folderTableSql(con).contains("name TEXT UNIQUE"));
+      assertEquals("wal", journalMode(con));
     }
   }
 
   @Test
-  void v8AllowsSameFolderNameAcrossAccounts() throws Exception {
+  void schemaAllowsSameFolderNameAcrossAccounts() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
     DbAccountRepository accountRepository = new DbAccountRepository(ds);
@@ -104,13 +159,11 @@ class QuicksandMigrationsTest {
 
     try (Connection con = ds.getConnection()) {
       assertEquals(2, countRows(con, "folders"));
-      assertTrue(indexes(con, "folders").contains("folders_account_name_idx"));
-      assertTrue(!folderTableSql(con).contains("name TEXT UNIQUE"));
     }
   }
 
   @Test
-  void v8EnforcesFolderScopedImapUidIdentity() throws Exception {
+  void schemaEnforcesFolderScopedImapUidIdentity() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
     DbAccountRepository accountRepository = new DbAccountRepository(ds);
@@ -124,10 +177,6 @@ class QuicksandMigrationsTest {
     insertMessage(ds, inbox.id(), 42L);
     insertMessage(ds, archive.id(), 42L);
 
-    try (Connection con = ds.getConnection()) {
-      assertEquals(2, countRows(con, "messages"));
-    }
-
     assertThrows(
         SQLException.class,
         () -> insertMessage(ds, inbox.id(), 42L),
@@ -135,7 +184,7 @@ class QuicksandMigrationsTest {
   }
 
   @Test
-  void v8CascadesFolderDeleteToMessages() throws Exception {
+  void schemaCascadesFolderDeleteToMessagesAndActors() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
     DbAccountRepository accountRepository = new DbAccountRepository(ds);
@@ -145,9 +194,11 @@ class QuicksandMigrationsTest {
     var account = accountRepository.getAccounts().getFirst();
     var inbox = folderRepository.createFolder(account, "Inbox", "INBOX", null, null);
     insertMessage(ds, inbox.id(), 7L);
+    insertActor(ds, 1);
 
     try (Connection con = ds.getConnection()) {
       assertEquals(1, countRows(con, "messages"));
+      assertEquals(1, countRows(con, "actors"));
       execute(con, "DELETE FROM folders WHERE id = " + inbox.id());
       assertEquals(0, countRows(con, "messages"));
       assertEquals(0, countRows(con, "actors"));
@@ -170,6 +221,54 @@ class QuicksandMigrationsTest {
     }
   }
 
+  private static void insertActor(DataSource ds, int messageId) throws SQLException {
+    try (Connection con = ds.getConnection();
+        var stmt =
+            con.prepareStatement(
+                "INSERT INTO actors (message_id, type, email_address) VALUES (?, 1, 'a@b.c')")) {
+      stmt.setInt(1, messageId);
+      stmt.executeUpdate();
+    }
+  }
+
+  private static int schemaVersion(Connection con) throws SQLException {
+    return DbUtil.withPreparedStmtFunction(
+        con,
+        "SELECT version FROM schema_version WHERE id = 42",
+        stmt ->
+            DbUtil.withResultSetFunction(
+                stmt,
+                rs -> {
+                  assertTrue(rs.next());
+                  return rs.getInt(1);
+                }));
+  }
+
+  private static Set<String> applicationTableNames(Connection con) throws SQLException {
+    Set<String> tables = new HashSet<>();
+    for (String name : tableNames(con)) {
+      if (!name.startsWith("message_search_")) {
+        tables.add(name);
+      }
+    }
+    return tables;
+  }
+
+  private static Set<String> tableNames(Connection con) throws SQLException {
+    Set<String> tables = new HashSet<>();
+    try (var stmt =
+            con.prepareStatement("SELECT name FROM sqlite_master WHERE type IN ('table', 'view')");
+        var rs = stmt.executeQuery()) {
+      while (rs.next()) {
+        String name = rs.getString(1);
+        if (!name.startsWith("sqlite_")) {
+          tables.add(name);
+        }
+      }
+    }
+    return tables;
+  }
+
   private static int countRows(Connection con, String table) throws SQLException {
     try (var stmt = con.prepareStatement("SELECT COUNT(*) FROM " + table);
         var rs = stmt.executeQuery()) {
@@ -185,22 +284,25 @@ class QuicksandMigrationsTest {
   }
 
   private static String folderTableSql(Connection con) throws SQLException {
+    return tableSql(con, "folders");
+  }
+
+  private static String tableSql(Connection con, String table) throws SQLException {
     try (var stmt =
-            con.prepareStatement(
-                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'folders'");
-        var rs = stmt.executeQuery()) {
-      assertTrue(rs.next());
-      return rs.getString(1);
+        con.prepareStatement("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")) {
+      stmt.setString(1, table);
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        return rs.getString(1);
+      }
     }
   }
 
-  private static boolean tableExists(Connection con, String tableName) throws SQLException {
-    try (var rs =
-        con.prepareStatement("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")) {
-      rs.setString(1, tableName);
-      try (var result = rs.executeQuery()) {
-        return result.next();
-      }
+  private static String journalMode(Connection con) throws SQLException {
+    try (var stmt = con.prepareStatement("PRAGMA journal_mode");
+        var rs = stmt.executeQuery()) {
+      assertTrue(rs.next());
+      return rs.getString(1);
     }
   }
 
@@ -220,7 +322,10 @@ class QuicksandMigrationsTest {
     try (var stmt = con.prepareStatement("PRAGMA index_list(%s)".formatted(tableName));
         var rs = stmt.executeQuery()) {
       while (rs.next()) {
-        indexes.add(rs.getString("name"));
+        String name = rs.getString("name");
+        if (!name.startsWith("sqlite_autoindex_")) {
+          indexes.add(name);
+        }
       }
     }
     return indexes;
