@@ -19,6 +19,7 @@ import net.aggregat4.quicksand.domain.FolderMappingSetupRow;
 import net.aggregat4.quicksand.domain.FolderMappingStatus;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
+import net.aggregat4.quicksand.imap.FolderRemoteNameMatcher;
 import net.aggregat4.quicksand.jobs.JakartaMailSessionProperties;
 import net.aggregat4.quicksand.repository.AccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
@@ -103,11 +104,19 @@ public class AccountFolderMappingService {
   }
 
   public void confirmAutoDetectedMappings(int accountId) {
+    List<NamedFolder> folders = folderRepository.getFolders(accountId);
     for (AccountFolderMapping mapping : mappingRepository.findByAccountId(accountId)) {
       if (mapping.status() != FolderMappingStatus.AUTO_DETECTED || mapping.folderId() == null) {
         continue;
       }
-      NamedFolder folder = folderRepository.getFolder(mapping.folderId());
+      NamedFolder folder =
+          folders.stream()
+              .filter(candidate -> candidate.id() == mapping.folderId())
+              .findFirst()
+              .orElse(null);
+      if (folder == null) {
+        continue;
+      }
       mappingRepository.save(
           accountId,
           mapping.specialUse(),
@@ -129,6 +138,7 @@ public class AccountFolderMappingService {
     for (Map.Entry<FolderSpecialUse, Integer> entry : folderIdsBySpecialUse.entrySet()) {
       saveValidatedExistingFolderMapping(accountId, entry.getKey(), entry.getValue());
     }
+    confirmAutoDetectedMappings(accountId);
   }
 
   private void saveValidatedExistingFolderMapping(
@@ -196,6 +206,7 @@ public class AccountFolderMappingService {
 
   private void autoDetectMappings(int accountId) {
     List<NamedFolder> folders = folderRepository.getFolders(accountId);
+    reconcileConfirmedMappings(accountId, folders);
     Map<FolderSpecialUse, AccountFolderMapping> existingMappings =
         mappingRepository.findByAccountId(accountId).stream()
             .collect(Collectors.toMap(AccountFolderMapping::specialUse, Function.identity()));
@@ -208,6 +219,11 @@ public class AccountFolderMappingService {
           folders.stream().filter(folder -> folder.specialUse() == specialUse).toList();
       if (candidates.size() == 1) {
         NamedFolder folder = candidates.getFirst();
+        if (existing != null
+            && existing.status() == FolderMappingStatus.AUTO_DETECTED
+            && Objects.equals(existing.folderId(), folder.id())) {
+          continue;
+        }
         mappingRepository.save(
             accountId,
             specialUse,
@@ -220,6 +236,39 @@ public class AccountFolderMappingService {
       } else if (existing == null) {
         mappingRepository.save(accountId, specialUse, null, null, FolderMappingStatus.MISSING);
       }
+    }
+  }
+
+  private void reconcileConfirmedMappings(int accountId, List<NamedFolder> folders) {
+    Set<Integer> folderIds =
+        folders.stream().map(NamedFolder::id).collect(Collectors.toUnmodifiableSet());
+    for (AccountFolderMapping mapping : mappingRepository.findByAccountId(accountId)) {
+      if (mapping.status() != FolderMappingStatus.USER_CONFIRMED) {
+        continue;
+      }
+      Integer folderId = mapping.folderId();
+      if (folderId != null && folderIds.contains(folderId)) {
+        continue;
+      }
+      Optional<NamedFolder> matchedFolder =
+          folders.stream()
+              .filter(
+                  folder ->
+                      FolderRemoteNameMatcher.matchesStoredRemoteName(mapping.remoteName(), folder))
+              .findFirst();
+      if (matchedFolder.isPresent()) {
+        NamedFolder folder = matchedFolder.get();
+        mappingRepository.save(
+            accountId,
+            mapping.specialUse(),
+            folder.id(),
+            Optional.ofNullable(folder.remoteName()).orElse(folder.name()),
+            FolderMappingStatus.USER_CONFIRMED);
+        folderRepository.updateMappingStatus(folder, FolderMappingStatus.USER_CONFIRMED);
+        continue;
+      }
+      mappingRepository.save(
+          accountId, mapping.specialUse(), null, null, FolderMappingStatus.MISSING);
     }
   }
 

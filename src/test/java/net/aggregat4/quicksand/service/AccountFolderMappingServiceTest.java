@@ -260,6 +260,65 @@ class AccountFolderMappingServiceTest {
   }
 
   @Test
+  void saveExistingFolderMappingsConfirmsRemainingAutoDetectedMappings() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Save", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+    NamedFolder trash =
+        folderRepository.createFolder(account, "Trash", "Trash", FolderSpecialUse.TRASH, 456L);
+    AccountFolderMappingService service =
+        new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
+
+    service.syncMappingsAfterFolderDiscovery(account.id());
+    assertTrue(service.hasAutoDetectedMappings(account.id()));
+
+    service.saveExistingFolderMappings(account.id(), Map.of(FolderSpecialUse.TRASH, trash.id()));
+
+    assertFalse(service.hasAutoDetectedMappings(account.id()));
+    var trashMapping =
+        mappingRepository.findByAccountId(account.id()).stream()
+            .filter(mapping -> mapping.specialUse() == FolderSpecialUse.TRASH)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(FolderMappingStatus.USER_CONFIRMED, trashMapping.status());
+  }
+
+  @Test
+  void userConfirmedMappingRebindsWhenFolderIdentityChanges() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Rebind", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+    mappingRepository.save(
+        account.id(), FolderSpecialUse.ARCHIVE, 999, "Archive", FolderMappingStatus.USER_CONFIRMED);
+    NamedFolder archive =
+        folderRepository.createFolder(account, "Archive", "INBOX.Archive", null, 123L);
+    AccountFolderMappingService service =
+        new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
+
+    service.syncMappingsAfterFolderDiscovery(account.id());
+
+    var archiveMapping =
+        mappingRepository.findByAccountId(account.id()).stream()
+            .filter(mapping -> mapping.specialUse() == FolderSpecialUse.ARCHIVE)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(FolderMappingStatus.USER_CONFIRMED, archiveMapping.status());
+    assertEquals(archive.id(), archiveMapping.folderId());
+    assertEquals("INBOX.Archive", archiveMapping.remoteName());
+    assertFalse(service.hasAutoDetectedMappings(account.id()));
+  }
+
+  @Test
   void rejectsInboxAsRequiredMappingTarget() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);

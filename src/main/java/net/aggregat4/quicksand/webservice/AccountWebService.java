@@ -386,7 +386,7 @@ public class AccountWebService implements HttpService {
 
   private void postFolderSettingsHandler(ServerRequest request, ServerResponse response) {
     int accountId = RequestUtils.intPathParam(request, "accountId");
-    Map<String, String> formParams = parseFormEncoded(request.content().as(String.class));
+    Map<String, String> formParams = readFormParams(request);
     try {
       if ("true".equals(formParams.get("confirm_auto_detected"))) {
         accountFolderMappingService.confirmAutoDetectedMappings(accountId);
@@ -402,15 +402,11 @@ public class AccountWebService implements HttpService {
         FolderSpecialUse specialUse = createSpecialUse.get();
         accountFolderMappingService.createRemoteFolderAndMap(
             accountId, specialUse, formParams.get("create_name_" + specialUse.name()));
-      } else {
-        Map<FolderSpecialUse, Integer> selectedFolderIds = new EnumMap<>(FolderSpecialUse.class);
-        for (FolderSpecialUse specialUse : accountFolderMappingService.requiredSpecialUses()) {
-          String folderIdValue = formParams.get("folder_" + specialUse.name());
-          if (folderIdValue != null && !folderIdValue.isBlank()) {
-            selectedFolderIds.put(specialUse, Integer.parseInt(folderIdValue));
-          }
-        }
+      } else if (isFolderMappingSaveRequest(formParams)) {
+        Map<FolderSpecialUse, Integer> selectedFolderIds = parseSelectedFolderIds(formParams);
         accountFolderMappingService.saveExistingFolderMappings(accountId, selectedFolderIds);
+      } else {
+        throw new IllegalArgumentException("Folder settings form submission was empty or invalid.");
       }
       ResponseUtils.redirectAfterPost(
           response, URI.create("/accounts/%s/settings/folders?saved=true".formatted(accountId)));
@@ -423,6 +419,36 @@ public class AccountWebService implements HttpService {
                       accountId,
                       java.net.URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8))));
     }
+  }
+
+  private static boolean isFolderMappingSaveRequest(Map<String, String> formParams) {
+    if ("true".equals(formParams.get("save_mappings"))) {
+      return true;
+    }
+    return formParams.keySet().stream().anyMatch(key -> key.startsWith("folder_"));
+  }
+
+  private static Map<FolderSpecialUse, Integer> parseSelectedFolderIds(
+      Map<String, String> formParams) {
+    Map<FolderSpecialUse, Integer> selectedFolderIds = new EnumMap<>(FolderSpecialUse.class);
+    for (FolderSpecialUse specialUse : FolderSpecialUse.values()) {
+      if (specialUse == FolderSpecialUse.INBOX) {
+        continue;
+      }
+      String folderIdValue = formParams.get("folder_" + specialUse.name());
+      if (folderIdValue != null && !folderIdValue.isBlank()) {
+        selectedFolderIds.put(specialUse, Integer.parseInt(folderIdValue));
+      }
+    }
+    return selectedFolderIds;
+  }
+
+  private static Map<String, String> readFormParams(ServerRequest request) {
+    String body = request.content().as(String.class);
+    if (body == null || body.isBlank()) {
+      return Map.of();
+    }
+    return parseFormEncoded(body);
   }
 
   private void renderDraftsAccount(

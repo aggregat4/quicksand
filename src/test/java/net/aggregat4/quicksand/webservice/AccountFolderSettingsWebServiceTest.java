@@ -38,6 +38,7 @@ import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 import net.aggregat4.quicksand.service.MailboxSyncRecoveryService;
+import net.aggregat4.quicksand.service.MailboxUpdateBroadcaster;
 import net.aggregat4.quicksand.service.NotificationService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 import org.junit.jupiter.api.Test;
@@ -169,7 +170,9 @@ class AccountFolderSettingsWebServiceTest {
               HttpRequest.newBuilder(
                       URI.create(baseUrl + "/accounts/" + account.id() + "/settings/folders"))
                   .header("Content-Type", "application/x-www-form-urlencoded")
-                  .POST(HttpRequest.BodyPublishers.ofString("folder_ARCHIVE=" + archiveFolderId))
+                  .POST(
+                      HttpRequest.BodyPublishers.ofString(
+                          "save_mappings=true&folder_ARCHIVE=" + archiveFolderId))
                   .build(),
               HttpResponse.BodyHandlers.ofString());
 
@@ -358,7 +361,8 @@ class AccountFolderSettingsWebServiceTest {
       DbAccountFolderMappingRepository mappingRepository)
       throws IOException {
     DbActorRepository actorRepository = new DbActorRepository(ds);
-    DbEmailRepository emailRepository = new DbEmailRepository(ds, actorRepository);
+    DbEmailRepository emailRepository =
+        new DbEmailRepository(ds, actorRepository, new DbAttachmentRepository(ds));
     DbDraftRepository draftRepository = new DbDraftRepository(ds);
     DbAttachmentRepository attachmentRepository = new DbAttachmentRepository(ds);
     AttachmentService attachmentService = new AttachmentService(attachmentRepository);
@@ -378,6 +382,7 @@ class AccountFolderSettingsWebServiceTest {
             emailRepository, mappingRepository, () -> {}, Clock.systemDefaultZone());
     NotificationService notificationService =
         new NotificationService(folderRepository, emailRepository, Clock.systemDefaultZone());
+    MailboxUpdateBroadcaster mailboxUpdateBroadcaster = new MailboxUpdateBroadcaster();
     HttpRouting.Builder routing =
         HttpRouting.builder()
             .register(
@@ -396,8 +401,71 @@ class AccountFolderSettingsWebServiceTest {
                     outboundMessageService,
                     mailboxSyncRecoveryService,
                     notificationService,
+                    mailboxUpdateBroadcaster,
                     Clock.systemDefaultZone()));
     return WebServer.builder().port(0).host("127.0.0.1").routing(routing).build().start();
+  }
+
+  @Test
+  void saveMappingsPersistsUserConfirmedAfterFolderResync() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Persist", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    folderRepository.createFolder(account, "Inbox", "INBOX", FolderSpecialUse.INBOX, 1L);
+    createRequiredSpecialUseFolders(account, folderRepository);
+    int archiveWithoutAttributeId =
+        folderRepository.createFolder(account, "All Mail", "All Mail", null, 7L).id();
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+    AccountFolderMappingService mappingService =
+        new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
+
+    WebServer webServer = startServer(ds, accountRepository, folderRepository, mappingRepository);
+    try {
+      String baseUrl = "http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME);
+      HttpClient client = HttpClient.newHttpClient();
+      client.send(
+          HttpRequest.newBuilder(
+                  URI.create(baseUrl + "/accounts/" + account.id() + "/settings/folders"))
+              .GET()
+              .build(),
+          HttpResponse.BodyHandlers.discarding());
+
+      String body =
+          "save_mappings=true"
+              + "&folder_ARCHIVE="
+              + archiveWithoutAttributeId
+              + "&folder_TRASH=3&folder_JUNK=4&folder_SENT=5&folder_DRAFTS=6";
+      HttpResponse<String> postResponse =
+          client.send(
+              HttpRequest.newBuilder(
+                      URI.create(baseUrl + "/accounts/" + account.id() + "/settings/folders"))
+                  .header("Content-Type", "application/x-www-form-urlencoded")
+                  .POST(HttpRequest.BodyPublishers.ofString(body))
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      assertEquals(303, postResponse.statusCode());
+
+      mappingService.syncMappingsAfterFolderDiscovery(account.id());
+
+      assertFalse(mappingService.hasAutoDetectedMappings(account.id()));
+      assertTrue(mappingService.hasRequiredMappings(account.id()));
+      assertTrue(
+          mappingRepository.findByAccountId(account.id()).stream()
+              .allMatch(mapping -> mapping.status() == FolderMappingStatus.USER_CONFIRMED));
+      var archiveMapping =
+          mappingRepository.findByAccountId(account.id()).stream()
+              .filter(mapping -> mapping.specialUse() == FolderSpecialUse.ARCHIVE)
+              .findFirst()
+              .orElseThrow();
+      assertEquals(archiveWithoutAttributeId, archiveMapping.folderId());
+      assertEquals("All Mail", archiveMapping.remoteName());
+    } finally {
+      webServer.stop();
+    }
   }
 
   private static void createRequiredSpecialUseFolders(
