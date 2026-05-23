@@ -17,12 +17,9 @@ import net.aggregat4.quicksand.domain.Attachment;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
-import net.aggregat4.quicksand.domain.FolderMappingStatus;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
-import net.aggregat4.quicksand.domain.MailboxActionExecutionState;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
 import net.aggregat4.quicksand.domain.MailboxActionResolutionType;
-import net.aggregat4.quicksand.domain.MailboxActionStatus;
 import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
@@ -44,10 +41,12 @@ public class DbEmailRepository implements EmailRepository {
       MESSAGE_HEADER_COLUMNS + ", body, plain_text";
   private final DataSource ds;
   private final AttachmentRepository attachmentRepository;
+  private final DbMailboxActionRepository mailboxActions;
 
   public DbEmailRepository(DataSource ds, AttachmentRepository attachmentRepository) {
     this.ds = ds;
     this.attachmentRepository = attachmentRepository;
+    this.mailboxActions = new DbMailboxActionRepository(ds);
   }
 
   @Override
@@ -185,7 +184,8 @@ public class DbEmailRepository implements EmailRepository {
           boolean previousAutoCommit = con.getAutoCommit();
           con.setAutoCommit(false);
           try {
-            Optional<MessageActionContext> context = findMessageActionContext(con, id);
+            Optional<MailboxActionDbSupport.MessageActionContext> context =
+                MailboxActionDbSupport.findMessageActionContext(con, id);
             if (context.isEmpty()) {
               con.rollback();
               return;
@@ -198,7 +198,7 @@ public class DbEmailRepository implements EmailRepository {
                   stmt.setInt(2, id);
                   stmt.executeUpdate();
                 });
-            enqueueAction(
+            MailboxActionDbSupport.enqueueAction(
                 con,
                 context.get(),
                 messageRead ? MailboxActionType.MARK_READ : MailboxActionType.MARK_UNREAD,
@@ -235,253 +235,6 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
-  public Set<Long> getPendingMoveLikeActionSourceUids(
-      int accountId, String sourceRemoteName, Long sourceUidValidity) {
-    return DbUtil.withPreparedStmtFunction(
-        ds,
-        """
-            SELECT source_uid
-            FROM mailbox_action_queue
-            WHERE account_id = ?
-              AND source_remote_name = ?
-              AND source_uidvalidity IS ?
-              AND action_type IN (%s)
-              AND status IN (%s)"""
-            .formatted(
-                EnumSql.inClause(MailboxActionType.MOVE_LIKE),
-                EnumSql.inClause(
-                    MailboxActionStatus.PENDING,
-                    MailboxActionStatus.APPLYING,
-                    MailboxActionStatus.FAILED_RETRYABLE)),
-        stmt -> {
-          stmt.setInt(1, accountId);
-          stmt.setString(2, sourceRemoteName);
-          if (sourceUidValidity == null) {
-            stmt.setNull(3, java.sql.Types.BIGINT);
-          } else {
-            stmt.setLong(3, sourceUidValidity);
-          }
-          return DbUtil.withResultSetFunction(
-              stmt,
-              rs -> {
-                HashSet<Long> sourceUids = new HashSet<>();
-                while (rs.next()) {
-                  sourceUids.add(rs.getLong(1));
-                }
-                return sourceUids;
-              });
-        });
-  }
-
-  @Override
-  public MailboxSyncStatus getMailboxSyncStatus(int accountId) {
-    return DbUtil.withConFunction(
-        ds,
-        con -> {
-          MailboxSyncStatusCounts counts = getMailboxSyncStatusCounts(con, accountId);
-          List<MailboxActionQueueRow> actions = getMailboxSyncStatusRows(con, accountId);
-          return new MailboxSyncStatus(
-              counts.pendingCount(),
-              counts.retryingCount(),
-              counts.failedCount(),
-              counts.conflictCount(),
-              counts.needsAttention(),
-              actions);
-        });
-  }
-
-  @Override
-  public List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit) {
-    return DbUtil.withConFunction(
-        ds,
-        con -> {
-          boolean previousAutoCommit = con.getAutoCommit();
-          con.setAutoCommit(false);
-          try {
-            List<MailboxActionQueueRow> actions = findDueMailboxActions(con, now, limit);
-            for (MailboxActionQueueRow action : actions) {
-              try (PreparedStatement stmt =
-                  con.prepareStatement(
-                      """
-                          UPDATE mailbox_action_queue
-                          SET status = ?,
-                              updated_at = ?
-                          WHERE id = ?
-                            AND status IN (%s)"""
-                          .formatted(EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
-                stmt.setString(1, MailboxActionStatus.APPLYING.name());
-                stmt.setString(2, toISOString(now));
-                stmt.setInt(3, action.id());
-                stmt.executeUpdate();
-              }
-            }
-            con.commit();
-            return actions;
-          } catch (SQLException | RuntimeException e) {
-            con.rollback();
-            throw e;
-          } finally {
-            con.setAutoCommit(previousAutoCommit);
-          }
-        });
-  }
-
-  @Override
-  public void markMailboxActionSucceeded(int id, ZonedDateTime now) {
-    DbUtil.withPreparedStmtConsumer(
-        ds,
-        """
-            UPDATE mailbox_action_queue
-            SET status = ?,
-                execution_state = ?,
-                updated_at = ?,
-                succeeded_at = ?,
-                last_error = NULL
-            WHERE id = ?""",
-        stmt -> {
-          stmt.setString(1, MailboxActionStatus.SUCCEEDED.name());
-          stmt.setString(2, MailboxActionExecutionState.CONFIRMED_APPLIED.name());
-          stmt.setString(3, toISOString(now));
-          stmt.setString(4, toISOString(now));
-          stmt.setInt(5, id);
-          stmt.executeUpdate();
-        });
-  }
-
-  @Override
-  public void markMailboxActionRetry(
-      int id, String error, ZonedDateTime nextAttempt, ZonedDateTime now) {
-    DbUtil.withPreparedStmtConsumer(
-        ds,
-        """
-            UPDATE mailbox_action_queue
-            SET status = ?,
-                execution_state = ?,
-                attempt_count = attempt_count + 1,
-                next_attempt_at = ?,
-                next_attempt_at_epoch_s = ?,
-                last_error = ?,
-                updated_at = ?
-            WHERE id = ?""",
-        stmt -> {
-          stmt.setString(1, MailboxActionStatus.FAILED_RETRYABLE.name());
-          stmt.setString(2, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
-          stmt.setString(3, toISOString(nextAttempt));
-          stmt.setLong(4, nextAttempt.toEpochSecond());
-          stmt.setString(5, error);
-          stmt.setString(6, toISOString(now));
-          stmt.setInt(7, id);
-          stmt.executeUpdate();
-        });
-  }
-
-  @Override
-  public void markMailboxActionPermanentFailure(int id, String error, ZonedDateTime now) {
-    DbUtil.withPreparedStmtConsumer(
-        ds,
-        """
-            UPDATE mailbox_action_queue
-            SET status = ?,
-                execution_state = ?,
-                attempt_count = attempt_count + 1,
-                last_error = ?,
-                updated_at = ?,
-                resolved_at = ?
-            WHERE id = ?""",
-        stmt -> {
-          stmt.setString(1, MailboxActionStatus.FAILED_PERMANENT.name());
-          stmt.setString(2, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
-          stmt.setString(3, error);
-          stmt.setString(4, toISOString(now));
-          stmt.setString(5, toISOString(now));
-          stmt.setInt(6, id);
-          stmt.executeUpdate();
-        });
-  }
-
-  @Override
-  public void scheduleDraftUpsert(int draftId, ZonedDateTime nextAttemptAt) {
-    DbUtil.withConConsumer(
-        ds,
-        con -> {
-          try {
-            Optional<DraftEnqueueContext> context = findDraftEnqueueContext(con, draftId);
-            if (context.isEmpty()) {
-              return;
-            }
-            Optional<TargetFolderContext> target =
-                findMappedTargetFolderContext(
-                    con, context.get().accountId(), FolderSpecialUse.DRAFTS);
-            if (target.isEmpty()) {
-              return;
-            }
-            if (coalesceDraftUpsert(con, draftId, nextAttemptAt)) {
-              return;
-            }
-            enqueueDraftUpsertAction(
-                con, context.get().accountId(), target.get(), draftId, nextAttemptAt);
-          } catch (SQLException e) {
-            throw new RuntimeException(e);
-          }
-        });
-  }
-
-  @Override
-  public void enqueueDraftDelete(int draftId) {
-    DbUtil.withConConsumer(ds, con -> enqueueDraftDelete(con, draftId));
-  }
-
-  @Override
-  public void enqueueDraftDelete(Connection con, int draftId) {
-    try {
-      cancelPendingDraftUpserts(con, draftId);
-      Optional<DraftEnqueueContext> context = findDraftEnqueueContext(con, draftId);
-      if (context.isEmpty()) {
-        return;
-      }
-      if (context.get().remoteImapUid().isEmpty()) {
-        return;
-      }
-      Optional<TargetFolderContext> target =
-          findMappedTargetFolderContext(con, context.get().accountId(), FolderSpecialUse.DRAFTS);
-      if (target.isEmpty()) {
-        return;
-      }
-      if (hasUnresolvedDraftDelete(con, draftId)) {
-        return;
-      }
-      enqueueDraftDeleteAction(con, context.get(), target.get(), draftId);
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  @Override
-  public void enqueueAppendSent(int outboundMessageId) {
-    DbUtil.withConConsumer(
-        ds,
-        con -> {
-          try {
-            Optional<Integer> accountId = findOutboundMessageAccountId(con, outboundMessageId);
-            if (accountId.isEmpty()) {
-              return;
-            }
-            if (hasUnresolvedAppendSent(con, outboundMessageId)) {
-              return;
-            }
-            Optional<TargetFolderContext> target =
-                findMappedTargetFolderContext(con, accountId.get(), FolderSpecialUse.SENT);
-            if (target.isEmpty()) {
-              return;
-            }
-            enqueueAppendSentAction(con, accountId.get(), target.get(), outboundMessageId);
-          } catch (SQLException e) {
-            throw new RuntimeException(e);
-          }
-        });
-  }
-
-  @Override
   public void updateMessageImapUid(int messageId, long imapUid) {
     DbUtil.withPreparedStmtConsumer(
         ds,
@@ -490,271 +243,6 @@ public class DbEmailRepository implements EmailRepository {
           stmt.setLong(1, imapUid);
           stmt.setInt(2, messageId);
           stmt.executeUpdate();
-        });
-  }
-
-  @Override
-  public void markMailboxActionConflict(int id, String error, ZonedDateTime now) {
-    DbUtil.withPreparedStmtConsumer(
-        ds,
-        """
-            UPDATE mailbox_action_queue
-            SET status = ?,
-                execution_state = ?,
-                attempt_count = attempt_count + 1,
-                last_error = ?,
-                updated_at = ?,
-                resolved_at = ?
-            WHERE id = ?""",
-        stmt -> {
-          stmt.setString(1, MailboxActionStatus.CONFLICT.name());
-          stmt.setString(2, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
-          stmt.setString(3, error);
-          stmt.setString(4, toISOString(now));
-          stmt.setString(5, toISOString(now));
-          stmt.setInt(6, id);
-          stmt.executeUpdate();
-        });
-  }
-
-  @Override
-  public Optional<MailboxActionQueueRow> findMailboxAction(int actionId, int accountId) {
-    return DbUtil.withConFunction(ds, con -> findMailboxAction(con, actionId, accountId));
-  }
-
-  @Override
-  public boolean requestMailboxActionRetry(int actionId, int accountId, ZonedDateTime now) {
-    return DbUtil.withConFunction(
-        ds,
-        con -> {
-          Optional<MailboxActionQueueRow> action = findMailboxAction(con, actionId, accountId);
-          if (action.isEmpty() || !action.get().canRetryNow()) {
-            return false;
-          }
-          try (PreparedStatement stmt =
-              con.prepareStatement(
-                  """
-                      UPDATE mailbox_action_queue
-                      SET status = ?,
-                          next_attempt_at = ?,
-                          next_attempt_at_epoch_s = ?,
-                          updated_at = ?
-                      WHERE id = ?
-                        AND account_id = ?
-                        AND resolution_type IS NULL
-                        AND status IN (%s)"""
-                      .formatted(
-                          EnumSql.inClause(
-                              MailboxActionStatus.FAILED_RETRYABLE,
-                              MailboxActionStatus.CONFLICT,
-                              MailboxActionStatus.APPLYING)))) {
-            stmt.setString(1, MailboxActionStatus.PENDING.name());
-            stmt.setString(2, toISOString(now));
-            stmt.setLong(3, now.toEpochSecond());
-            stmt.setString(4, toISOString(now));
-            stmt.setInt(5, actionId);
-            stmt.setInt(6, accountId);
-            return stmt.executeUpdate() > 0;
-          }
-        });
-  }
-
-  @Override
-  public boolean dismissMailboxAction(int actionId, int accountId, ZonedDateTime now) {
-    return DbUtil.withConFunction(
-        ds,
-        con -> {
-          Optional<MailboxActionQueueRow> action = findMailboxAction(con, actionId, accountId);
-          if (action.isEmpty() || !action.get().canDismiss()) {
-            return false;
-          }
-          try (PreparedStatement stmt =
-              con.prepareStatement(
-                  """
-                      UPDATE mailbox_action_queue
-                      SET dismissed_at = ?,
-                          resolution_type = ?,
-                          resolved_at = COALESCE(resolved_at, ?),
-                          updated_at = ?
-                      WHERE id = ?
-                        AND account_id = ?
-                        AND resolution_type IS NULL
-                        AND status IN (%s)"""
-                      .formatted(
-                          EnumSql.inClause(
-                              MailboxActionStatus.FAILED_PERMANENT,
-                              MailboxActionStatus.CONFLICT)))) {
-            stmt.setString(1, toISOString(now));
-            stmt.setString(2, MailboxActionResolutionType.DISMISSED.name());
-            stmt.setString(3, toISOString(now));
-            stmt.setString(4, toISOString(now));
-            stmt.setInt(5, actionId);
-            stmt.setInt(6, accountId);
-            return stmt.executeUpdate() > 0;
-          }
-        });
-  }
-
-  @Override
-  public boolean abandonMailboxAction(int actionId, int accountId, ZonedDateTime now) {
-    return DbUtil.withConFunction(
-        ds,
-        con -> {
-          Optional<MailboxActionQueueRow> action = findMailboxAction(con, actionId, accountId);
-          if (action.isEmpty() || !action.get().canAbandon()) {
-            return false;
-          }
-          try (PreparedStatement stmt =
-              con.prepareStatement(
-                  """
-                      UPDATE mailbox_action_queue
-                      SET resolution_type = ?,
-                          abandoned_at = ?,
-                          resolved_at = COALESCE(resolved_at, ?),
-                          updated_at = ?
-                      WHERE id = ?
-                        AND account_id = ?
-                        AND resolution_type IS NULL
-                        AND status IN (%s)"""
-                      .formatted(EnumSql.inClause(MailboxActionStatus.SYNC_STATUS_VISIBLE)))) {
-            stmt.setString(1, MailboxActionResolutionType.ABANDONED.name());
-            stmt.setString(2, toISOString(now));
-            stmt.setString(3, toISOString(now));
-            stmt.setString(4, toISOString(now));
-            stmt.setInt(5, actionId);
-            stmt.setInt(6, accountId);
-            return stmt.executeUpdate() > 0;
-          }
-        });
-  }
-
-  @Override
-  public boolean rollbackMailboxAction(int actionId, int accountId, ZonedDateTime now) {
-    return DbUtil.withConFunction(
-        ds,
-        con -> {
-          boolean previousAutoCommit = con.getAutoCommit();
-          con.setAutoCommit(false);
-          try {
-            Optional<MailboxActionQueueRow> action = findMailboxAction(con, actionId, accountId);
-            if (action.isEmpty() || !action.get().canRollbackLocalMove()) {
-              con.rollback();
-              return false;
-            }
-            MailboxActionQueueRow row = action.get();
-            moveMessageToFolder(con, row.messageId(), row.sourceFolderId());
-            try (PreparedStatement stmt =
-                con.prepareStatement(
-                    """
-                        UPDATE mailbox_action_queue
-                        SET resolution_type = ?,
-                            resolved_at = ?,
-                            updated_at = ?
-                        WHERE id = ?
-                          AND account_id = ?
-                          AND resolution_type IS NULL""")) {
-              stmt.setString(1, MailboxActionResolutionType.ROLLED_BACK.name());
-              stmt.setString(2, toISOString(now));
-              stmt.setString(3, toISOString(now));
-              stmt.setInt(4, actionId);
-              stmt.setInt(5, accountId);
-              if (stmt.executeUpdate() == 0) {
-                con.rollback();
-                return false;
-              }
-            }
-            con.commit();
-            return true;
-          } catch (SQLException | RuntimeException e) {
-            con.rollback();
-            throw e;
-          } finally {
-            con.setAutoCommit(previousAutoCommit);
-          }
-        });
-  }
-
-  @Override
-  public void resolveUnresolvedMailboxActions(
-      int accountId, MailboxActionResolutionType resolutionType, ZonedDateTime now) {
-    DbUtil.withPreparedStmtConsumer(
-        ds,
-        """
-            UPDATE mailbox_action_queue
-            SET resolution_type = ?,
-                abandoned_at = CASE
-                  WHEN ? IN ('ABANDONED', 'ABANDONED_BY_RESET') THEN ?
-                  ELSE abandoned_at
-                END,
-                resolved_at = COALESCE(resolved_at, ?),
-                updated_at = ?
-            WHERE account_id = ?
-              AND resolution_type IS NULL
-              AND status IN (%s)"""
-            .formatted(EnumSql.inClause(MailboxActionStatus.UNRESOLVED)),
-        stmt -> {
-          stmt.setString(1, resolutionType.name());
-          stmt.setString(2, resolutionType.name());
-          stmt.setString(3, toISOString(now));
-          stmt.setString(4, toISOString(now));
-          stmt.setString(5, toISOString(now));
-          stmt.setInt(6, accountId);
-          stmt.executeUpdate();
-        });
-  }
-
-  @Override
-  public void clearMirroredMailboxState(int accountId) {
-    DbUtil.withConConsumer(
-        ds,
-        con -> {
-          try (PreparedStatement stmt =
-              con.prepareStatement(
-                  """
-                      DELETE FROM message_search
-                      WHERE rowid IN (
-                        SELECT m.id
-                        FROM messages m
-                        JOIN folders f ON m.folder_id = f.id
-                        WHERE f.account_id = ?)""")) {
-            stmt.setInt(1, accountId);
-            stmt.executeUpdate();
-          }
-          try (PreparedStatement stmt =
-              con.prepareStatement(
-                  """
-                      DELETE FROM messages
-                      WHERE folder_id IN (SELECT id FROM folders WHERE account_id = ?)""")) {
-            stmt.setInt(1, accountId);
-            stmt.executeUpdate();
-          }
-          try (PreparedStatement stmt =
-              con.prepareStatement("DELETE FROM folders WHERE account_id = ?")) {
-            stmt.setInt(1, accountId);
-            stmt.executeUpdate();
-          }
-        });
-  }
-
-  @Override
-  public int purgeStaleMailboxActionRows(ZonedDateTime now) {
-    ZonedDateTime succeededCutoff = now.minusDays(30);
-    ZonedDateTime resolvedCutoff = now.minusDays(90);
-    return DbUtil.withPreparedStmtFunction(
-        ds,
-        """
-            DELETE FROM mailbox_action_queue
-            WHERE (status = ?
-                     AND succeeded_at IS NOT NULL
-                     AND succeeded_at < ?)
-               OR (resolution_type IS NOT NULL
-                     AND resolved_at IS NOT NULL
-                     AND resolved_at < ?)""",
-        stmt -> {
-          stmt.setString(1, MailboxActionStatus.SUCCEEDED.name());
-          stmt.setString(2, toISOString(succeededCutoff));
-          stmt.setString(3, toISOString(resolvedCutoff));
-          return stmt.executeUpdate();
         });
   }
 
@@ -1261,8 +749,10 @@ public class DbEmailRepository implements EmailRepository {
           boolean previousAutoCommit = con.getAutoCommit();
           con.setAutoCommit(false);
           try {
-            Optional<Integer> messageAccountId = findMessageAccountId(con, id);
-            Optional<Integer> targetAccountId = findFolderAccountId(con, targetFolderId);
+            Optional<Integer> messageAccountId =
+                MailboxActionDbSupport.findMessageAccountId(con, id);
+            Optional<Integer> targetAccountId =
+                MailboxActionDbSupport.findFolderAccountId(con, targetFolderId);
             if (messageAccountId.isEmpty()
                 || targetAccountId.isEmpty()
                 || !messageAccountId.get().equals(targetAccountId.get())) {
@@ -1270,15 +760,18 @@ public class DbEmailRepository implements EmailRepository {
               return;
             }
 
-            Optional<MessageActionContext> context = findMessageActionContext(con, id);
-            Optional<TargetFolderContext> target = findTargetFolderContext(con, targetFolderId);
+            Optional<MailboxActionDbSupport.MessageActionContext> context =
+                MailboxActionDbSupport.findMessageActionContext(con, id);
+            Optional<MailboxActionDbSupport.TargetFolderContext> target =
+                MailboxActionDbSupport.findTargetFolderContext(con, targetFolderId);
             if (context.isEmpty() || target.isEmpty()) {
               con.rollback();
               return;
             }
 
-            moveMessageToFolder(con, id, targetFolderId);
-            enqueueAction(con, context.get(), MailboxActionType.MOVE, target.get(), null, null);
+            MailboxActionDbSupport.moveMessageToFolder(con, id, targetFolderId);
+            MailboxActionDbSupport.enqueueAction(
+                con, context.get(), MailboxActionType.MOVE, target.get(), null, null);
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -1297,19 +790,22 @@ public class DbEmailRepository implements EmailRepository {
           boolean previousAutoCommit = con.getAutoCommit();
           con.setAutoCommit(false);
           try {
-            Optional<MessageActionContext> context = findMessageActionContext(con, id);
+            Optional<MailboxActionDbSupport.MessageActionContext> context =
+                MailboxActionDbSupport.findMessageActionContext(con, id);
             if (context.isEmpty()) {
               con.rollback();
               return;
             }
-            Optional<TargetFolderContext> target =
-                findMappedTargetFolderContext(con, context.get().accountId(), specialUse);
+            Optional<MailboxActionDbSupport.TargetFolderContext> target =
+                MailboxActionDbSupport.findMappedTargetFolderContext(
+                    con, context.get().accountId(), specialUse);
             if (target.isEmpty()) {
               con.rollback();
               return;
             }
-            moveMessageToFolder(con, id, target.get().folderId());
-            enqueueAction(con, context.get(), actionType, target.get(), specialUse, null);
+            MailboxActionDbSupport.moveMessageToFolder(con, id, target.get().folderId());
+            MailboxActionDbSupport.enqueueAction(
+                con, context.get(), actionType, target.get(), specialUse, null);
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -1319,610 +815,6 @@ public class DbEmailRepository implements EmailRepository {
           }
         });
   }
-
-  private static Optional<Integer> findMessageAccountId(Connection con, int messageId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            "SELECT f.account_id FROM messages m JOIN folders f ON m.folder_id = f.id WHERE m.id = ?")) {
-      stmt.setInt(1, messageId);
-      try (ResultSet rs = stmt.executeQuery()) {
-        if (!rs.next()) {
-          return Optional.empty();
-        }
-        return Optional.of(rs.getInt(1));
-      }
-    }
-  }
-
-  private static Optional<Integer> findFolderAccountId(Connection con, int folderId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement("SELECT account_id FROM folders WHERE id = ?")) {
-      stmt.setInt(1, folderId);
-      try (ResultSet rs = stmt.executeQuery()) {
-        if (!rs.next()) {
-          return Optional.empty();
-        }
-        return Optional.of(rs.getInt(1));
-      }
-    }
-  }
-
-  private static Optional<MessageActionContext> findMessageActionContext(
-      Connection con, int messageId) throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                SELECT f.account_id, m.folder_id, f.remote_name, f.uidvalidity, m.imap_uid
-                FROM messages m
-                JOIN folders f ON m.folder_id = f.id
-                WHERE m.id = ?""")) {
-      stmt.setInt(1, messageId);
-      try (ResultSet rs = stmt.executeQuery()) {
-        if (!rs.next()) {
-          return Optional.empty();
-        }
-        return Optional.of(
-            new MessageActionContext(
-                messageId,
-                rs.getInt(1),
-                rs.getInt(2),
-                rs.getString(3),
-                getNullableLong(rs, 4),
-                rs.getLong(5)));
-      }
-    }
-  }
-
-  private static Optional<TargetFolderContext> findMappedTargetFolderContext(
-      Connection con, int accountId, FolderSpecialUse specialUse) throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                SELECT folder_id, remote_name, special_use
-                FROM account_folder_mappings
-                WHERE account_id = ? AND special_use = ?
-                  AND folder_id IS NOT NULL AND remote_name IS NOT NULL
-                  AND status IN (%s)"""
-                .formatted(EnumSql.inClause(FolderMappingStatus.CONFIGURED)))) {
-      stmt.setInt(1, accountId);
-      stmt.setString(2, specialUse.name());
-      try (ResultSet rs = stmt.executeQuery()) {
-        if (!rs.next()) {
-          return Optional.empty();
-        }
-        return Optional.of(
-            new TargetFolderContext(
-                rs.getInt(1), rs.getString(2), FolderSpecialUse.valueOf(rs.getString(3))));
-      }
-    }
-  }
-
-  private static Optional<TargetFolderContext> findTargetFolderContext(Connection con, int folderId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement("SELECT id, remote_name, special_use FROM folders WHERE id = ?")) {
-      stmt.setInt(1, folderId);
-      try (ResultSet rs = stmt.executeQuery()) {
-        if (!rs.next()) {
-          return Optional.empty();
-        }
-        String specialUse = rs.getString(3);
-        return Optional.of(
-            new TargetFolderContext(
-                rs.getInt(1),
-                rs.getString(2),
-                specialUse == null ? null : FolderSpecialUse.valueOf(specialUse)));
-      }
-    }
-  }
-
-  private static boolean coalesceDraftUpsert(
-      Connection con, int draftId, ZonedDateTime nextAttemptAt) throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                UPDATE mailbox_action_queue
-                SET status = ?,
-                    next_attempt_at = ?,
-                    next_attempt_at_epoch_s = ?,
-                    last_error = NULL,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE action_type = ?
-                  AND payload_json = ?
-                  AND status IN (%s)"""
-                .formatted(EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
-      stmt.setString(1, MailboxActionStatus.PENDING.name());
-      stmt.setString(2, toISOString(nextAttemptAt));
-      stmt.setLong(3, nextAttemptAt.toEpochSecond());
-      stmt.setString(4, MailboxActionType.UPSERT_DRAFT.name());
-      stmt.setString(5, Integer.toString(draftId));
-      return stmt.executeUpdate() > 0;
-    }
-  }
-
-  private static void cancelPendingDraftUpserts(Connection con, int draftId) throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                DELETE FROM mailbox_action_queue
-                WHERE action_type = ?
-                  AND payload_json = ?
-                  AND status IN (%s)"""
-                .formatted(EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
-      stmt.setString(1, MailboxActionType.UPSERT_DRAFT.name());
-      stmt.setString(2, Integer.toString(draftId));
-      stmt.executeUpdate();
-    }
-  }
-
-  private static void enqueueDraftUpsertAction(
-      Connection con,
-      int accountId,
-      TargetFolderContext target,
-      int draftId,
-      ZonedDateTime nextAttemptAt)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                INSERT INTO mailbox_action_queue (
-                  account_id, message_id, action_type,
-                  target_folder_id, target_remote_name, target_special_use,
-                  payload_json, next_attempt_at, next_attempt_at_epoch_s)
-                VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?)""")) {
-      stmt.setInt(1, accountId);
-      stmt.setString(2, MailboxActionType.UPSERT_DRAFT.name());
-      stmt.setInt(3, target.folderId());
-      stmt.setString(4, target.remoteName());
-      stmt.setString(5, FolderSpecialUse.DRAFTS.name());
-      stmt.setString(6, Integer.toString(draftId));
-      stmt.setString(7, toISOString(nextAttemptAt));
-      stmt.setLong(8, nextAttemptAt.toEpochSecond());
-      stmt.executeUpdate();
-    }
-  }
-
-  private static void enqueueDraftDeleteAction(
-      Connection con, DraftEnqueueContext draft, TargetFolderContext target, int draftId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                INSERT INTO mailbox_action_queue (
-                  account_id, message_id, action_type,
-                  source_remote_name, source_uidvalidity, source_uid,
-                  target_folder_id, target_remote_name, target_special_use, payload_json)
-                VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
-      stmt.setInt(1, draft.accountId());
-      stmt.setString(2, MailboxActionType.DELETE_DRAFT.name());
-      stmt.setString(3, target.remoteName());
-      stmt.setLong(4, draft.remoteUidValidity().orElseThrow());
-      stmt.setLong(5, draft.remoteImapUid().orElseThrow());
-      stmt.setInt(6, target.folderId());
-      stmt.setString(7, target.remoteName());
-      stmt.setString(8, FolderSpecialUse.DRAFTS.name());
-      stmt.setString(9, Integer.toString(draftId));
-      stmt.executeUpdate();
-    }
-  }
-
-  private static boolean hasUnresolvedDraftDelete(Connection con, int draftId) throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                SELECT 1
-                FROM mailbox_action_queue
-                WHERE action_type = ?
-                  AND payload_json = ?
-                  AND status IN (%s)"""
-                .formatted(EnumSql.inClause(MailboxActionStatus.UNRESOLVED)))) {
-      stmt.setString(1, MailboxActionType.DELETE_DRAFT.name());
-      stmt.setString(2, Integer.toString(draftId));
-      try (ResultSet rs = stmt.executeQuery()) {
-        return rs.next();
-      }
-    }
-  }
-
-  private static Optional<DraftEnqueueContext> findDraftEnqueueContext(Connection con, int draftId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                SELECT account_id, remote_imap_uid, remote_uidvalidity
-                FROM drafts
-                WHERE id = ?""")) {
-      stmt.setInt(1, draftId);
-      try (ResultSet rs = stmt.executeQuery()) {
-        if (!rs.next()) {
-          return Optional.empty();
-        }
-        return Optional.of(
-            new DraftEnqueueContext(
-                rs.getInt(1),
-                Optional.ofNullable(getNullableLong(rs, 2)),
-                Optional.ofNullable(getNullableLong(rs, 3))));
-      }
-    }
-  }
-
-  private static void enqueueAppendSentAction(
-      Connection con, int accountId, TargetFolderContext target, int outboundMessageId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                INSERT INTO mailbox_action_queue (
-                  account_id, message_id, action_type,
-                  target_folder_id, target_remote_name, target_special_use, payload_json)
-                VALUES (?, NULL, ?, ?, ?, ?, ?)""")) {
-      stmt.setInt(1, accountId);
-      stmt.setString(2, MailboxActionType.APPEND_SENT.name());
-      stmt.setInt(3, target.folderId());
-      stmt.setString(4, target.remoteName());
-      stmt.setString(5, FolderSpecialUse.SENT.name());
-      stmt.setString(6, Integer.toString(outboundMessageId));
-      stmt.executeUpdate();
-    }
-  }
-
-  private static boolean hasUnresolvedAppendSent(Connection con, int outboundMessageId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                SELECT 1
-                FROM mailbox_action_queue
-                WHERE action_type = ?
-                  AND payload_json = ?
-                  AND status IN (%s)"""
-                .formatted(EnumSql.inClause(MailboxActionStatus.UNRESOLVED)))) {
-      stmt.setString(1, MailboxActionType.APPEND_SENT.name());
-      stmt.setString(2, Integer.toString(outboundMessageId));
-      try (ResultSet rs = stmt.executeQuery()) {
-        return rs.next();
-      }
-    }
-  }
-
-  private static Optional<Integer> findOutboundMessageAccountId(
-      Connection con, int outboundMessageId) throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement("SELECT account_id FROM outbound_messages WHERE id = ?")) {
-      stmt.setInt(1, outboundMessageId);
-      try (ResultSet rs = stmt.executeQuery()) {
-        if (!rs.next()) {
-          return Optional.empty();
-        }
-        return Optional.of(rs.getInt(1));
-      }
-    }
-  }
-
-  private static void enqueueAction(
-      Connection con,
-      MessageActionContext source,
-      MailboxActionType actionType,
-      TargetFolderContext target,
-      FolderSpecialUse targetSpecialUse,
-      String payloadJson)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                INSERT INTO mailbox_action_queue (
-                  account_id, message_id, action_type,
-                  source_folder_id, source_remote_name, source_uidvalidity, source_uid,
-                  target_folder_id, target_remote_name, target_special_use, payload_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
-      stmt.setInt(1, source.accountId());
-      stmt.setInt(2, source.messageId());
-      stmt.setString(3, actionType.name());
-      stmt.setInt(4, source.sourceFolderId());
-      stmt.setString(5, source.sourceRemoteName());
-      if (source.sourceUidValidity() == null) {
-        stmt.setNull(6, java.sql.Types.BIGINT);
-      } else {
-        stmt.setLong(6, source.sourceUidValidity());
-      }
-      stmt.setLong(7, source.sourceUid());
-      if (target == null) {
-        stmt.setNull(8, java.sql.Types.INTEGER);
-        stmt.setNull(9, java.sql.Types.VARCHAR);
-      } else {
-        stmt.setInt(8, target.folderId());
-        stmt.setString(9, target.remoteName());
-      }
-      stmt.setString(10, targetSpecialUse == null ? null : targetSpecialUse.name());
-      stmt.setString(11, payloadJson);
-      stmt.executeUpdate();
-    }
-  }
-
-  private static void moveMessageToFolder(Connection con, int messageId, int targetFolderId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement("UPDATE messages SET folder_id = ? WHERE id = ?")) {
-      stmt.setInt(1, targetFolderId);
-      stmt.setInt(2, messageId);
-      stmt.executeUpdate();
-    }
-  }
-
-  private static Long getNullableLong(ResultSet rs, int columnIndex) throws SQLException {
-    long value = rs.getLong(columnIndex);
-    return rs.wasNull() ? null : value;
-  }
-
-  private static Integer getNullableInt(ResultSet rs, int columnIndex) throws SQLException {
-    int value = rs.getInt(columnIndex);
-    return rs.wasNull() ? null : value;
-  }
-
-  private static MailboxSyncStatusCounts getMailboxSyncStatusCounts(Connection con, int accountId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                SELECT
-                  COALESCE(SUM(CASE WHEN status IN (%s) THEN 1 ELSE 0 END), 0),
-                  COALESCE(SUM(CASE WHEN status = '%s' THEN 1 ELSE 0 END), 0),
-                  COALESCE(SUM(CASE WHEN status = '%s' THEN 1 ELSE 0 END), 0),
-                  COALESCE(SUM(CASE WHEN status = '%s' THEN 1 ELSE 0 END), 0),
-                  COALESCE(SUM(CASE
-                    WHEN status IN ('%s', '%s')
-                      OR (status = '%s' AND attempt_count >= 3)
-                    THEN 1 ELSE 0 END), 0)
-                FROM mailbox_action_queue
-                WHERE account_id = ?
-                  AND dismissed_at IS NULL
-                  AND resolution_type IS NULL"""
-                .formatted(
-                    EnumSql.inClause(MailboxActionStatus.PENDING_OR_APPLYING),
-                    MailboxActionStatus.FAILED_RETRYABLE.name(),
-                    MailboxActionStatus.FAILED_PERMANENT.name(),
-                    MailboxActionStatus.CONFLICT.name(),
-                    MailboxActionStatus.FAILED_PERMANENT.name(),
-                    MailboxActionStatus.CONFLICT.name(),
-                    MailboxActionStatus.FAILED_RETRYABLE.name()))) {
-      stmt.setInt(1, accountId);
-      try (ResultSet rs = stmt.executeQuery()) {
-        rs.next();
-        return new MailboxSyncStatusCounts(
-            rs.getInt(1), rs.getInt(2), rs.getInt(3), rs.getInt(4), rs.getInt(5) > 0);
-      }
-    }
-  }
-
-  private static List<MailboxActionQueueRow> getMailboxSyncStatusRows(Connection con, int accountId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                SELECT
-                  q.id,
-                  q.account_id,
-                  q.message_id,
-                  COALESCE(m.subject, om.subject, d.subject, ''),
-                  q.action_type,
-                  q.source_folder_id,
-                  q.source_remote_name,
-                  q.source_uidvalidity,
-                  q.source_uid,
-                  q.target_folder_id,
-                  q.target_remote_name,
-                  q.target_special_use,
-                  q.status,
-                  q.execution_state,
-                  q.resolution_type,
-                  q.attempt_count,
-                  q.next_attempt_at,
-                  q.last_error,
-                  q.created_at,
-                  q.updated_at,
-                  q.payload_json
-                FROM mailbox_action_queue q
-                LEFT JOIN messages m ON m.id = q.message_id
-                LEFT JOIN outbound_messages om
-                  ON q.action_type = '%s'
-                 AND om.id = CAST(q.payload_json AS INTEGER)
-                LEFT JOIN drafts d
-                  ON q.action_type IN ('%s', '%s')
-                 AND d.id = CAST(q.payload_json AS INTEGER)
-                WHERE q.account_id = ?
-                """
-                    .formatted(
-                        MailboxActionType.APPEND_SENT.name(),
-                        MailboxActionType.UPSERT_DRAFT.name(),
-                        MailboxActionType.DELETE_DRAFT.name())
-                + """
-                  AND q.status IN (%s)
-                  AND q.dismissed_at IS NULL
-                  AND q.resolution_type IS NULL
-                ORDER BY
-                  CASE q.status
-                    WHEN '%s' THEN 0
-                    WHEN '%s' THEN 1
-                    WHEN '%s' THEN 2
-                    WHEN '%s' THEN 3
-                    ELSE 4
-                  END,
-                  q.created_at DESC,
-                  q.id DESC"""
-                    .formatted(
-                        EnumSql.inClause(MailboxActionStatus.SYNC_STATUS_VISIBLE),
-                        MailboxActionStatus.CONFLICT.name(),
-                        MailboxActionStatus.FAILED_PERMANENT.name(),
-                        MailboxActionStatus.FAILED_RETRYABLE.name(),
-                        MailboxActionStatus.APPLYING.name()))) {
-      stmt.setInt(1, accountId);
-      try (ResultSet rs = stmt.executeQuery()) {
-        List<MailboxActionQueueRow> rows = new ArrayList<>();
-        while (rs.next()) {
-          rows.add(toMailboxActionQueueRow(rs));
-        }
-        return rows;
-      }
-    }
-  }
-
-  private static List<MailboxActionQueueRow> findDueMailboxActions(
-      Connection con, ZonedDateTime now, int limit) throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                SELECT
-                  q.id,
-                  q.account_id,
-                  q.message_id,
-                  COALESCE(m.subject, om.subject, d.subject, ''),
-                  q.action_type,
-                  q.source_folder_id,
-                  q.source_remote_name,
-                  q.source_uidvalidity,
-                  q.source_uid,
-                  q.target_folder_id,
-                  q.target_remote_name,
-                  q.target_special_use,
-                  q.status,
-                  q.execution_state,
-                  q.resolution_type,
-                  q.attempt_count,
-                  q.next_attempt_at,
-                  q.last_error,
-                  q.created_at,
-                  q.updated_at,
-                  q.payload_json
-                FROM mailbox_action_queue q
-                LEFT JOIN messages m ON m.id = q.message_id
-                LEFT JOIN outbound_messages om
-                  ON q.action_type = '%s'
-                 AND om.id = CAST(q.payload_json AS INTEGER)
-                LEFT JOIN drafts d
-                  ON q.action_type IN ('%s', '%s')
-                 AND d.id = CAST(q.payload_json AS INTEGER)
-                WHERE q.status IN (%s)
-                  AND q.action_type IN (%s)
-                  AND (q.next_attempt_at_epoch_s IS NULL OR q.next_attempt_at_epoch_s <= ?)
-                ORDER BY q.created_at, q.id
-                LIMIT ?"""
-                .formatted(
-                    MailboxActionType.APPEND_SENT.name(),
-                    MailboxActionType.UPSERT_DRAFT.name(),
-                    MailboxActionType.DELETE_DRAFT.name(),
-                    EnumSql.inClause(MailboxActionStatus.CLAIMABLE),
-                    EnumSql.inClause(MailboxActionType.BACKGROUND_SYNCABLE)))) {
-      stmt.setLong(1, now.toEpochSecond());
-      stmt.setInt(2, limit);
-      try (ResultSet rs = stmt.executeQuery()) {
-        List<MailboxActionQueueRow> rows = new ArrayList<>();
-        while (rs.next()) {
-          rows.add(toMailboxActionQueueRow(rs));
-        }
-        return rows;
-      }
-    }
-  }
-
-  private static Optional<MailboxActionQueueRow> findMailboxAction(
-      Connection con, int actionId, int accountId) throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                SELECT
-                  q.id,
-                  q.account_id,
-                  q.message_id,
-                  COALESCE(m.subject, om.subject, d.subject, ''),
-                  q.action_type,
-                  q.source_folder_id,
-                  q.source_remote_name,
-                  q.source_uidvalidity,
-                  q.source_uid,
-                  q.target_folder_id,
-                  q.target_remote_name,
-                  q.target_special_use,
-                  q.status,
-                  q.execution_state,
-                  q.resolution_type,
-                  q.attempt_count,
-                  q.next_attempt_at,
-                  q.last_error,
-                  q.created_at,
-                  q.updated_at,
-                  q.payload_json
-                FROM mailbox_action_queue q
-                LEFT JOIN messages m ON m.id = q.message_id
-                LEFT JOIN outbound_messages om
-                  ON q.action_type = '%s'
-                 AND om.id = CAST(q.payload_json AS INTEGER)
-                LEFT JOIN drafts d
-                  ON q.action_type IN ('%s', '%s')
-                 AND d.id = CAST(q.payload_json AS INTEGER)
-                WHERE q.id = ?
-                  AND q.account_id = ?"""
-                .formatted(
-                    MailboxActionType.APPEND_SENT.name(),
-                    MailboxActionType.UPSERT_DRAFT.name(),
-                    MailboxActionType.DELETE_DRAFT.name()))) {
-      stmt.setInt(1, actionId);
-      stmt.setInt(2, accountId);
-      try (ResultSet rs = stmt.executeQuery()) {
-        if (!rs.next()) {
-          return Optional.empty();
-        }
-        return Optional.of(toMailboxActionQueueRow(rs));
-      }
-    }
-  }
-
-  private static MailboxActionQueueRow toMailboxActionQueueRow(ResultSet rs) throws SQLException {
-    return new MailboxActionQueueRow(
-        rs.getInt(1),
-        rs.getInt(2),
-        rs.getInt(3),
-        rs.getString(4),
-        MailboxActionType.valueOf(rs.getString(5)),
-        getNullableInt(rs, 6),
-        rs.getString(7),
-        getNullableLong(rs, 8),
-        getNullableLong(rs, 9),
-        getNullableInt(rs, 10),
-        rs.getString(11),
-        EnumSql.optionalEnum(FolderSpecialUse.class, rs.getString(12)),
-        MailboxActionStatus.valueOf(rs.getString(13)),
-        MailboxActionExecutionState.valueOf(rs.getString(14)),
-        EnumSql.optionalEnum(MailboxActionResolutionType.class, rs.getString(15)),
-        rs.getInt(16),
-        rs.getString(17),
-        rs.getString(18),
-        rs.getString(19),
-        rs.getString(20),
-        rs.getString(21));
-  }
-
-  private record MessageActionContext(
-      int messageId,
-      int accountId,
-      int sourceFolderId,
-      String sourceRemoteName,
-      Long sourceUidValidity,
-      long sourceUid) {}
-
-  private record TargetFolderContext(
-      int folderId, String remoteName, FolderSpecialUse specialUse) {}
-
-  private record DraftEnqueueContext(
-      int accountId, Optional<Long> remoteImapUid, Optional<Long> remoteUidValidity) {}
-
-  private record MailboxSyncStatusCounts(
-      int pendingCount,
-      int retryingCount,
-      int failedCount,
-      int conflictCount,
-      boolean needsAttention) {}
 
   private static String toISOString(ZonedDateTime dateTime) {
     return dateTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
@@ -1974,5 +866,104 @@ public class DbEmailRepository implements EmailRepository {
         .map(actor -> (actor.name().orElse("") + " " + actor.emailAddress()).trim())
         .filter(actor -> !actor.isBlank())
         .collect(Collectors.joining(" "));
+  }
+
+  @Override
+  public Set<Long> getPendingMoveLikeActionSourceUids(
+      int accountId, String sourceRemoteName, Long sourceUidValidity) {
+    return mailboxActions.getPendingMoveLikeActionSourceUids(
+        accountId, sourceRemoteName, sourceUidValidity);
+  }
+
+  @Override
+  public MailboxSyncStatus getMailboxSyncStatus(int accountId) {
+    return mailboxActions.getMailboxSyncStatus(accountId);
+  }
+
+  @Override
+  public List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit) {
+    return mailboxActions.claimDueMailboxActions(now, limit);
+  }
+
+  @Override
+  public void markMailboxActionSucceeded(int id, ZonedDateTime now) {
+    mailboxActions.markMailboxActionSucceeded(id, now);
+  }
+
+  @Override
+  public void markMailboxActionRetry(
+      int id, String error, ZonedDateTime nextAttempt, ZonedDateTime now) {
+    mailboxActions.markMailboxActionRetry(id, error, nextAttempt, now);
+  }
+
+  @Override
+  public void markMailboxActionConflict(int id, String error, ZonedDateTime now) {
+    mailboxActions.markMailboxActionConflict(id, error, now);
+  }
+
+  @Override
+  public void markMailboxActionPermanentFailure(int id, String error, ZonedDateTime now) {
+    mailboxActions.markMailboxActionPermanentFailure(id, error, now);
+  }
+
+  @Override
+  public Optional<MailboxActionQueueRow> findMailboxAction(int actionId, int accountId) {
+    return mailboxActions.findMailboxAction(actionId, accountId);
+  }
+
+  @Override
+  public boolean requestMailboxActionRetry(int actionId, int accountId, ZonedDateTime now) {
+    return mailboxActions.requestMailboxActionRetry(actionId, accountId, now);
+  }
+
+  @Override
+  public boolean dismissMailboxAction(int actionId, int accountId, ZonedDateTime now) {
+    return mailboxActions.dismissMailboxAction(actionId, accountId, now);
+  }
+
+  @Override
+  public boolean abandonMailboxAction(int actionId, int accountId, ZonedDateTime now) {
+    return mailboxActions.abandonMailboxAction(actionId, accountId, now);
+  }
+
+  @Override
+  public boolean rollbackMailboxAction(int actionId, int accountId, ZonedDateTime now) {
+    return mailboxActions.rollbackMailboxAction(actionId, accountId, now);
+  }
+
+  @Override
+  public void resolveUnresolvedMailboxActions(
+      int accountId, MailboxActionResolutionType resolutionType, ZonedDateTime now) {
+    mailboxActions.resolveUnresolvedMailboxActions(accountId, resolutionType, now);
+  }
+
+  @Override
+  public void clearMirroredMailboxState(int accountId) {
+    mailboxActions.clearMirroredMailboxState(accountId);
+  }
+
+  @Override
+  public int purgeStaleMailboxActionRows(ZonedDateTime now) {
+    return mailboxActions.purgeStaleMailboxActionRows(now);
+  }
+
+  @Override
+  public void enqueueAppendSent(int outboundMessageId) {
+    mailboxActions.enqueueAppendSent(outboundMessageId);
+  }
+
+  @Override
+  public void scheduleDraftUpsert(int draftId, ZonedDateTime nextAttemptAt) {
+    mailboxActions.scheduleDraftUpsert(draftId, nextAttemptAt);
+  }
+
+  @Override
+  public void enqueueDraftDelete(int draftId) {
+    mailboxActions.enqueueDraftDelete(draftId);
+  }
+
+  @Override
+  public void enqueueDraftDelete(Connection con, int draftId) {
+    mailboxActions.enqueueDraftDelete(con, draftId);
   }
 }

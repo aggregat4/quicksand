@@ -1,7 +1,5 @@
 package net.aggregat4.quicksand.repository;
 
-import java.sql.Connection;
-import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -10,13 +8,10 @@ import java.util.Set;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
-import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
-import net.aggregat4.quicksand.domain.MailboxActionResolutionType;
-import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 
-public interface EmailRepository {
+public interface EmailRepository extends MailboxActionRepository {
   Optional<Email> findById(int id);
 
   Optional<Integer> findAccountIdByMessageId(int id);
@@ -30,50 +25,7 @@ public interface EmailRepository {
   /** Returns an immutable set of IMAP UIDs for messages in the folder. */
   Set<Long> getAllMessageIds(int folderId);
 
-  Set<Long> getPendingMoveLikeActionSourceUids(
-      int accountId, String sourceRemoteName, Long sourceUidValidity);
-
-  MailboxSyncStatus getMailboxSyncStatus(int accountId);
-
-  List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit);
-
-  void markMailboxActionSucceeded(int id, ZonedDateTime now);
-
-  void markMailboxActionRetry(int id, String error, ZonedDateTime nextAttempt, ZonedDateTime now);
-
-  void markMailboxActionConflict(int id, String error, ZonedDateTime now);
-
-  void markMailboxActionPermanentFailure(int id, String error, ZonedDateTime now);
-
-  Optional<MailboxActionQueueRow> findMailboxAction(int actionId, int accountId);
-
-  boolean requestMailboxActionRetry(int actionId, int accountId, ZonedDateTime now);
-
-  boolean dismissMailboxAction(int actionId, int accountId, ZonedDateTime now);
-
-  boolean abandonMailboxAction(int actionId, int accountId, ZonedDateTime now);
-
-  boolean rollbackMailboxAction(int actionId, int accountId, ZonedDateTime now);
-
-  void resolveUnresolvedMailboxActions(
-      int accountId, MailboxActionResolutionType resolutionType, ZonedDateTime now);
-
-  void clearMirroredMailboxState(int accountId);
-
-  int purgeStaleMailboxActionRows(ZonedDateTime now);
-
   void updateMessageImapUid(int messageId, long imapUid);
-
-  void enqueueAppendSent(int outboundMessageId);
-
-  void scheduleDraftUpsert(int draftId, ZonedDateTime nextAttemptAt);
-
-  void enqueueDraftDelete(int draftId);
-
-  /**
-   * Uses the caller's connection; must not open a nested connection while a transaction is active.
-   */
-  void enqueueDraftDelete(Connection con, int draftId);
 
   void removeAllByUid(Collection<Long> localMessageIds);
 
