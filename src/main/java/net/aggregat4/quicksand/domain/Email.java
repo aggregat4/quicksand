@@ -3,6 +3,7 @@ package net.aggregat4.quicksand.domain;
 import java.util.List;
 import java.util.Objects;
 
+/** Full message view. Equality is by header id only, not body content or attachments. */
 public record Email(
     EmailHeader header,
     boolean plainText,
@@ -15,6 +16,7 @@ public record Email(
   }
 
   public Email {
+    attachments = attachments == null ? List.of() : List.copyOf(attachments);
     inboundAttachments = inboundAttachments == null ? List.of() : List.copyOf(inboundAttachments);
   }
 

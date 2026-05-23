@@ -181,7 +181,7 @@
                         <arg>-XDcompilePolicy=simple</arg>
                         <arg>--should-stop=ifError=FLOW</arg>
                         <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
-                        <arg>-Xplugin:ErrorProne -XepDisableWarningsInGeneratedCode -XepDisableAllChecks -Xep:AlreadyChecked:WARN -Xep:ArrayRecordComponent:WARN -Xep:FutureReturnValueIgnored:WARN -Xep:JavaTimeDefaultTimeZone:WARN -Xep:StringSplitter:WARN -Xep:TimeInStaticInitializer:WARN</arg>
+                        <arg>-Xplugin:ErrorProne -XepDisableWarningsInGeneratedCode -XepDisableAllChecks -Xep:AlreadyChecked:WARN -Xep:ArrayRecordComponent:WARN -Xep:DeadException:WARN -Xep:FutureReturnValueIgnored:WARN -Xep:JavaTimeDefaultTimeZone:WARN -Xep:MissingOverride:WARN -Xep:StringSplitter:WARN -Xep:TimeInStaticInitializer:WARN</arg>
                     </compilerArgs>
                     <annotationProcessorPaths>
                         <path>

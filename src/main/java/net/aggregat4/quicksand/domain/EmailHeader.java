@@ -6,6 +6,7 @@ import java.time.format.FormatStyle;
 import java.util.List;
 import java.util.Objects;
 
+/** Message list metadata. Equality is by database id only, not flags or content. */
 public record EmailHeader(
     int id,
     long imapUid,
@@ -19,6 +20,10 @@ public record EmailHeader(
     boolean starred,
     boolean attachment,
     boolean read) {
+  public EmailHeader {
+    actors = actors == null ? List.of() : List.copyOf(actors);
+  }
+
   private static final DateTimeFormatter CURRENT_YEAR_FORMATTER =
       DateTimeFormatter.ofPattern("dd LLL");
   private static final DateTimeFormatter LONG_DATE_FORMATTER =

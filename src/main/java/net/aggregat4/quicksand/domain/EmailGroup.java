@@ -1,7 +1,6 @@
 package net.aggregat4.quicksand.domain;
 
 import java.time.Clock;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,25 +14,7 @@ public record EmailGroup(List<EmailHeader> headers, GroupedPeriod period) {
   }
 
   public static List<EmailGroup> createNoGroupEmailgroup(List<EmailHeader> emailHeaders) {
-    return List.of(
-        new EmailGroup(
-            emailHeaders,
-            new GroupedPeriod() {
-              @Override
-              public Optional<String> displayName() {
-                return Optional.empty();
-              }
-
-              @Override
-              public ZonedDateTime startOfPeriod(Clock clock) {
-                return null;
-              }
-
-              @Override
-              public ZonedDateTime startOfNextPeriod(Clock clock) {
-                return null;
-              }
-            }));
+    return List.of(new EmailGroup(emailHeaders, GroupedPeriod.NONE));
   }
 
   /** Assumes that all headers are sorted according to the provided sort order. */

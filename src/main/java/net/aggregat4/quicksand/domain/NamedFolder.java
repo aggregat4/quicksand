@@ -2,6 +2,7 @@ package net.aggregat4.quicksand.domain;
 
 import java.util.Objects;
 
+/** Folder metadata for mailbox navigation. Equality is by database id only. */
 public record NamedFolder(
     int id,
     String name,
