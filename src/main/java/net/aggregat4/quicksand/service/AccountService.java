@@ -15,7 +15,7 @@ public class AccountService {
     return accountRepository.getAccounts();
   }
 
-  public Object getAccount(int accountId) {
+  public Account getAccount(int accountId) {
     return accountRepository.getAccount(accountId);
   }
 }

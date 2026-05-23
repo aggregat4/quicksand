@@ -45,8 +45,7 @@ public class DbEmailRepository implements EmailRepository {
   private final DataSource ds;
   private final AttachmentRepository attachmentRepository;
 
-  public DbEmailRepository(
-      DataSource ds, DbActorRepository actorRepository, AttachmentRepository attachmentRepository) {
+  public DbEmailRepository(DataSource ds, AttachmentRepository attachmentRepository) {
     this.ds = ds;
     this.attachmentRepository = attachmentRepository;
   }
@@ -226,11 +225,11 @@ public class DbEmailRepository implements EmailRepository {
           return DbUtil.withResultSetFunction(
               stmt,
               rs -> {
-                HashSet<Long> messageIds = new HashSet<>();
+                Set<Long> messageIds = new HashSet<>();
                 while (rs.next()) {
                   messageIds.add(rs.getLong(1));
                 }
-                return messageIds;
+                return Set.copyOf(messageIds);
               });
         });
   }

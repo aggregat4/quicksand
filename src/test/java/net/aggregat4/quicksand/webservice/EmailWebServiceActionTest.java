@@ -34,7 +34,6 @@ import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
-import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
@@ -128,9 +127,7 @@ class EmailWebServiceActionTest {
             .createFolder(accountRepository.getAccount(otherAccountId), "Other INBOX")
             .id();
 
-    DbActorRepository actorRepository = new DbActorRepository(dataSource);
-    emailRepository =
-        new DbEmailRepository(dataSource, actorRepository, new DbAttachmentRepository(dataSource));
+    emailRepository = new DbEmailRepository(dataSource, new DbAttachmentRepository(dataSource));
 
     List<Actor> actors = List.of(new Actor(ActorType.SENDER, "a@b.com", Optional.of("A")));
     ZonedDateTime now = ZonedDateTime.now(ApplicationClock.ZONE);

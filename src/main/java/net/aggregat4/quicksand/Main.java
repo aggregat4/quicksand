@@ -27,7 +27,6 @@ import net.aggregat4.quicksand.repository.AttachmentRepository;
 import net.aggregat4.quicksand.repository.DatabaseMaintenance;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
-import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
@@ -91,10 +90,8 @@ public final class Main {
     FolderRepository folderRepository = new DbFolderRepository(ds);
     AccountFolderMappingRepository accountFolderMappingRepository =
         new DbAccountFolderMappingRepository(ds);
-    DbActorRepository actorRepository = new DbActorRepository(ds);
     DbAttachmentRepository dbAttachmentRepository = new DbAttachmentRepository(ds);
-    EmailRepository messageRepository =
-        new DbEmailRepository(ds, actorRepository, dbAttachmentRepository);
+    EmailRepository messageRepository = new DbEmailRepository(ds, dbAttachmentRepository);
     DbDraftRepository dbDraftRepository = new DbDraftRepository(ds);
     DraftRepository draftRepository = dbDraftRepository;
     AttachmentRepository attachmentRepository = dbAttachmentRepository;

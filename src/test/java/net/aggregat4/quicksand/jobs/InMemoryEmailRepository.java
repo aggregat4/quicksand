@@ -118,9 +118,12 @@ public class InMemoryEmailRepository implements EmailRepository {
   public Set<Long> getAllMessageIds(int folderId) {
     List<Email> emails = messages.get(folderId);
     if (emails == null) {
-      return new HashSet<>();
+      return Set.of();
     }
-    return emails.stream().map(Email::header).map(EmailHeader::imapUid).collect(Collectors.toSet());
+    return emails.stream()
+        .map(Email::header)
+        .map(EmailHeader::imapUid)
+        .collect(Collectors.toUnmodifiableSet());
   }
 
   @Override

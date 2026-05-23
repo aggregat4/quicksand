@@ -35,7 +35,6 @@ import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
-import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
@@ -325,8 +324,7 @@ class MailboxActionSyncTest {
             "testpassword"));
     Account account = accountRepository.getAccounts().getFirst();
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
-    DbEmailRepository emailRepository =
-        new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds));
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
 
     Store syncStore = GreenmailUtils.getImapStore(greenMail);
     for (String extraFolder : extraFolders) {

@@ -25,7 +25,6 @@ import net.aggregat4.quicksand.domain.MailboxActionStatus;
 import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.repository.DbAccountFolderMappingRepository;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
-import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
@@ -361,9 +360,7 @@ class AccountFolderSettingsWebServiceTest {
       DbFolderRepository folderRepository,
       DbAccountFolderMappingRepository mappingRepository)
       throws IOException {
-    DbActorRepository actorRepository = new DbActorRepository(ds);
-    DbEmailRepository emailRepository =
-        new DbEmailRepository(ds, actorRepository, new DbAttachmentRepository(ds));
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
     DbDraftRepository draftRepository = new DbDraftRepository(ds);
     DbAttachmentRepository attachmentRepository = new DbAttachmentRepository(ds);
     AttachmentService attachmentService = new AttachmentService(attachmentRepository);

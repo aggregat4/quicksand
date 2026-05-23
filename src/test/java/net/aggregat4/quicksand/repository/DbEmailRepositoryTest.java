@@ -52,9 +52,7 @@ public class DbEmailRepositoryTest {
     migrateDb(ds);
     DbAccountRepository accountRepository = new DbAccountRepository(ds);
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
-    DbActorRepository actorRepository = new DbActorRepository(ds);
-    DbEmailRepository emailRepository =
-        new DbEmailRepository(ds, actorRepository, new DbAttachmentRepository(ds));
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
 
     accountRepository.createAccountIfNew(GreenmailUtils.getAccount());
     Account account = accountRepository.getAccounts().getFirst();
@@ -140,9 +138,7 @@ public class DbEmailRepositoryTest {
     migrateDb(ds);
     DbAccountRepository accountRepository = new DbAccountRepository(ds);
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
-    DbActorRepository actorRepository = new DbActorRepository(ds);
-    DbEmailRepository emailRepository =
-        new DbEmailRepository(ds, actorRepository, new DbAttachmentRepository(ds));
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
 
     accountRepository.createAccountIfNew(GreenmailUtils.getAccount());
     Account account = accountRepository.getAccounts().getFirst();
@@ -205,10 +201,8 @@ public class DbEmailRepositoryTest {
     migrateDb(ds);
     DbAccountRepository accountRepository = new DbAccountRepository(ds);
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
-    DbActorRepository actorRepository = new DbActorRepository(ds);
     DbAttachmentRepository attachmentRepository = new DbAttachmentRepository(ds);
-    DbEmailRepository emailRepository =
-        new DbEmailRepository(ds, actorRepository, attachmentRepository);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, attachmentRepository);
     AttachmentService attachmentService = new AttachmentService(attachmentRepository);
 
     accountRepository.createAccountIfNew(GreenmailUtils.getAccount());

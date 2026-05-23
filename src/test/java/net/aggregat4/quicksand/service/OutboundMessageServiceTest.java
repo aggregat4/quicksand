@@ -19,7 +19,6 @@ import net.aggregat4.quicksand.domain.Draft;
 import net.aggregat4.quicksand.domain.DraftType;
 import net.aggregat4.quicksand.domain.OutboundMessageStatus;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
-import net.aggregat4.quicksand.repository.DbActorRepository;
 import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
@@ -81,7 +80,7 @@ public class OutboundMessageServiceTest {
             draftRepository,
             attachmentRepository,
             new DbOutboundMessageRepository(ds),
-            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
+            new DbEmailRepository(ds, new DbAttachmentRepository(ds)),
             Clock.fixed(createdAt.toInstant(), ZoneId.of("Europe/Berlin")));
 
     var queuedMessage = outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();

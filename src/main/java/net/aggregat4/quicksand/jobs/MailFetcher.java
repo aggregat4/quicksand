@@ -29,8 +29,8 @@ public class MailFetcher {
   private final AccountFolderMappingService accountFolderMappingService;
   private final MailboxUpdateBroadcaster mailboxUpdateBroadcaster;
 
-  private final ConcurrentHashMap<Account, Store> accountStores = new ConcurrentHashMap<>();
-  private final ConcurrentHashMap<Account, ImapIdleWatcher> idleWatchers =
+  private final ConcurrentHashMap<Integer, Store> accountStores = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<Integer, ImapIdleWatcher> idleWatchers =
       new ConcurrentHashMap<>();
 
   public MailFetcher(
@@ -70,7 +70,7 @@ public class MailFetcher {
   }
 
   private void ensureIdleWatch(Account account, Store store) {
-    if (!idleEnabled || idleWatchers.containsKey(account)) {
+    if (!idleEnabled || idleWatchers.containsKey(account.id())) {
       return;
     }
     try {
@@ -80,7 +80,7 @@ public class MailFetcher {
       }
       ImapIdleWatcher watcher = new ImapIdleWatcher(folderRepository, this::fetchNow);
       watcher.refreshForAccount(account);
-      idleWatchers.put(account, watcher);
+      idleWatchers.put(account.id(), watcher);
     } catch (MessagingException e) {
       LOGGER.warn("Failed to start IMAP IDLE for account {}", account.name(), e);
     }
@@ -91,9 +91,11 @@ public class MailFetcher {
     long fetchStarted = System.nanoTime();
     LOGGER.debug("Starting mail fetch for configured accounts");
     checkAndInitializeStores();
-    for (Map.Entry<Account, Store> entry : accountStores.entrySet()) {
-      Store store = entry.getValue();
-      Account account = entry.getKey();
+    for (Account account : accountRepository.getAccounts()) {
+      Store store = accountStores.get(account.id());
+      if (store == null) {
+        continue;
+      }
       if (!store.isConnected()) {
         try {
           store.connect(
@@ -126,7 +128,7 @@ public class MailFetcher {
   private void checkAndInitializeStores() {
     List<Account> accounts = accountRepository.getAccounts();
     for (Account account : accounts) {
-      accountStores.computeIfAbsent(account, this::createStore);
+      accountStores.computeIfAbsent(account.id(), ignored -> createStore(account));
     }
   }
 

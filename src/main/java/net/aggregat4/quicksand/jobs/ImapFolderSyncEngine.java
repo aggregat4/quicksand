@@ -249,7 +249,7 @@ final class ImapFolderSyncEngine {
 
   private static void deleteExpungedMessages(
       NamedFolder localFolder, EmailRepository emailRepository, Set<Long> remoteUids) {
-    Set<Long> localUids = emailRepository.getAllMessageIds(localFolder.id());
+    Set<Long> localUids = new HashSet<>(emailRepository.getAllMessageIds(localFolder.id()));
     localUids.removeAll(remoteUids);
     emailRepository.removeAllByUid(localUids);
   }

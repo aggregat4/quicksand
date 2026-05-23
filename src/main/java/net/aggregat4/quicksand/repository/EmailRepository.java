@@ -27,7 +27,7 @@ public interface EmailRepository {
 
   void updateRead(int id, boolean messageRead);
 
-  /** Returns a mutable HashSet that can be modified by the client. */
+  /** Returns an immutable set of IMAP UIDs for messages in the folder. */
   Set<Long> getAllMessageIds(int folderId);
 
   Set<Long> getPendingMoveLikeActionSourceUids(
