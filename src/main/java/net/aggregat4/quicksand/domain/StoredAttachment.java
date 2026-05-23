@@ -12,7 +12,7 @@ public record StoredAttachment(
     long sizeInBytes,
     HttpMediaType mediaType,
     String contentHash,
-    byte[] content) {
+    BinaryContent content) {
 
   public Attachment toAttachment() {
     return new Attachment(id, name, sizeInBytes, mediaType);

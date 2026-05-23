@@ -13,6 +13,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Draft;
@@ -39,6 +40,7 @@ public class MailboxActionSync {
   private static final int BATCH_SIZE = 50;
 
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+  private ScheduledFuture<?> scheduledTask;
   private final DbAccountRepository accountRepository;
   private final EmailRepository emailRepository;
   private final OutboundMessageRepository outboundMessageRepository;
@@ -71,8 +73,9 @@ public class MailboxActionSync {
   }
 
   public void start() {
-    scheduler.scheduleWithFixedDelay(
-        this::syncDueActions, INITIAL_DELAY_SECONDS, syncPeriodInSeconds, TimeUnit.SECONDS);
+    scheduledTask =
+        scheduler.scheduleWithFixedDelay(
+            this::syncDueActions, INITIAL_DELAY_SECONDS, syncPeriodInSeconds, TimeUnit.SECONDS);
   }
 
   public void syncNow() {
@@ -80,6 +83,9 @@ public class MailboxActionSync {
   }
 
   public void stop() {
+    if (scheduledTask != null) {
+      scheduledTask.cancel(false);
+    }
     scheduler.shutdown();
   }
 

@@ -9,6 +9,7 @@ import java.util.Optional;
 import javax.sql.DataSource;
 import net.aggregat4.dblib.DbUtil;
 import net.aggregat4.quicksand.domain.Attachment;
+import net.aggregat4.quicksand.domain.BinaryContent;
 import net.aggregat4.quicksand.domain.InboundAttachment;
 import net.aggregat4.quicksand.domain.StoredAttachment;
 
@@ -81,10 +82,10 @@ public class DbAttachmentRepository implements AttachmentRepository {
           stmt -> {
             stmt.setInt(1, messageId);
             stmt.setString(2, attachment.name());
-            stmt.setLong(3, attachment.content().length);
+            stmt.setLong(3, attachment.content().size());
             stmt.setString(4, attachment.mediaType());
             stmt.setString(5, attachment.contentHash());
-            stmt.setBytes(6, attachment.content());
+            stmt.setBytes(6, attachment.content().bytes());
             stmt.executeUpdate();
           });
     }
@@ -200,6 +201,6 @@ public class DbAttachmentRepository implements AttachmentRepository {
         rs.getLong(6),
         HttpMediaType.create(rs.getString(7)),
         rs.getString(8),
-        rs.getBytes(9));
+        BinaryContent.of(rs.getBytes(9)));
   }
 }

@@ -9,7 +9,6 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.Store;
 import jakarta.mail.UIDFolder;
 import jakarta.mail.internet.InternetAddress;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,6 +30,7 @@ import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.imap.FolderRemoteNameMatcher;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
+import net.aggregat4.quicksand.time.ApplicationClock;
 import org.eclipse.angus.mail.imap.IMAPFolder;
 import org.eclipse.angus.mail.imap.IMAPMessage;
 import org.slf4j.Logger;
@@ -174,9 +174,9 @@ public class ImapStoreSync {
       List<Actor> actors = getActorsForImapMessage(newMessage);
       addSenderIfPresent(newMessage, actors);
       ZonedDateTime sentDateTime =
-          ZonedDateTime.ofInstant(newMessage.getSentDate().toInstant(), ZoneId.systemDefault());
+          ZonedDateTime.ofInstant(newMessage.getSentDate().toInstant(), ApplicationClock.ZONE);
       ZonedDateTime receivedDateTime =
-          ZonedDateTime.ofInstant(newMessage.getReceivedDate().toInstant(), ZoneId.systemDefault());
+          ZonedDateTime.ofInstant(newMessage.getReceivedDate().toInstant(), ApplicationClock.ZONE);
       ImapBodyExtractor.StoredBody storedBody = storedBodies.get(newMessage);
       List<InboundAttachment> inboundAttachments =
           ImapAttachmentExtractor.toInboundAttachments(storedAttachments.get(newMessage));

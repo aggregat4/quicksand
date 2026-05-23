@@ -240,6 +240,6 @@ public class DbEmailRepositoryTest {
     var downloaded =
         attachmentService.getStoredAttachment(stored.attachments().getFirst().id()).orElseThrow();
     assertEquals("sync-note.txt", downloaded.name());
-    assertEquals(attachmentBody, new String(downloaded.content(), StandardCharsets.UTF_8));
+    assertEquals(attachmentBody, new String(downloaded.content().bytes(), StandardCharsets.UTF_8));
   }
 }

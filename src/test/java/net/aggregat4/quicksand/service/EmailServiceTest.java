@@ -3,6 +3,7 @@ package net.aggregat4.quicksand.service;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -12,6 +13,7 @@ import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.jobs.InMemoryEmailRepository;
+import net.aggregat4.quicksand.time.ApplicationClock;
 import org.junit.jupiter.api.Test;
 
 public class EmailServiceTest {
@@ -19,15 +21,16 @@ public class EmailServiceTest {
   @Test
   void updateReadFlipsFlagAndLeavesStarredUnchanged() {
     InMemoryEmailRepository repository = new InMemoryEmailRepository();
+    ZonedDateTime now = ZonedDateTime.now(Clock.system(ApplicationClock.ZONE));
     EmailHeader header =
         new EmailHeader(
             1,
             100L,
             List.of(new Actor(ActorType.SENDER, "alice@example.com", Optional.of("Alice"))),
             "Subject",
-            ZonedDateTime.now(),
+            now,
             0L,
-            ZonedDateTime.now(),
+            now,
             0L,
             "Excerpt",
             true,

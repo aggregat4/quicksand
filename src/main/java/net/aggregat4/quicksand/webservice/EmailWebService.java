@@ -356,7 +356,7 @@ public class EmailWebService implements HttpService {
       response.send();
       return;
     }
-    LOGGER.info("Action '{}' for email {}", shouldDeleteEmail ? "delete" : "send", emailId);
+    LOGGER.info("Action 'send' for email {}", emailId);
     // validate
     List<String> validationErrors = new ArrayList<>();
     if (isEmpty(params.get("email-to"))) {
@@ -422,7 +422,7 @@ public class EmailWebService implements HttpService {
     if (body == null || body.isBlank()) {
       return params;
     }
-    for (String pair : body.split("&")) {
+    for (String pair : body.split("&", -1)) {
       if (pair.isEmpty()) {
         continue;
       }
@@ -440,7 +440,7 @@ public class EmailWebService implements HttpService {
     if (body == null || body.isBlank()) {
       return params;
     }
-    for (String pair : body.split("&")) {
+    for (String pair : body.split("&", -1)) {
       if (pair.isEmpty()) {
         continue;
       }

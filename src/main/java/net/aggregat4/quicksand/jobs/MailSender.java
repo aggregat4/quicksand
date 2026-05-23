@@ -10,6 +10,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.OutboundMessage;
@@ -26,6 +27,7 @@ public class MailSender {
 
   private static final long INITIAL_DELAY_SECONDS = 0;
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+  private ScheduledFuture<?> scheduledTask;
   private final DbAccountRepository accountRepository;
   private final OutboundMessageRepository outboundMessageRepository;
   private final AttachmentRepository attachmentRepository;
@@ -55,8 +57,9 @@ public class MailSender {
   }
 
   public void start() {
-    scheduler.scheduleWithFixedDelay(
-        this::sendQueuedMessages, INITIAL_DELAY_SECONDS, sendPeriodInSeconds, TimeUnit.SECONDS);
+    scheduledTask =
+        scheduler.scheduleWithFixedDelay(
+            this::sendQueuedMessages, INITIAL_DELAY_SECONDS, sendPeriodInSeconds, TimeUnit.SECONDS);
   }
 
   public void sendNow() {
@@ -64,6 +67,9 @@ public class MailSender {
   }
 
   public void stop() {
+    if (scheduledTask != null) {
+      scheduledTask.cancel(false);
+    }
     scheduler.shutdown();
   }
 

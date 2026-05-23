@@ -8,6 +8,8 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <helidon.version>4.3.2</helidon.version>
         <helidon.maven.plugin.version>4.0.23</helidon.maven.plugin.version>
         <mainClass>net.aggregat4.quicksand.Main</mainClass>
@@ -195,6 +197,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.4</version>
                 <configuration>
+                    <argLine>--enable-native-access=ALL-UNNAMED</argLine>
                     <environmentVariables>
                         <QUICKSAND_CREDENTIAL_KEY>MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=</QUICKSAND_CREDENTIAL_KEY>
                     </environmentVariables>
@@ -247,7 +250,7 @@
                             <overWriteSnapshots>false</overWriteSnapshots>
                             <overWriteIfNewer>true</overWriteIfNewer>
                             <includeScope>runtime</includeScope>
-                            <excludeArtifactIds>okio</excludeArtifactIds>
+                            <excludeArtifactIds>okio,junit,hamcrest-core</excludeArtifactIds>
                         </configuration>
                     </execution>
                 </executions>
@@ -327,4 +330,26 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>production</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-libs</id>
+                                <configuration>
+                                    <excludeArtifactIds>okio,junit,hamcrest-core,greenmail</excludeArtifactIds>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

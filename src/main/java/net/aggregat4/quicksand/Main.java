@@ -271,8 +271,8 @@ public final class Main {
         .get("fixed_instant")
         .asString()
         .map(Instant::parse)
-        .map(instant -> Clock.fixed(instant, java.time.ZoneId.systemDefault()))
-        .orElse(Clock.systemDefaultZone());
+        .map(instant -> Clock.fixed(instant, ApplicationClock.ZONE))
+        .orElse(Clock.system(ApplicationClock.ZONE));
   }
 
   /**

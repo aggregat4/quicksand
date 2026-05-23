@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.domain.*;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
@@ -21,6 +22,7 @@ public class MailFetcher {
   private final long fetchPeriodInSeconds;
   private final boolean idleEnabled;
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+  private ScheduledFuture<?> scheduledTask;
   private final DbAccountRepository accountRepository;
   private final FolderRepository folderRepository;
   private final EmailRepository messageRepository;
@@ -49,8 +51,9 @@ public class MailFetcher {
   }
 
   public void start() {
-    this.scheduler.scheduleWithFixedDelay(
-        this::fetch, fetchPeriodInSeconds, fetchPeriodInSeconds, TimeUnit.SECONDS);
+    this.scheduledTask =
+        this.scheduler.scheduleWithFixedDelay(
+            this::fetch, fetchPeriodInSeconds, fetchPeriodInSeconds, TimeUnit.SECONDS);
   }
 
   public void fetchNow() {
@@ -58,6 +61,9 @@ public class MailFetcher {
   }
 
   public void stop() {
+    if (scheduledTask != null) {
+      scheduledTask.cancel(false);
+    }
     this.scheduler.shutdown();
     idleWatchers.values().forEach(ImapIdleWatcher::stop);
     idleWatchers.clear();

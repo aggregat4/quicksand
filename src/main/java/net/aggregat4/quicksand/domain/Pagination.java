@@ -1,9 +1,9 @@
 package net.aggregat4.quicksand.domain;
 
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
+import net.aggregat4.quicksand.time.ApplicationClock;
 
 public record Pagination(
     Optional<Long> receivedDateOffsetInSeconds,
@@ -19,7 +19,7 @@ public record Pagination(
   public Optional<String> formattedReceivedDateOffset() {
     return receivedDateOffsetInSeconds
         .map(Instant::ofEpochSecond)
-        .map(instant -> instant.atZone(ZoneId.systemDefault()))
+        .map(instant -> instant.atZone(ApplicationClock.ZONE))
         .map(OFFSET_FORMATTER::format);
   }
 }

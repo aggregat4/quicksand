@@ -41,6 +41,7 @@ import net.aggregat4.quicksand.service.MailboxSyncRecoveryService;
 import net.aggregat4.quicksand.service.MailboxUpdateBroadcaster;
 import net.aggregat4.quicksand.service.NotificationService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
+import net.aggregat4.quicksand.time.ApplicationClock;
 import org.junit.jupiter.api.Test;
 
 class AccountFolderSettingsWebServiceTest {
@@ -376,12 +377,13 @@ class AccountFolderSettingsWebServiceTest {
             attachmentRepository,
             new DbOutboundMessageRepository(ds),
             emailRepository,
-            Clock.systemDefaultZone());
+            Clock.system(ApplicationClock.ZONE));
     MailboxSyncRecoveryService mailboxSyncRecoveryService =
         new MailboxSyncRecoveryService(
-            emailRepository, mappingRepository, () -> {}, Clock.systemDefaultZone());
+            emailRepository, mappingRepository, () -> {}, Clock.system(ApplicationClock.ZONE));
     NotificationService notificationService =
-        new NotificationService(folderRepository, emailRepository, Clock.systemDefaultZone());
+        new NotificationService(
+            folderRepository, emailRepository, Clock.system(ApplicationClock.ZONE));
     MailboxUpdateBroadcaster mailboxUpdateBroadcaster = new MailboxUpdateBroadcaster();
     HttpRouting.Builder routing =
         HttpRouting.builder()
@@ -397,12 +399,12 @@ class AccountFolderSettingsWebServiceTest {
                         emailRepository,
                         attachmentService,
                         5L,
-                        Clock.systemDefaultZone()),
+                        Clock.system(ApplicationClock.ZONE)),
                     outboundMessageService,
                     mailboxSyncRecoveryService,
                     notificationService,
                     mailboxUpdateBroadcaster,
-                    Clock.systemDefaultZone()));
+                    Clock.system(ApplicationClock.ZONE)));
     return WebServer.builder().port(0).host("127.0.0.1").routing(routing).build().start();
   }
 

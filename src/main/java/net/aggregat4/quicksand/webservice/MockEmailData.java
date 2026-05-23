@@ -11,7 +11,6 @@ import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Attachment;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
-import net.aggregat4.quicksand.time.ApplicationClock;
 
 public class MockEmailData {
   public static final Actor ACCOUNT1_OWNER =
@@ -25,19 +24,16 @@ public class MockEmailData {
   public static final Actor EMAIL1_CC2 =
       new Actor(ActorType.CC, "johnny234@gmail.com", Optional.empty());
   public static final String EMAIL1_SUBJECT = "Hey there how are you?";
-  public static final ZonedDateTime EMAIL1_RECEIVEDDATE =
-      ZonedDateTime.now(ApplicationClock.current());
-  public static final ZonedDateTime EMAIL1_SENTDATE =
-      ZonedDateTime.now(ApplicationClock.current()).minusMinutes(5);
+  private static final ZonedDateTime MOCK_NOW = ZonedDateTime.parse("2026-03-25T09:15:00Z");
+  public static final ZonedDateTime EMAIL1_RECEIVEDDATE = MOCK_NOW;
+  public static final ZonedDateTime EMAIL1_SENTDATE = MOCK_NOW.minusMinutes(5);
   public static final Actor EMAIL2_SENDER =
       new Actor(ActorType.SENDER, "foo@bar.net", Optional.empty());
   public static final Actor EMAIL2_RECIPIENT =
       new Actor(ActorType.TO, "me@example.org", Optional.of("Doe, Me"));
   public static final String EMAIL2_SUBJECT = "Foo du fafa";
-  public static final ZonedDateTime EMAIL2_RECEIVEDDATE =
-      ZonedDateTime.now(ApplicationClock.current()).minusMinutes(3);
-  public static final ZonedDateTime EMAIL2_SENTDATE =
-      ZonedDateTime.now(ApplicationClock.current()).minusMinutes(13);
+  public static final ZonedDateTime EMAIL2_RECEIVEDDATE = MOCK_NOW.minusMinutes(3);
+  public static final ZonedDateTime EMAIL2_SENTDATE = MOCK_NOW.minusMinutes(13);
   static final Attachment ATTACHMENT1 =
       new Attachment(1, "sounds and music.mp3", 43534555, HttpMediaType.create("audio/mpeg"));
   static final String sampleMp3Resource = "/sample-3s.mp3";

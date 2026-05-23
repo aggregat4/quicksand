@@ -45,6 +45,7 @@ import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
+import net.aggregat4.quicksand.time.ApplicationClock;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -132,7 +133,7 @@ class EmailWebServiceActionTest {
         new DbEmailRepository(dataSource, actorRepository, new DbAttachmentRepository(dataSource));
 
     List<Actor> actors = List.of(new Actor(ActorType.SENDER, "a@b.com", Optional.of("A")));
-    ZonedDateTime now = ZonedDateTime.now();
+    ZonedDateTime now = ZonedDateTime.now(ApplicationClock.ZONE);
     EmailHeader header1 =
         new EmailHeader(
             -1, 1L, actors, "Subject 1", now, 0L, now, 0L, "Excerpt", false, false, false);
@@ -169,7 +170,11 @@ class EmailWebServiceActionTest {
     EmailService emailService = new EmailService(emailRepository);
     DraftService draftService =
         new DraftService(
-            draftRepository, emailRepository, attachmentService, 5L, Clock.systemDefaultZone());
+            draftRepository,
+            emailRepository,
+            attachmentService,
+            5L,
+            Clock.system(ApplicationClock.ZONE));
     OutboundMessageService outboundMessageService =
         new OutboundMessageService(
             dataSource,
@@ -178,7 +183,7 @@ class EmailWebServiceActionTest {
             new DbAttachmentRepository(dataSource),
             new DbOutboundMessageRepository(dataSource),
             emailRepository,
-            Clock.systemDefaultZone());
+            Clock.system(ApplicationClock.ZONE));
     AccountFolderMappingService accountFolderMappingService =
         new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
 
@@ -461,7 +466,7 @@ class EmailWebServiceActionTest {
   void mappedActionRedirectsToFolderSettingsWhenRequiredMappingIsMissing()
       throws IOException, InterruptedException {
     List<Actor> actors = List.of(new Actor(ActorType.SENDER, "a@b.com", Optional.of("A")));
-    ZonedDateTime now = ZonedDateTime.now();
+    ZonedDateTime now = ZonedDateTime.now(ApplicationClock.ZONE);
     EmailHeader header =
         new EmailHeader(
             -1, 6L, actors, "Subject 6", now, 0L, now, 0L, "Excerpt", false, false, true);

@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.aggregat4.quicksand.domain.BinaryContent;
 import net.aggregat4.quicksand.domain.InboundAttachment;
 import org.eclipse.angus.mail.iap.Response;
 import org.eclipse.angus.mail.imap.IMAPFolder;
@@ -20,7 +21,7 @@ import org.eclipse.angus.mail.imap.protocol.FetchResponse;
 import org.eclipse.angus.mail.imap.protocol.MessageSet;
 
 final class ImapAttachmentExtractor {
-  record ExtractedAttachment(String name, String mediaType, byte[] content) {}
+  record ExtractedAttachment(String name, String mediaType, BinaryContent content) {}
 
   private record AttachmentSelection(
       IMAPMessage message, String section, String encoding, String contentType, String fileName) {}
@@ -52,7 +53,7 @@ final class ImapAttachmentExtractor {
             new ExtractedAttachment(
                 normalizedFileName(selection.fileName(), selection.contentType()),
                 normalizedMediaType(selection.contentType()),
-                content));
+                BinaryContent.of(content)));
       }
       if (!attachments.isEmpty()) {
         extracted.put(entry.getKey(), attachments);
@@ -202,7 +203,7 @@ final class ImapAttachmentExtractor {
           new InboundAttachment(
               attachment.name(),
               attachment.mediaType(),
-              AttachmentContentHasher.sha256Hex(attachment.content()),
+              AttachmentContentHasher.sha256Hex(attachment.content().bytes()),
               attachment.content()));
     }
     return inbound;

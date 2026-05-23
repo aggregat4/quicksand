@@ -1,12 +1,5 @@
 package net.aggregat4.quicksand.webservice;
 
-import io.helidon.http.HeaderNames;
-import io.helidon.http.HttpMediaType;
-import io.helidon.webserver.http.HttpRules;
-import io.helidon.webserver.http.HttpService;
-import io.helidon.webserver.http.ServerRequest;
-import io.helidon.webserver.http.ServerResponse;
-import io.pebbletemplates.pebble.template.PebbleTemplate;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -21,6 +14,14 @@ import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+
+import io.helidon.http.HeaderNames;
+import io.helidon.http.HttpMediaType;
+import io.helidon.webserver.http.HttpRules;
+import io.helidon.webserver.http.HttpService;
+import io.helidon.webserver.http.ServerRequest;
+import io.helidon.webserver.http.ServerResponse;
+import io.pebbletemplates.pebble.template.PebbleTemplate;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.AccountNotificationSummary;
 import net.aggregat4.quicksand.domain.DraftsFolder;
@@ -677,9 +678,9 @@ public class AccountWebService implements HttpService {
     }
     try {
       List<Integer> ids = new java.util.ArrayList<>();
-      for (String part : value.split(",")) {
+      for (String part : value.split(",", -1)) {
         if (!part.isBlank()) {
-          ids.add(Integer.parseInt(part.trim()));
+          ids.add(Integer.valueOf(part.trim()));
         }
       }
       return ids.isEmpty() ? Optional.empty() : Optional.of(ids);
@@ -690,7 +691,7 @@ public class AccountWebService implements HttpService {
 
   private static Optional<Integer> parseOptionalInt(String value) {
     try {
-      return Optional.of(Integer.parseInt(value));
+      return Optional.of(Integer.valueOf(value));
     } catch (NumberFormatException e) {
       return Optional.empty();
     }
@@ -698,7 +699,7 @@ public class AccountWebService implements HttpService {
 
   private static Optional<Long> parseOptionalLong(String value) {
     try {
-      return Optional.of(Long.parseLong(value));
+      return Optional.of(Long.valueOf(value));
     } catch (NumberFormatException e) {
       return Optional.empty();
     }
@@ -836,7 +837,7 @@ public class AccountWebService implements HttpService {
     if (body == null || body.isBlank()) {
       return params;
     }
-    for (String pair : body.split("&")) {
+    for (String pair : body.split("&", -1)) {
       if (pair.isEmpty()) {
         continue;
       }

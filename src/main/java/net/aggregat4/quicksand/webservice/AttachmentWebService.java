@@ -40,6 +40,6 @@ public class AttachmentWebService implements HttpService {
                           attachment.get().name(), StandardCharsets.UTF_8)));
     }
     ResponseUtils.setCacheControlImmutable(response);
-    response.send(attachment.get().content());
+    response.send(attachment.get().content().bytes());
   }
 }

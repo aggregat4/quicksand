@@ -71,7 +71,8 @@ public class AttachmentServiceTest {
     var storedAttachment = attachmentService.getStoredAttachment(attachment.id()).orElseThrow();
     assertEquals("draft-note.txt", storedAttachment.name());
     assertEquals(
-        "draft attachment body", new String(storedAttachment.content(), StandardCharsets.UTF_8));
+        "draft attachment body",
+        new String(storedAttachment.content().bytes(), StandardCharsets.UTF_8));
     assertEquals(
         "f79f624b06e3286e21d6306b26741f19ac7a6f075b5b697f568bdd28d76ed59a",
         storedAttachment.contentHash());

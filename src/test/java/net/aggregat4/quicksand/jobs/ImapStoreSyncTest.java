@@ -300,7 +300,8 @@ public class ImapStoreSyncTest {
     assertEquals("nested-note.txt", email.inboundAttachments().getFirst().name());
     assertEquals(
         "nested attachment body must not be indexed",
-        new String(email.inboundAttachments().getFirst().content(), StandardCharsets.UTF_8));
+        new String(
+            email.inboundAttachments().getFirst().content().bytes(), StandardCharsets.UTF_8));
   }
 
   @Test
@@ -329,7 +330,7 @@ public class ImapStoreSyncTest {
     assertEquals(1, email.inboundAttachments().size());
     assertEquals("report.html", email.inboundAttachments().getFirst().name());
     assertTrue(
-        new String(email.inboundAttachments().getFirst().content(), StandardCharsets.UTF_8)
+        new String(email.inboundAttachments().getFirst().content().bytes(), StandardCharsets.UTF_8)
             .contains("attached html file body"));
   }
 
@@ -364,7 +365,8 @@ public class ImapStoreSyncTest {
     assertEquals("note.txt", email.inboundAttachments().getFirst().name());
     assertEquals(
         "attachment body must not be indexed",
-        new String(email.inboundAttachments().getFirst().content(), StandardCharsets.UTF_8));
+        new String(
+            email.inboundAttachments().getFirst().content().bytes(), StandardCharsets.UTF_8));
   }
 
   private static Email syncOnlyMessage() throws MessagingException {

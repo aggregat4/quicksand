@@ -46,7 +46,8 @@ final class OutboundMimeMessageBuilder {
         attachmentPart.setFileName(attachment.name());
         attachmentPart.setDataHandler(
             new DataHandler(
-                new ByteArrayDataSource(attachment.content(), attachment.mediaType().text())));
+                new ByteArrayDataSource(
+                    attachment.content().bytes(), attachment.mediaType().text())));
         multipart.addBodyPart(attachmentPart);
       }
       mimeMessage.setContent(multipart);
