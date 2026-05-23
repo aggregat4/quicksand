@@ -10,4 +10,31 @@ public record Account(
     String smtpHost,
     int smtpPort,
     String smtpUsername,
-    String smtpPassword) {}
+    String smtpPassword) {
+  private static final String REDACTED = "[REDACTED]";
+
+  @Override
+  public String toString() {
+    return "Account[id="
+        + id
+        + ", name="
+        + name
+        + ", imapHost="
+        + imapHost
+        + ", imapPort="
+        + imapPort
+        + ", imapUsername="
+        + imapUsername
+        + ", imapPassword="
+        + REDACTED
+        + ", smtpHost="
+        + smtpHost
+        + ", smtpPort="
+        + smtpPort
+        + ", smtpUsername="
+        + smtpUsername
+        + ", smtpPassword="
+        + REDACTED
+        + "]";
+  }
+}

@@ -6,6 +6,8 @@ import io.helidon.config.Config;
 import java.time.Clock;
 
 public final class DemoMailServer {
+  private static GreenMail running;
+
   private DemoMailServer() {}
 
   public static GreenMail start(Config demoConfig, Clock clock) {
@@ -20,6 +22,14 @@ public final class DemoMailServer {
             });
     greenMail.start();
     DemoMessageSeeder.deliverDemoMessages(greenMail, seedCount, clock);
+    running = greenMail;
     return greenMail;
+  }
+
+  public static void stop() {
+    if (running != null) {
+      running.stop();
+      running = null;
+    }
   }
 }

@@ -62,6 +62,8 @@ public final class Main {
   private static MailFetcher mailFetcher;
   private static MailSender mailSender;
   private static MailboxActionSync mailboxActionSync;
+  private static boolean demoMailServerStarted;
+  private static volatile boolean shutdownHookRegistered;
 
   public static void main(final String[] args) throws IOException {
     startServer();
@@ -75,6 +77,7 @@ public final class Main {
 
     if (demoEnabled) {
       startDemoMailServer(config.get("demo"), clock);
+      demoMailServerStarted = true;
     }
 
     // Dependency Injection and Initialisation
@@ -242,7 +245,39 @@ public final class Main {
     LOGGER.info(
         "Web server is up at http://localhost:{}/", webServer.port(WebServer.DEFAULT_SOCKET_NAME));
 
+    registerShutdownHook();
     return webServer;
+  }
+
+  private static void registerShutdownHook() {
+    if (shutdownHookRegistered) {
+      return;
+    }
+    synchronized (Main.class) {
+      if (shutdownHookRegistered) {
+        return;
+      }
+      Runtime.getRuntime()
+          .addShutdownHook(
+              new Thread(
+                  () -> {
+                    LOGGER.info("Shutting down background jobs");
+                    if (mailboxActionSync != null) {
+                      mailboxActionSync.stop();
+                    }
+                    if (mailSender != null) {
+                      mailSender.stop();
+                    }
+                    if (mailFetcher != null) {
+                      mailFetcher.stop();
+                    }
+                    if (demoMailServerStarted) {
+                      stopDemoMailServer();
+                    }
+                  },
+                  "quicksand-shutdown"));
+      shutdownHookRegistered = true;
+    }
   }
 
   private static void startDemoMailServer(Config demoConfig, Clock clock) {
@@ -252,6 +287,15 @@ public final class Main {
     } catch (ReflectiveOperationException e) {
       throw new IllegalStateException(
           "Demo mode requires a build with the demo profile (embedded GreenMail).", e);
+    }
+  }
+
+  private static void stopDemoMailServer() {
+    try {
+      Class<?> demoMailServer = Class.forName("net.aggregat4.quicksand.demo.DemoMailServer");
+      demoMailServer.getMethod("stop").invoke(null);
+    } catch (ReflectiveOperationException e) {
+      LOGGER.warn("Failed to stop embedded demo mail server", e);
     }
   }
 
