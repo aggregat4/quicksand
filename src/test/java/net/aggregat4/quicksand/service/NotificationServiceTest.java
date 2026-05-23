@@ -24,6 +24,7 @@ import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.DbActorRepository;
+import net.aggregat4.quicksand.repository.DbAttachmentRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
 import net.aggregat4.quicksand.repository.DbFolderRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,7 +49,8 @@ class NotificationServiceTest {
     migrateDb(ds);
     DbAccountRepository accountRepository = new DbAccountRepository(ds);
     folderRepository = new DbFolderRepository(ds);
-    emailRepository = new DbEmailRepository(ds, new DbActorRepository(ds));
+    emailRepository =
+        new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds));
     notificationService = new NotificationService(folderRepository, emailRepository, CLOCK);
 
     accountRepository.createAccountIfNew(

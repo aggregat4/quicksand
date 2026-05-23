@@ -110,6 +110,8 @@ public interface EmailRepository {
   List<EmailHeader> getMessagesNewerThan(
       int folderId, long afterReceivedEpochSeconds, int afterMessageId, int limit);
 
+  Map<Integer, Boolean> getReadFlagsByMessageIds(int accountId, Collection<Integer> messageIds);
+
   EmailPage searchMessages(
       int accountId,
       String query,

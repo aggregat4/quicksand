@@ -1,6 +1,11 @@
 (function () {
     const POLL_MS = 15000
+    const BACKSTOP_POLL_MS = 60000
     const DESKTOP_PREF_KEY = 'quicksand.desktopNotifications'
+
+    let eventSource = null
+    let sseConnected = false
+    let pollTimer = null
 
     function currentFolderId() {
         const main = document.querySelector('main')
@@ -30,6 +35,20 @@
         return `&listCursorMessageId=${encodeURIComponent(cursorId)}&listCursorReceived=${encodeURIComponent(cursorReceived)}`
     }
 
+    function visibleMessageIdParams() {
+        const messagelist = document.getElementById('messagelist')
+        if (!messagelist || messagelist.dataset.liveUpdates !== 'true') {
+            return ''
+        }
+        const ids = [...messagelist.querySelectorAll('.emailheader')]
+            .map((header) => header.dataset.messageId)
+            .filter(Boolean)
+        if (ids.length === 0) {
+            return ''
+        }
+        return `&visibleMessageIds=${encodeURIComponent(ids.join(','))}`
+    }
+
     function applyFolderBadges(payload) {
         payload.querySelectorAll('.folder-unread-badge[data-folder-id]').forEach((incomingBadge) => {
             const folderId = incomingBadge.dataset.folderId
@@ -56,6 +75,18 @@
         })
     }
 
+    function applyReadStateUpdates(payload) {
+        payload.querySelectorAll('.read-state-update[data-message-id]').forEach((updateNode) => {
+            const messageId = updateNode.dataset.messageId
+            const row = document.getElementById(`email${messageId}`)
+            if (!row) {
+                return
+            }
+            const read = updateNode.dataset.read === 'true'
+            row.classList.toggle('read', read)
+        })
+    }
+
     function applyMessageListUpdates(payload) {
         const messagelist = document.getElementById('messagelist')
         if (!messagelist || messagelist.dataset.liveUpdates !== 'true') {
@@ -72,7 +103,7 @@
             return
         }
 
-        [...updates.children].forEach((node) => {
+        ;[...updates.children].forEach((node) => {
             if (node.classList.contains('emailgroup')) {
                 insertGroupHeaderIfNeeded(messagelist, node)
             } else if (node.classList.contains('emailheader')) {
@@ -156,6 +187,7 @@
         applyNotificationStrip(incomingStrip)
 
         applyFolderBadges(payload)
+        applyReadStateUpdates(payload)
         applyMessageListUpdates(payload)
 
         const strip = document.getElementById('notification-strip')
@@ -193,6 +225,7 @@
             ? `/accounts/${accountId}/notifications?folderId=${encodeURIComponent(folderId)}`
             : `/accounts/${accountId}/notifications`
         url += listCursorParams()
+        url += visibleMessageIdParams()
         fetch(url, { credentials: 'same-origin' })
             .then((response) => response.text())
             .then((html) => {
@@ -206,13 +239,47 @@
             .catch(() => {})
     }
 
+    function schedulePoll(accountId) {
+        if (pollTimer != null) {
+            window.clearInterval(pollTimer)
+        }
+        pollTimer = window.setInterval(
+            () => poll(accountId),
+            sseConnected ? BACKSTOP_POLL_MS : POLL_MS
+        )
+    }
+
+    function connectEvents(accountId) {
+        if (!window.EventSource) {
+            return
+        }
+        if (eventSource) {
+            eventSource.close()
+            eventSource = null
+        }
+        eventSource = new EventSource(`/accounts/${accountId}/events`)
+        eventSource.addEventListener('mailbox-updated', () => poll(accountId))
+        eventSource.onopen = () => {
+            sseConnected = true
+            schedulePoll(accountId)
+        }
+        eventSource.onerror = () => {
+            sseConnected = false
+            eventSource?.close()
+            eventSource = null
+            schedulePoll(accountId)
+            window.setTimeout(() => connectEvents(accountId), 5000)
+        }
+    }
+
     function init() {
         const accountId = window.quicksand?.currentAccountId
         if (!accountId) {
             return
         }
         poll(accountId)
-        window.setInterval(() => poll(accountId), POLL_MS)
+        connectEvents(accountId)
+        schedulePoll(accountId)
     }
 
     if (document.readyState === 'loading') {

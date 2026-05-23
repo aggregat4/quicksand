@@ -1,11 +1,13 @@
 package net.aggregat4.quicksand.webservice;
 
+import io.helidon.http.HeaderNames;
 import io.helidon.http.HttpMediaType;
 import io.helidon.webserver.http.HttpRules;
 import io.helidon.webserver.http.HttpService;
 import io.helidon.webserver.http.ServerRequest;
 import io.helidon.webserver.http.ServerResponse;
 import io.pebbletemplates.pebble.template.PebbleTemplate;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +18,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
 import net.aggregat4.quicksand.domain.AccountNotificationSummary;
 import net.aggregat4.quicksand.domain.DraftsFolder;
@@ -26,6 +31,7 @@ import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.Folder;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
+import net.aggregat4.quicksand.domain.MessageReadState;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.domain.OutboxFolder;
 import net.aggregat4.quicksand.domain.PageDirection;
@@ -42,12 +48,16 @@ import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 import net.aggregat4.quicksand.service.MailboxSyncRecoveryService;
+import net.aggregat4.quicksand.service.MailboxUpdateBroadcaster;
 import net.aggregat4.quicksand.service.NotificationService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 
 public class AccountWebService implements HttpService {
   public static final int PAGE_SIZE = 100;
   private static final HttpMediaType TEXT_HTML = HttpMediaType.create("text/html; charset=UTF-8");
+  private static final HttpMediaType TEXT_EVENT_STREAM =
+      HttpMediaType.create("text/event-stream; charset=UTF-8");
+  private static final long SSE_HEARTBEAT_SECONDS = 30L;
 
   private static final PebbleTemplate accountTemplate =
       PebbleConfig.getEngine().getTemplate("templates/account.peb");
@@ -68,6 +78,7 @@ public class AccountWebService implements HttpService {
   private final OutboundMessageService outboundMessageService;
   private final MailboxSyncRecoveryService mailboxSyncRecoveryService;
   private final NotificationService notificationService;
+  private final MailboxUpdateBroadcaster mailboxUpdateBroadcaster;
   private final Clock clock;
 
   public AccountWebService(
@@ -79,6 +90,7 @@ public class AccountWebService implements HttpService {
       OutboundMessageService outboundMessageService,
       MailboxSyncRecoveryService mailboxSyncRecoveryService,
       NotificationService notificationService,
+      MailboxUpdateBroadcaster mailboxUpdateBroadcaster,
       Clock clock) {
     this.folderService = folderService;
     this.accountService = accountService;
@@ -88,6 +100,7 @@ public class AccountWebService implements HttpService {
     this.outboundMessageService = outboundMessageService;
     this.mailboxSyncRecoveryService = mailboxSyncRecoveryService;
     this.notificationService = notificationService;
+    this.mailboxUpdateBroadcaster = mailboxUpdateBroadcaster;
     this.clock = clock;
   }
 
@@ -100,6 +113,7 @@ public class AccountWebService implements HttpService {
     rules.get("/{accountId}/search", this::getSearchHandler);
     rules.get("/{accountId}/sync", this::getSyncStatusHandler);
     rules.get("/{accountId}/notifications", this::getNotificationsHandler);
+    rules.get("/{accountId}/events", this::getEventsHandler);
     rules.post("/{accountId}/sync/retry", this::postSyncRetryHandler);
     rules.post("/{accountId}/sync/dismiss", this::postSyncDismissHandler);
     rules.post("/{accountId}/sync/abandon", this::postSyncAbandonHandler);
@@ -605,8 +619,73 @@ public class AccountWebService implements HttpService {
       context.put("currentFolderIsOutbox", false);
       context.put("currentQuery", Optional.empty());
     }
+    request
+        .query()
+        .first("visibleMessageIds")
+        .flatMap(AccountWebService::parseCommaSeparatedInts)
+        .filter(ids -> !ids.isEmpty())
+        .ifPresent(
+            messageIds -> {
+              List<MessageReadState> readStates =
+                  emailService.getReadStatesForMessages(accountId, messageIds);
+              if (!readStates.isEmpty()) {
+                context.put("readStateUpdates", readStates);
+              }
+            });
     response.headers().contentType(TEXT_HTML);
     response.send(PebbleRenderer.renderTemplate(context, notificationsTemplate));
+  }
+
+  private void getEventsHandler(ServerRequest request, ServerResponse response) {
+    int accountId = RequestUtils.intPathParam(request, "accountId");
+    response.headers().contentType(TEXT_EVENT_STREAM);
+    response.headers().add(HeaderNames.CACHE_CONTROL, "no-cache");
+    response.headers().add(HeaderNames.CONNECTION, "keep-alive");
+
+    BlockingQueue<Object> queue = new ArrayBlockingQueue<>(8);
+    AutoCloseable subscription = mailboxUpdateBroadcaster.subscribe(accountId, queue);
+    OutputStream outputStream = response.outputStream();
+    try {
+      if (!SseIo.writeComment(outputStream, "connected")) {
+        return;
+      }
+      while (!Thread.currentThread().isInterrupted()) {
+        Object token = queue.poll(SSE_HEARTBEAT_SECONDS, TimeUnit.SECONDS);
+        if (token == MailboxUpdateBroadcaster.wakeupToken()) {
+          if (!SseIo.writeEvent(outputStream, "mailbox-updated", "{}")) {
+            break;
+          }
+        } else if (!SseIo.writeComment(outputStream, "heartbeat")) {
+          break;
+        }
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    } finally {
+      SseIo.closeQuietly(outputStream);
+      try {
+        subscription.close();
+      } catch (Exception ignored) {
+        // Best-effort unsubscribe.
+      }
+    }
+  }
+
+  private static Optional<List<Integer>> parseCommaSeparatedInts(String value) {
+    if (value == null || value.isBlank()) {
+      return Optional.empty();
+    }
+    try {
+      List<Integer> ids = new java.util.ArrayList<>();
+      for (String part : value.split(",")) {
+        if (!part.isBlank()) {
+          ids.add(Integer.parseInt(part.trim()));
+        }
+      }
+      return ids.isEmpty() ? Optional.empty() : Optional.of(ids);
+    } catch (NumberFormatException e) {
+      return Optional.empty();
+    }
   }
 
   private static Optional<Integer> parseOptionalInt(String value) {

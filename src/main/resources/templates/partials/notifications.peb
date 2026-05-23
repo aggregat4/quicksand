@@ -17,6 +17,13 @@
             <span class="folder-unread-badge" data-folder-id="{{ folder.folderId }}" hidden></span>
         {% endif %}
     {% endfor %}
+    {% if readStateUpdates != null and not readStateUpdates.isEmpty() %}
+        <div id="read-state-updates">
+            {% for update in readStateUpdates %}
+                <span class="read-state-update" data-message-id="{{ update.messageId }}" data-read="{{ update.read }}"></span>
+            {% endfor %}
+        </div>
+    {% endif %}
     {% if newMessageGroups != null and not newMessageGroups.isEmpty() %}
         <div id="messagelist-updates">
             {% set emailActive = false %}

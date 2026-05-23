@@ -11,6 +11,7 @@ import net.aggregat4.quicksand.repository.DbAccountRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.service.AccountFolderMappingService;
+import net.aggregat4.quicksand.service.MailboxUpdateBroadcaster;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +25,7 @@ public class MailFetcher {
   private final FolderRepository folderRepository;
   private final EmailRepository messageRepository;
   private final AccountFolderMappingService accountFolderMappingService;
+  private final MailboxUpdateBroadcaster mailboxUpdateBroadcaster;
 
   private final ConcurrentHashMap<Account, Store> accountStores = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<Account, ImapIdleWatcher> idleWatchers =
@@ -35,13 +37,15 @@ public class MailFetcher {
       FolderRepository folderRepository,
       EmailRepository emailRepository,
       AccountFolderMappingService accountFolderMappingService,
-      boolean idleEnabled) {
+      boolean idleEnabled,
+      MailboxUpdateBroadcaster mailboxUpdateBroadcaster) {
     this.accountRepository = accountRepository;
     this.fetchPeriodInSeconds = fetchPeriodInSeconds;
     this.folderRepository = folderRepository;
     this.messageRepository = emailRepository;
     this.accountFolderMappingService = accountFolderMappingService;
     this.idleEnabled = idleEnabled;
+    this.mailboxUpdateBroadcaster = mailboxUpdateBroadcaster;
   }
 
   public void start() {
@@ -100,6 +104,9 @@ public class MailFetcher {
       long accountFetchStarted = System.nanoTime();
       ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
       accountFolderMappingService.syncMappingsAfterFolderDiscovery(account.id());
+      if (mailboxUpdateBroadcaster != null) {
+        mailboxUpdateBroadcaster.publishMailboxUpdated(account.id());
+      }
       ensureIdleWatch(account, store);
       LOGGER.debug(
           "Finished mail fetch for account {} in {} ms",

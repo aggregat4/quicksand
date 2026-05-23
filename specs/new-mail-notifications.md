@@ -31,7 +31,8 @@ INBOX drives the optional header strip (“N new in Inbox”).
 
 | Route | Response |
 |-------|----------|
-| `GET /accounts/{id}/notifications?folderId=&listCursorReceived=&listCursorMessageId=` | HTML fragment: strip, folder badges, optional new message rows for live list updates |
+| `GET /accounts/{id}/notifications?folderId=&listCursorReceived=&listCursorMessageId=&visibleMessageIds=` | HTML fragment: strip, folder badges, read-state patches, optional new message rows |
+| `GET /accounts/{id}/events` | SSE stream: `mailbox-updated` after IMAP sync updates the mirror |
 
 Rendered by `templates/partials/notifications.peb`.
 
@@ -39,7 +40,7 @@ Rendered by `templates/partials/notifications.peb`.
 
 1. **Sidebar badges** — unread count next to each mirrored folder when `read = 0` (not Outbox/Drafts/Sent).
 2. **Header strip** — quiet link when INBOX has new mail since last view and user is not already on Inbox.
-3. **Poll** — `notifications.js` fetches the fragment every 15s and patches badges/strip; when viewing the first page of a folder (default sort), prepends new rows to `#messagelist` without reloading the open viewer.
+3. **Poll / SSE** — `notifications.js` subscribes to `GET /accounts/{id}/events` and fetches the fragment on `mailbox-updated`; 15s poll when SSE is unavailable, 60s backstop when connected.
 
 Suppress strip when composer dialog is open (`#newmail-composer-dialog[open]`).
 
@@ -58,15 +59,17 @@ No Service Worker in v1.
 | A | View cursors + unread sidebar badges on full page load | **Done** |
 | B | Notification fragment + `notifications.js` poll + header strip | **Done** |
 | C | Desktop opt-in on poll | **Done (minimal)** |
+| D | SSE wake-up (`/accounts/{id}/events`) + read-state list patches | **Done** |
 
 ## Testing
 
 - `NotificationServiceTest` — unread counts, new-since-view, mark viewed
+- `MailboxUpdateBroadcasterTest` — SSE subscriber wake-up per account
 - `DbFolderRepositoryTest` — `markFolderViewed` persistence
-- Manual: open Inbox, sync new mail in another tab, strip appears on poll
+- Manual: open Inbox, sync new mail in another tab, strip appears on SSE wake-up (or poll fallback)
 
 ## Non-goals (v1)
 
-- WebSocket / SSE push channel
+- WebSocket push channel
 - JSON inbox API as primary UI
 - Per-message desktop spam during bulk initial sync (cursor starts unset; first folder visit sets baseline)

@@ -6,6 +6,7 @@ import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.MailboxSyncStatus;
+import net.aggregat4.quicksand.domain.MessageReadState;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.repository.EmailRepository;
@@ -45,6 +46,12 @@ public class EmailService {
       int folderId, long afterReceivedEpochSeconds, int afterMessageId, int limit) {
     return emailRepository.getMessagesNewerThan(
         folderId, afterReceivedEpochSeconds, afterMessageId, limit);
+  }
+
+  public List<MessageReadState> getReadStatesForMessages(int accountId, List<Integer> messageIds) {
+    return emailRepository.getReadFlagsByMessageIds(accountId, messageIds).entrySet().stream()
+        .map(entry -> new MessageReadState(entry.getKey(), entry.getValue()))
+        .toList();
   }
 
   public EmailPage searchMessages(

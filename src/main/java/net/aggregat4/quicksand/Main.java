@@ -44,6 +44,7 @@ import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.FolderService;
 import net.aggregat4.quicksand.service.MailboxSyncRecoveryService;
+import net.aggregat4.quicksand.service.MailboxUpdateBroadcaster;
 import net.aggregat4.quicksand.service.NotificationService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 import net.aggregat4.quicksand.time.ApplicationClock;
@@ -117,6 +118,7 @@ public final class Main {
     AccountFolderMappingService accountFolderMappingService =
         new AccountFolderMappingService(
             accountFolderMappingRepository, folderRepository, accountRepository);
+    MailboxUpdateBroadcaster mailboxUpdateBroadcaster = new MailboxUpdateBroadcaster();
 
     boolean mailFetcherEnabled = config.get("mail_fetcher.enabled").asBoolean().orElse(demoEnabled);
     if (mailFetcherEnabled && !accounts.isEmpty()) {
@@ -129,7 +131,8 @@ public final class Main {
               folderRepository,
               messageRepository,
               accountFolderMappingService,
-              idleEnabled);
+              idleEnabled,
+              mailboxUpdateBroadcaster);
       mailFetcher.fetchNow();
       mailFetcher.start();
     } else if (mailFetcherEnabled) {
@@ -210,6 +213,7 @@ public final class Main {
                     outboundMessageService,
                     mailboxSyncRecoveryService,
                     notificationService,
+                    mailboxUpdateBroadcaster,
                     clock))
             .register(
                 "/emails",
