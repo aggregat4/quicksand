@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.util.List;
 import java.util.Optional;
 import net.aggregat4.quicksand.domain.Attachment;
+import net.aggregat4.quicksand.domain.InboundAttachment;
 import net.aggregat4.quicksand.domain.StoredAttachment;
 
 public interface AttachmentRepository {
@@ -25,6 +26,10 @@ public interface AttachmentRepository {
   Optional<StoredAttachment> findStoredById(int id);
 
   void moveDraftAttachmentsToOutboundMessage(Connection con, int draftId, int outboundMessageId);
+
+  void saveMessageAttachments(Connection con, int messageId, List<InboundAttachment> attachments);
+
+  List<Attachment> findByMessageId(int messageId);
 
   void deleteByDraftId(int draftId);
 }

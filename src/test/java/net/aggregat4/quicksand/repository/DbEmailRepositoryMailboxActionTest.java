@@ -53,7 +53,9 @@ class DbEmailRepositoryMailboxActionTest {
     account = accountRepository.getAccount(accountRepository.getAccounts().getFirst().id());
     folderRepository = new DbFolderRepository(dataSource);
     mappingRepository = new DbAccountFolderMappingRepository(dataSource);
-    emailRepository = new DbEmailRepository(dataSource, new DbActorRepository(dataSource));
+    emailRepository =
+        new DbEmailRepository(
+            dataSource, new DbActorRepository(dataSource), new DbAttachmentRepository(dataSource));
 
     inbox = folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
     trash = folderRepository.createFolder(account, "Trash", "Trash", FolderSpecialUse.TRASH, 200L);

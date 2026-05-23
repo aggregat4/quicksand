@@ -26,7 +26,9 @@ import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
+import net.aggregat4.quicksand.domain.InboundAttachment;
 import net.aggregat4.quicksand.domain.NamedFolder;
+import net.aggregat4.quicksand.imap.FolderRemoteNameMatcher;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import org.eclipse.angus.mail.imap.IMAPFolder;
@@ -158,6 +160,14 @@ public class ImapStoreSync {
         imapMessages.size(),
         imapFolder.getFullName(),
         elapsedMillis(extractBodiesStarted));
+    long extractAttachmentsStarted = System.nanoTime();
+    Map<IMAPMessage, List<ImapAttachmentExtractor.ExtractedAttachment>> storedAttachments =
+        ImapAttachmentExtractor.extractAttachments(imapFolder.unwrapImapFolder(), imapMessages);
+    LOGGER.debug(
+        "Extracted attachments for {} new messages in folder {} in {} ms",
+        imapMessages.size(),
+        imapFolder.getFullName(),
+        elapsedMillis(extractAttachmentsStarted));
     List<Email> newEmails = new ArrayList<>();
     int downloadedCount = 0;
     for (IMAPMessage newMessage : imapMessages) {
@@ -168,6 +178,8 @@ public class ImapStoreSync {
       ZonedDateTime receivedDateTime =
           ZonedDateTime.ofInstant(newMessage.getReceivedDate().toInstant(), ZoneId.systemDefault());
       ImapBodyExtractor.StoredBody storedBody = storedBodies.get(newMessage);
+      List<InboundAttachment> inboundAttachments =
+          ImapAttachmentExtractor.toInboundAttachments(storedAttachments.get(newMessage));
       Email newEmail =
           new Email(
               new EmailHeader(
@@ -181,11 +193,12 @@ public class ImapStoreSync {
                   receivedDateTime.toEpochSecond(),
                   storedBody.excerpt(),
                   newMessage.getFlags().contains(Flags.Flag.FLAGGED),
-                  false /* TODO attachment handling */,
+                  !inboundAttachments.isEmpty(),
                   isMessageRead(localFolder, newMessage)),
               storedBody.plainText(),
               storedBody.body(),
-              Collections.emptyList() /* TODO attachment handling */);
+              Collections.emptyList(),
+              inboundAttachments);
       newEmails.add(newEmail);
       downloadedCount++;
       if (downloadedCount % 50 == 0 || downloadedCount == imapMessages.size()) {
@@ -268,7 +281,7 @@ public class ImapStoreSync {
   }
 
   private static boolean matchesRemoteFolder(NamedFolder localFolder, String remoteName) {
-    return remoteName.equals(localFolder.remoteName()) || remoteName.equals(localFolder.name());
+    return FolderRemoteNameMatcher.matches(localFolder, remoteName);
   }
 
   /**

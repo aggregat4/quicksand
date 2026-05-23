@@ -109,7 +109,7 @@ public class MailSenderTest {
             draftRepository,
             attachmentRepository,
             outboundMessageRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(createdAt.toInstant(), ZoneId.of("Europe/Berlin")));
 
     var queuedMessage = outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();
@@ -119,7 +119,7 @@ public class MailSenderTest {
             accountRepository,
             outboundMessageRepository,
             attachmentRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(createdAt.plusMinutes(3).toInstant(), ZoneId.of("Europe/Berlin")),
             60,
             3,
@@ -189,7 +189,8 @@ public class MailSenderTest {
     setupStore.close();
 
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
-    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbActorRepository(ds));
+    DbEmailRepository emailRepository =
+        new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds));
     Store syncStore = Session.getInstance(new Properties(), null).getStore("imap");
     syncStore.connect(
         "localhost",
@@ -346,7 +347,7 @@ public class MailSenderTest {
             draftRepository,
             attachmentRepository,
             outboundMessageRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(createdAt.toInstant(), ZoneId.of("Europe/Berlin")));
     var unused = outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();
 
@@ -355,7 +356,7 @@ public class MailSenderTest {
             accountRepository,
             outboundMessageRepository,
             attachmentRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(createdAt.plusMinutes(3).toInstant(), ZoneId.of("Europe/Berlin")),
             60,
             3,
@@ -365,7 +366,8 @@ public class MailSenderTest {
     assertTrue(greenMail.waitForIncomingEmail(5_000, 1));
 
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
-    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbActorRepository(ds));
+    DbEmailRepository emailRepository =
+        new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds));
     Session session = Session.getInstance(new Properties(), null);
     Store store = session.getStore("imap");
     store.connect(
@@ -443,7 +445,7 @@ public class MailSenderTest {
             accountRepository,
             outboundMessageRepository,
             attachmentRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(attemptTime.toInstant(), ZoneId.of("Europe/Berlin")),
             60,
             3,
@@ -516,7 +518,7 @@ public class MailSenderTest {
             accountRepository,
             outboundMessageRepository,
             attachmentRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(firstAttemptTime.toInstant(), ZoneId.of("Europe/Berlin")),
             60,
             3,
@@ -529,7 +531,7 @@ public class MailSenderTest {
             accountRepository,
             outboundMessageRepository,
             attachmentRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(firstAttemptTime.plusSeconds(30).toInstant(), ZoneId.of("Europe/Berlin")),
             60,
             3,
@@ -543,7 +545,7 @@ public class MailSenderTest {
             accountRepository,
             outboundMessageRepository,
             attachmentRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(firstAttemptTime.plusSeconds(60).toInstant(), ZoneId.of("Europe/Berlin")),
             60,
             3,
@@ -605,7 +607,7 @@ public class MailSenderTest {
             accountRepository,
             outboundMessageRepository,
             attachmentRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(firstAttemptTime.toInstant(), ZoneId.of("Europe/Berlin")),
             60,
             2,
@@ -623,7 +625,7 @@ public class MailSenderTest {
             accountRepository,
             outboundMessageRepository,
             attachmentRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(firstAttemptTime.plusSeconds(60).toInstant(), ZoneId.of("Europe/Berlin")),
             60,
             2,
@@ -642,7 +644,7 @@ public class MailSenderTest {
             accountRepository,
             outboundMessageRepository,
             attachmentRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(firstAttemptTime.plusSeconds(120).toInstant(), ZoneId.of("Europe/Berlin")),
             60,
             2,
@@ -688,7 +690,7 @@ public class MailSenderTest {
             draftRepository,
             attachmentRepository,
             outboundMessageRepository,
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(createdAt.toInstant(), ZoneId.of("Europe/Berlin")));
     return outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow().id();
   }

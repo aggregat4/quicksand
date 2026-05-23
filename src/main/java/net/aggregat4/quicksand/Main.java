@@ -88,10 +88,11 @@ public final class Main {
     AccountFolderMappingRepository accountFolderMappingRepository =
         new DbAccountFolderMappingRepository(ds);
     DbActorRepository actorRepository = new DbActorRepository(ds);
-    EmailRepository messageRepository = new DbEmailRepository(ds, actorRepository);
+    DbAttachmentRepository dbAttachmentRepository = new DbAttachmentRepository(ds);
+    EmailRepository messageRepository =
+        new DbEmailRepository(ds, actorRepository, dbAttachmentRepository);
     DbDraftRepository dbDraftRepository = new DbDraftRepository(ds);
     DraftRepository draftRepository = dbDraftRepository;
-    DbAttachmentRepository dbAttachmentRepository = new DbAttachmentRepository(ds);
     AttachmentRepository attachmentRepository = dbAttachmentRepository;
     OutboundMessageRepository outboundMessageRepository = new DbOutboundMessageRepository(ds);
     AttachmentService attachmentService = new AttachmentService(attachmentRepository);

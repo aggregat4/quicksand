@@ -83,7 +83,7 @@ public class ImapStoreSyncTest {
     assertTrue(email.plainText());
     assertTrue(email.body().contains(body));
     assertTrue(email.header().bodyExcerpt().contains(body));
-    // TODO: attachment handling
+    // attachment handling covered by multipart/mixed tests below
     // TODO: message update handling
 
     Folder imapFolder = store.getFolder("INBOX");
@@ -295,6 +295,42 @@ public class ImapStoreSyncTest {
     assertTrue(email.header().bodyExcerpt().contains("nested html alternative body"));
     assertFalse(
         email.header().bodyExcerpt().contains("nested attachment body must not be indexed"));
+    assertTrue(email.header().attachment());
+    assertEquals(1, email.inboundAttachments().size());
+    assertEquals("nested-note.txt", email.inboundAttachments().getFirst().name());
+    assertEquals(
+        "nested attachment body must not be indexed",
+        new String(email.inboundAttachments().getFirst().content(), StandardCharsets.UTF_8));
+  }
+
+  @Test
+  public void syncStoresNamedHtmlAttachmentInMultipartMixed() throws MessagingException {
+    MimeMessage message = createBaseMessage("HTML attachment subject");
+    MimeMultipart mixed = new MimeMultipart("mixed");
+
+    MimeBodyPart textPart = new MimeBodyPart();
+    textPart.setText("real message body", StandardCharsets.UTF_8.name());
+    mixed.addBodyPart(textPart);
+
+    MimeBodyPart htmlAttachmentPart = new MimeBodyPart();
+    htmlAttachmentPart.setContent(
+        "<html><body><p>attached html file body</p></body></html>", "text/html; charset=UTF-8");
+    htmlAttachmentPart.setFileName("report.html");
+    htmlAttachmentPart.setDisposition(Part.INLINE);
+    mixed.addBodyPart(htmlAttachmentPart);
+
+    message.setContent(mixed);
+    message.saveChanges();
+    deliver(message);
+
+    Email email = syncOnlyMessage();
+
+    assertTrue(email.header().attachment());
+    assertEquals(1, email.inboundAttachments().size());
+    assertEquals("report.html", email.inboundAttachments().getFirst().name());
+    assertTrue(
+        new String(email.inboundAttachments().getFirst().content(), StandardCharsets.UTF_8)
+            .contains("attached html file body"));
   }
 
   @Test
@@ -323,6 +359,12 @@ public class ImapStoreSyncTest {
     assertFalse(email.body().contains("attachment body must not be indexed"));
     assertTrue(email.header().bodyExcerpt().contains("real message body"));
     assertFalse(email.header().bodyExcerpt().contains("attachment body must not be indexed"));
+    assertTrue(email.header().attachment());
+    assertEquals(1, email.inboundAttachments().size());
+    assertEquals("note.txt", email.inboundAttachments().getFirst().name());
+    assertEquals(
+        "attachment body must not be indexed",
+        new String(email.inboundAttachments().getFirst().content(), StandardCharsets.UTF_8));
   }
 
   private static Email syncOnlyMessage() throws MessagingException {

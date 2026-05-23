@@ -4,12 +4,28 @@ import java.util.List;
 import java.util.Objects;
 
 public record Email(
-    EmailHeader header, boolean plainText, String body, List<Attachment> attachments) {
+    EmailHeader header,
+    boolean plainText,
+    String body,
+    List<Attachment> attachments,
+    List<InboundAttachment> inboundAttachments) {
+
+  public Email(EmailHeader header, boolean plainText, String body, List<Attachment> attachments) {
+    this(header, plainText, body, attachments, List.of());
+  }
+
+  public Email {
+    inboundAttachments = inboundAttachments == null ? List.of() : List.copyOf(inboundAttachments);
+  }
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (!(o instanceof Email email)) return false;
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof Email email)) {
+      return false;
+    }
     return Objects.equals(header, email.header);
   }
 

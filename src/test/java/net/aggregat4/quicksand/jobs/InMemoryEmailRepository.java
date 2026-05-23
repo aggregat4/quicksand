@@ -75,7 +75,8 @@ public class InMemoryEmailRepository implements EmailRepository {
                       messageRead),
                   email.plainText(),
                   email.body(),
-                  email.attachments()));
+                  email.attachments(),
+                  email.inboundAttachments()));
           return;
         }
       }
@@ -105,7 +106,8 @@ public class InMemoryEmailRepository implements EmailRepository {
                       messageRead),
                   email.plainText(),
                   email.body(),
-                  email.attachments()));
+                  email.attachments(),
+                  email.inboundAttachments()));
           return;
         }
       }
@@ -339,6 +341,20 @@ public class InMemoryEmailRepository implements EmailRepository {
         .limit(limit)
         .map(Email::header)
         .toList();
+  }
+
+  @Override
+  public Map<Integer, Boolean> getReadFlagsByMessageIds(
+      int accountId, Collection<Integer> messageIds) {
+    Map<Integer, Boolean> readFlags = new HashMap<>();
+    for (List<Email> emails : messages.values()) {
+      for (Email email : emails) {
+        if (messageIds.contains(email.header().id())) {
+          readFlags.put(email.header().id(), email.header().read());
+        }
+      }
+    }
+    return readFlags;
   }
 
   @Override

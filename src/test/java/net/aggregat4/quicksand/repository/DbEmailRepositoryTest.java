@@ -6,9 +6,17 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.util.GreenMailUtil;
 import jakarta.mail.MessagingException;
+import jakarta.mail.Part;
+import jakarta.mail.Session;
 import jakarta.mail.Store;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.util.Properties;
 import java.util.Set;
 import javax.sql.DataSource;
 import net.aggregat4.quicksand.DbTestUtils;
@@ -20,6 +28,7 @@ import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.ImapStoreSync;
+import net.aggregat4.quicksand.service.AttachmentService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -43,7 +52,8 @@ public class DbEmailRepositoryTest {
     migrateDb(ds);
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
     DbActorRepository actorRepository = new DbActorRepository(ds);
-    DbEmailRepository emailRepository = new DbEmailRepository(ds, actorRepository);
+    DbEmailRepository emailRepository =
+        new DbEmailRepository(ds, actorRepository, new DbAttachmentRepository(ds));
 
     Account account = GreenmailUtils.getAccount();
     assertEquals(0, folderRepository.getFolders(account.id()).size());
@@ -128,7 +138,8 @@ public class DbEmailRepositoryTest {
     migrateDb(ds);
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
     DbActorRepository actorRepository = new DbActorRepository(ds);
-    DbEmailRepository emailRepository = new DbEmailRepository(ds, actorRepository);
+    DbEmailRepository emailRepository =
+        new DbEmailRepository(ds, actorRepository, new DbAttachmentRepository(ds));
 
     Account account = GreenmailUtils.getAccount();
     ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
@@ -161,5 +172,68 @@ public class DbEmailRepositoryTest {
 
     emailRepository.removeAllByUid(Set.of(subjectResults.emails().getFirst().header().imapUid()));
     assertEquals(12, emailRepository.getSearchMessageCount(account.id(), "fixture subject"));
+  }
+
+  @Test
+  public void syncPersistsInboundAttachmentsForDownload() throws Exception {
+    String attachmentBody = "db attachment bytes for download";
+    MimeMessage message = new MimeMessage(Session.getInstance(new Properties()));
+    message.setFrom(new InternetAddress("from@foo.bar"));
+    message.setRecipient(jakarta.mail.Message.RecipientType.TO, new InternetAddress("to@foo.bar"));
+    message.setSubject("Attachment sync subject", StandardCharsets.UTF_8.name());
+
+    MimeMultipart mixed = new MimeMultipart("mixed");
+    MimeBodyPart textPart = new MimeBodyPart();
+    textPart.setText("message body with attachment", StandardCharsets.UTF_8.name());
+    mixed.addBodyPart(textPart);
+
+    MimeBodyPart attachmentPart = new MimeBodyPart();
+    attachmentPart.setText(attachmentBody, StandardCharsets.UTF_8.name());
+    attachmentPart.setFileName("sync-note.txt");
+    attachmentPart.setDisposition(Part.ATTACHMENT);
+    mixed.addBodyPart(attachmentPart);
+
+    message.setContent(mixed);
+    message.saveChanges();
+    greenMail.setUser("testuser@localhost", "testuser", "testpassword").deliver(message);
+
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbActorRepository actorRepository = new DbActorRepository(ds);
+    DbAttachmentRepository attachmentRepository = new DbAttachmentRepository(ds);
+    DbEmailRepository emailRepository =
+        new DbEmailRepository(ds, actorRepository, attachmentRepository);
+    AttachmentService attachmentService = new AttachmentService(attachmentRepository);
+
+    Account account = GreenmailUtils.getAccount();
+    Store store = GreenmailUtils.getImapStore(greenMail);
+    ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
+
+    Email stored =
+        emailRepository
+            .findByMessageUid(
+                emailRepository
+                    .getMessages(
+                        folderRepository.getFolders(account.id()).getFirst().id(),
+                        1,
+                        0,
+                        0,
+                        PageDirection.RIGHT,
+                        SortOrder.ASCENDING)
+                    .emails()
+                    .getFirst()
+                    .header()
+                    .imapUid())
+            .orElseThrow();
+
+    assertTrue(stored.header().attachment());
+    assertEquals(1, stored.attachments().size());
+    assertEquals("sync-note.txt", stored.attachments().getFirst().name());
+
+    var downloaded =
+        attachmentService.getStoredAttachment(stored.attachments().getFirst().id()).orElseThrow();
+    assertEquals("sync-note.txt", downloaded.name());
+    assertEquals(attachmentBody, new String(downloaded.content(), StandardCharsets.UTF_8));
   }
 }

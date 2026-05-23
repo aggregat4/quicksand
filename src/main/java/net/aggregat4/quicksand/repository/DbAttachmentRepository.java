@@ -9,6 +9,7 @@ import java.util.Optional;
 import javax.sql.DataSource;
 import net.aggregat4.dblib.DbUtil;
 import net.aggregat4.quicksand.domain.Attachment;
+import net.aggregat4.quicksand.domain.InboundAttachment;
 import net.aggregat4.quicksand.domain.StoredAttachment;
 
 public class DbAttachmentRepository implements AttachmentRepository {
@@ -57,6 +58,36 @@ public class DbAttachmentRepository implements AttachmentRepository {
   @Override
   public List<Attachment> findByOutboundMessageId(int outboundMessageId) {
     return findByAssociation("outbound_message_id", outboundMessageId);
+  }
+
+  @Override
+  public List<Attachment> findByMessageId(int messageId) {
+    return findByAssociation("message_id", messageId);
+  }
+
+  @Override
+  public void saveMessageAttachments(
+      Connection con, int messageId, List<InboundAttachment> attachments) {
+    if (attachments.isEmpty()) {
+      return;
+    }
+    for (InboundAttachment attachment : attachments) {
+      DbUtil.withPreparedStmtConsumer(
+          con,
+          """
+                  INSERT INTO attachments (draft_id, message_id, name, size_bytes, media_type, content_hash, content)
+                  VALUES (NULL, ?, ?, ?, ?, ?, ?)
+                  """,
+          stmt -> {
+            stmt.setInt(1, messageId);
+            stmt.setString(2, attachment.name());
+            stmt.setLong(3, attachment.content().length);
+            stmt.setString(4, attachment.mediaType());
+            stmt.setString(5, attachment.contentHash());
+            stmt.setBytes(6, attachment.content());
+            stmt.executeUpdate();
+          });
+    }
   }
 
   @Override

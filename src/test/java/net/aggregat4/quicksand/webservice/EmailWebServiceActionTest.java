@@ -128,7 +128,8 @@ class EmailWebServiceActionTest {
             .id();
 
     DbActorRepository actorRepository = new DbActorRepository(dataSource);
-    emailRepository = new DbEmailRepository(dataSource, actorRepository);
+    emailRepository =
+        new DbEmailRepository(dataSource, actorRepository, new DbAttachmentRepository(dataSource));
 
     List<Actor> actors = List.of(new Actor(ActorType.SENDER, "a@b.com", Optional.of("A")));
     ZonedDateTime now = ZonedDateTime.now();

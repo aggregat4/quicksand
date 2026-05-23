@@ -81,7 +81,7 @@ public class OutboundMessageServiceTest {
             draftRepository,
             attachmentRepository,
             new DbOutboundMessageRepository(ds),
-            new DbEmailRepository(ds, new DbActorRepository(ds)),
+            new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds)),
             Clock.fixed(createdAt.toInstant(), ZoneId.of("Europe/Berlin")));
 
     var queuedMessage = outboundMessageService.queueDraftForDelivery(draft.id()).orElseThrow();

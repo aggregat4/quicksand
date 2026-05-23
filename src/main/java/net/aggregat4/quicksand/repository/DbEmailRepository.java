@@ -13,6 +13,7 @@ import javax.sql.DataSource;
 import net.aggregat4.dblib.DbUtil;
 import net.aggregat4.quicksand.domain.Actor;
 import net.aggregat4.quicksand.domain.ActorType;
+import net.aggregat4.quicksand.domain.Attachment;
 import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
@@ -42,9 +43,12 @@ public class DbEmailRepository implements EmailRepository {
   private static final String MESSAGE_VIEWER_COLUMNS =
       MESSAGE_HEADER_COLUMNS + ", body, plain_text";
   private final DataSource ds;
+  private final AttachmentRepository attachmentRepository;
 
-  public DbEmailRepository(DataSource ds, DbActorRepository actorRepository) {
+  public DbEmailRepository(
+      DataSource ds, DbActorRepository actorRepository, AttachmentRepository attachmentRepository) {
     this.ds = ds;
+    this.attachmentRepository = attachmentRepository;
   }
 
   @Override
@@ -61,7 +65,7 @@ public class DbEmailRepository implements EmailRepository {
                   return Optional.empty();
                 }
                 List<Actor> actors = getActors(id);
-                return Optional.of(convertRowToViewerEmail(rs, actors));
+                return Optional.of(convertRowToViewerEmail(rs, actors, id));
               });
         });
   }
@@ -97,7 +101,7 @@ public class DbEmailRepository implements EmailRepository {
                 if (rs.next()) {
                   int messageId = rs.getInt(1);
                   List<Actor> actors = getActors(messageId);
-                  return Optional.of(convertRowToListEmail(rs, actors));
+                  return Optional.of(convertRowToListEmail(rs, actors, messageId));
                 } else {
                   return Optional.empty();
                 }
@@ -105,8 +109,8 @@ public class DbEmailRepository implements EmailRepository {
         });
   }
 
-  private static EmailHeader convertRowToHeader(ResultSet rs, List<Actor> actors)
-      throws SQLException {
+  private static EmailHeader convertRowToHeader(
+      ResultSet rs, List<Actor> actors, boolean hasAttachment) throws SQLException {
     return new EmailHeader(
         rs.getInt(1),
         rs.getLong(2),
@@ -118,21 +122,25 @@ public class DbEmailRepository implements EmailRepository {
         rs.getLong(7),
         rs.getString(8),
         rs.getInt(9) == 1,
-        false,
+        hasAttachment,
         rs.getInt(10) == 1);
   }
 
-  private static Email convertRowToListEmail(ResultSet rs, List<Actor> actors) throws SQLException {
-    return new Email(convertRowToHeader(rs, actors), false, null, Collections.emptyList());
+  private Email convertRowToListEmail(ResultSet rs, List<Actor> actors, int messageId)
+      throws SQLException {
+    List<Attachment> attachments = attachmentRepository.findByMessageId(messageId);
+    return new Email(
+        convertRowToHeader(rs, actors, !attachments.isEmpty()), false, null, attachments);
   }
 
-  private static Email convertRowToViewerEmail(ResultSet rs, List<Actor> actors)
+  private Email convertRowToViewerEmail(ResultSet rs, List<Actor> actors, int messageId)
       throws SQLException {
+    List<Attachment> attachments = attachmentRepository.findByMessageId(messageId);
     return new Email(
-        convertRowToHeader(rs, actors),
+        convertRowToHeader(rs, actors, !attachments.isEmpty()),
         rs.getInt(12) == 1,
         rs.getString(11),
-        Collections.emptyList());
+        attachments);
   }
 
   private List<Actor> getActors(int messageId) {
@@ -839,6 +847,7 @@ public class DbEmailRepository implements EmailRepository {
         for (Actor actor : email.header().actors()) {
           saveActor(con, messageId, actor);
         }
+        attachmentRepository.saveMessageAttachments(con, messageId, email.inboundAttachments());
         indexSearchDocument(con, messageId, email);
         return messageId;
       }
@@ -902,7 +911,7 @@ public class DbEmailRepository implements EmailRepository {
                   // TODO: profile this and potentially optimise by directly joining? Or by
                   // gathering message ids and getting all actors in batch
                   List<Actor> actors = getActors(messageId);
-                  messages.add(convertRowToListEmail(rs, actors));
+                  messages.add(convertRowToListEmail(rs, actors, messageId));
                 }
                 boolean hasMoreResults = messages.size() > pageSize;
                 if (hasMoreResults) {
@@ -1049,9 +1058,44 @@ public class DbEmailRepository implements EmailRepository {
                 while (rs.next()) {
                   int messageId = rs.getInt(1);
                   List<Actor> actors = getActors(messageId);
-                  headers.add(convertRowToHeader(rs, actors));
+                  boolean hasAttachment =
+                      !attachmentRepository.findByMessageId(messageId).isEmpty();
+                  headers.add(convertRowToHeader(rs, actors, hasAttachment));
                 }
                 return headers;
+              });
+        });
+  }
+
+  @Override
+  public Map<Integer, Boolean> getReadFlagsByMessageIds(
+      int accountId, Collection<Integer> messageIds) {
+    if (messageIds.isEmpty()) {
+      return Map.of();
+    }
+    List<Integer> ids = messageIds.stream().distinct().toList();
+    String placeholders = ids.stream().map(ignored -> "?").collect(Collectors.joining(","));
+    return DbUtil.withPreparedStmtFunction(
+        ds,
+        """
+            SELECT m.id, m.read
+            FROM messages m
+            JOIN folders f ON f.id = m.folder_id
+            WHERE f.account_id = ? AND m.id IN (%s)"""
+            .formatted(placeholders),
+        stmt -> {
+          stmt.setInt(1, accountId);
+          for (int i = 0; i < ids.size(); i++) {
+            stmt.setInt(i + 2, ids.get(i));
+          }
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                Map<Integer, Boolean> readFlags = new HashMap<>();
+                while (rs.next()) {
+                  readFlags.put(rs.getInt(1), rs.getInt(2) == 1);
+                }
+                return readFlags;
               });
         });
   }
@@ -1105,7 +1149,7 @@ public class DbEmailRepository implements EmailRepository {
                 while (rs.next()) {
                   int messageId = rs.getInt(1);
                   List<Actor> actors = getActors(messageId);
-                  messages.add(convertRowToListEmail(rs, actors));
+                  messages.add(convertRowToListEmail(rs, actors, messageId));
                 }
                 boolean hasMoreResults = messages.size() > pageSize;
                 if (hasMoreResults) {

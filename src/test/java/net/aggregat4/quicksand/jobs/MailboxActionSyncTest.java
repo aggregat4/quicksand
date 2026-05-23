@@ -325,7 +325,8 @@ class MailboxActionSyncTest {
             "testpassword"));
     Account account = accountRepository.getAccounts().getFirst();
     DbFolderRepository folderRepository = new DbFolderRepository(ds);
-    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbActorRepository(ds));
+    DbEmailRepository emailRepository =
+        new DbEmailRepository(ds, new DbActorRepository(ds), new DbAttachmentRepository(ds));
 
     Store syncStore = GreenmailUtils.getImapStore(greenMail);
     for (String extraFolder : extraFolders) {
