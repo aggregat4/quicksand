@@ -1,7 +1,5 @@
 package net.aggregat4.quicksand;
 
-import com.icegreen.greenmail.util.GreenMail;
-import com.icegreen.greenmail.util.ServerSetup;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.helidon.config.Config;
@@ -18,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.sql.DataSource;
 import net.aggregat4.quicksand.domain.Account;
-import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.jobs.MailSender;
 import net.aggregat4.quicksand.jobs.MailboxActionSync;
@@ -65,7 +62,6 @@ public final class Main {
   private static MailFetcher mailFetcher;
   private static MailSender mailSender;
   private static MailboxActionSync mailboxActionSync;
-  private static GreenMail greenMail;
 
   public static void main(final String[] args) throws IOException {
     startServer();
@@ -78,7 +74,7 @@ public final class Main {
     ApplicationClock.set(clock);
 
     if (demoEnabled) {
-      greenMail = startDemoMailServer(config.get("demo"), clock);
+      startDemoMailServer(config.get("demo"), clock);
     }
 
     // Dependency Injection and Initialisation
@@ -249,19 +245,14 @@ public final class Main {
     return webServer;
   }
 
-  private static GreenMail startDemoMailServer(Config config, Clock clock) {
-    int smtpPort = config.get("smtp_port").asInt().orElse(25 + 4000);
-    int imapPort = config.get("imap_port").asInt().orElse(143 + 4000);
-    int seedCount = config.get("seed_count").asInt().orElse(273);
-    GreenMail greenMail =
-        new GreenMail(
-            new ServerSetup[] {
-              new ServerSetup(smtpPort, null, ServerSetup.PROTOCOL_SMTP),
-              new ServerSetup(imapPort, null, ServerSetup.PROTOCOL_IMAP)
-            });
-    greenMail.start();
-    GreenmailUtils.deliverDemoMessages(greenMail, seedCount, clock);
-    return greenMail;
+  private static void startDemoMailServer(Config demoConfig, Clock clock) {
+    try {
+      Class<?> demoMailServer = Class.forName("net.aggregat4.quicksand.demo.DemoMailServer");
+      demoMailServer.getMethod("start", Config.class, Clock.class).invoke(null, demoConfig, clock);
+    } catch (ReflectiveOperationException e) {
+      throw new IllegalStateException(
+          "Demo mode requires a build with the demo profile (embedded GreenMail).", e);
+    }
   }
 
   private static Clock createClock(Config config) {

@@ -1,0 +1,67 @@
+package net.aggregat4.quicksand.greenmail;
+
+import com.icegreen.greenmail.base.GreenMailOperations;
+import com.icegreen.greenmail.user.GreenMailUser;
+import com.icegreen.greenmail.util.GreenMailUtil;
+import jakarta.mail.MessagingException;
+import jakarta.mail.Session;
+import jakarta.mail.Store;
+import jakarta.mail.internet.MimeMessage;
+import net.aggregat4.quicksand.domain.Account;
+
+public final class GreenmailUtils {
+  private static final String USERNAME = "testuser";
+  private static final String PASSWORD = "testpassword";
+  private static final Account account =
+      new Account(
+          1, "test", "localhost", 4143, USERNAME, PASSWORD, "localhost", 4025, USERNAME, PASSWORD);
+  private static final String EMAIL = "testuser@localhost";
+
+  private GreenmailUtils() {}
+
+  public static Store getImapStore(GreenMailOperations greenMail) throws MessagingException {
+    Session imapSession = greenMail.getImap().createSession();
+    Store store = imapSession.getStore("imap");
+    store.connect(USERNAME, PASSWORD);
+    return store;
+  }
+
+  public static void deliverOneMessage(
+      GreenMailOperations greenMail, String subject, String body, String from, String to) {
+    deliverMessages(greenMail, subject, body, from, to, 1);
+  }
+
+  public static void deliverMessages(
+      GreenMailOperations greenMail,
+      String subject,
+      String body,
+      String from,
+      String to,
+      int count) {
+    MimeMessage message =
+        GreenMailUtil.createTextEmail(
+            to, from, subject, body, greenMail.getSmtp().getServerSetup());
+    GreenMailUser user = greenMail.setUser(EMAIL, USERNAME, PASSWORD);
+    for (int i = 0; i < count; i++) {
+      user.deliver(message);
+    }
+  }
+
+  public static void deliverMessages(GreenMailOperations greenMail, int count) {
+    String to = "foo@bar.com";
+    GreenMailUser user = greenMail.setUser(EMAIL, USERNAME, PASSWORD);
+    for (int i = 0; i < count; i++) {
+      String subject = GreenMailUtil.random(20);
+      String body = GreenMailUtil.random(50);
+      String from = GreenMailUtil.random(10) + "@example.com";
+      MimeMessage message =
+          GreenMailUtil.createTextEmail(
+              to, from, subject, body, greenMail.getSmtp().getServerSetup());
+      user.deliver(message);
+    }
+  }
+
+  public static Account getAccount() {
+    return account;
+  }
+}

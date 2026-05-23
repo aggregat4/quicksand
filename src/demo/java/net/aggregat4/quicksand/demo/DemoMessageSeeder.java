@@ -1,15 +1,12 @@
-package net.aggregat4.quicksand.greenmail;
+package net.aggregat4.quicksand.demo;
 
 import com.icegreen.greenmail.base.GreenMailOperations;
 import com.icegreen.greenmail.store.FolderException;
 import com.icegreen.greenmail.store.MailFolder;
 import com.icegreen.greenmail.user.GreenMailUser;
-import com.icegreen.greenmail.util.GreenMailUtil;
 import jakarta.mail.Flags;
 import jakarta.mail.Message;
 import jakarta.mail.MessagingException;
-import jakarta.mail.Session;
-import jakarta.mail.Store;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
@@ -22,10 +19,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.GroupedPeriod;
 
-public class GreenmailUtils {
+final class DemoMessageSeeder {
   private record DemoMessageTemplate(
       String subject, String from, String plainTextBody, String htmlBody) {}
 
@@ -33,55 +29,12 @@ public class GreenmailUtils {
 
   private static final String USERNAME = "testuser";
   private static final String PASSWORD = "testpassword";
-  private static final Account account =
-      new Account(
-          1, "test", "localhost", 4143, USERNAME, PASSWORD, "localhost", 4025, USERNAME, PASSWORD);
   private static final String EMAIL = "testuser@localhost";
   private static final int DUPLICATE_TIMESTAMP_CLUSTER_SIZE = 6;
 
-  public static Store getImapStore(GreenMailOperations greenMail) throws MessagingException {
-    Session imapSession = greenMail.getImap().createSession();
-    Store store = imapSession.getStore("imap");
-    store.connect(USERNAME, PASSWORD);
-    return store;
-  }
+  private DemoMessageSeeder() {}
 
-  public static void deliverOneMessage(
-      GreenMailOperations greenMail, String subject, String body, String from, String to) {
-    deliverMessages(greenMail, subject, body, from, to, 1);
-  }
-
-  public static void deliverMessages(
-      GreenMailOperations greenMail,
-      String subject,
-      String body,
-      String from,
-      String to,
-      int count) {
-    MimeMessage message =
-        GreenMailUtil.createTextEmail(
-            to, from, subject, body, greenMail.getSmtp().getServerSetup()); // Construct message
-    GreenMailUser user = greenMail.setUser(EMAIL, USERNAME, PASSWORD);
-    for (int i = 0; i < count; i++) {
-      user.deliver(message);
-    }
-  }
-
-  public static void deliverMessages(GreenMailOperations greenMail, int count) {
-    String to = "foo@bar.com";
-    GreenMailUser user = greenMail.setUser(EMAIL, USERNAME, PASSWORD);
-    for (int i = 0; i < count; i++) {
-      String subject = GreenMailUtil.random(20);
-      String body = GreenMailUtil.random(50);
-      String from = GreenMailUtil.random(10) + "@example.com";
-      MimeMessage message =
-          GreenMailUtil.createTextEmail(
-              to, from, subject, body, greenMail.getSmtp().getServerSetup()); // Construct message
-      user.deliver(message);
-    }
-  }
-
-  public static void deliverDemoMessages(GreenMailOperations greenMail, int count, Clock clock) {
+  static void deliverDemoMessages(GreenMailOperations greenMail, int count, Clock clock) {
     GreenMailUser user = greenMail.setUser(EMAIL, USERNAME, PASSWORD);
     MailFolder inbox = getInbox(greenMail, user);
     List<DemoMessageSeed> demoSeeds = buildDemoSeeds(count, clock);
@@ -92,10 +45,6 @@ public class GreenmailUtils {
       MimeMessage message = createDemoMessage(greenMail, demoSeed.template(), sentAt);
       appendMessage(inbox, message, demoSeed.receivedAt());
     }
-  }
-
-  public static Account getAccount() {
-    return account;
   }
 
   private static MailFolder getInbox(GreenMailOperations greenMail, GreenMailUser user) {
