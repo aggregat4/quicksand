@@ -12,7 +12,6 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -22,25 +21,10 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.configuration.PebbleConfig;
-import net.aggregat4.quicksand.domain.AccountNotificationSummary;
-import net.aggregat4.quicksand.domain.DraftsFolder;
-import net.aggregat4.quicksand.domain.Email;
-import net.aggregat4.quicksand.domain.EmailGroup;
-import net.aggregat4.quicksand.domain.EmailGroupPage;
-import net.aggregat4.quicksand.domain.EmailHeader;
-import net.aggregat4.quicksand.domain.EmailPage;
-import net.aggregat4.quicksand.domain.Folder;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
-import net.aggregat4.quicksand.domain.MessageReadState;
 import net.aggregat4.quicksand.domain.NamedFolder;
-import net.aggregat4.quicksand.domain.OutboxFolder;
-import net.aggregat4.quicksand.domain.PageDirection;
-import net.aggregat4.quicksand.domain.PageParams;
-import net.aggregat4.quicksand.domain.Pagination;
 import net.aggregat4.quicksand.domain.Query;
 import net.aggregat4.quicksand.domain.SearchFolder;
-import net.aggregat4.quicksand.domain.SidebarFolderLink;
-import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
 import net.aggregat4.quicksand.service.AccountFolderMappingService;
 import net.aggregat4.quicksand.service.AccountService;
@@ -53,22 +37,18 @@ import net.aggregat4.quicksand.service.NotificationService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 
 public class AccountWebService implements HttpService {
-  public static final int PAGE_SIZE = 100;
+  public static final int PAGE_SIZE = AccountMessagePagination.PAGE_SIZE;
   private static final HttpMediaType TEXT_HTML = HttpMediaType.create("text/html; charset=UTF-8");
   private static final HttpMediaType TEXT_EVENT_STREAM =
       HttpMediaType.create("text/event-stream; charset=UTF-8");
   private static final long SSE_HEARTBEAT_SECONDS = 30L;
 
-  private static final PebbleTemplate accountTemplate =
-      PebbleConfig.getEngine().getTemplate("templates/account.peb");
   private static final PebbleTemplate accountWithoutFoldersTemplate =
       PebbleConfig.getEngine().getTemplate("templates/account-nofolders.peb");
   private static final PebbleTemplate folderSettingsTemplate =
       PebbleConfig.getEngine().getTemplate("templates/folder-settings.peb");
   private static final PebbleTemplate syncStatusTemplate =
       PebbleConfig.getEngine().getTemplate("templates/sync-status.peb");
-  private static final PebbleTemplate notificationsTemplate =
-      PebbleConfig.getEngine().getTemplate("templates/partials/notifications.peb");
   private final FolderService folderService;
   private final AccountService accountService;
   private final AccountFolderMappingService accountFolderMappingService;
@@ -79,6 +59,7 @@ public class AccountWebService implements HttpService {
   private final MailboxSyncRecoveryService mailboxSyncRecoveryService;
   private final NotificationService notificationService;
   private final MailboxUpdateBroadcaster mailboxUpdateBroadcaster;
+  private final AccountPageRenderer pageRenderer;
   private final Clock clock;
 
   public AccountWebService(
@@ -102,6 +83,15 @@ public class AccountWebService implements HttpService {
     this.notificationService = notificationService;
     this.mailboxUpdateBroadcaster = mailboxUpdateBroadcaster;
     this.clock = clock;
+    this.pageRenderer =
+        new AccountPageRenderer(
+            folderService,
+            accountService,
+            emailService,
+            draftService,
+            outboundMessageService,
+            notificationService,
+            clock);
   }
 
   @Override
@@ -126,44 +116,26 @@ public class AccountWebService implements HttpService {
 
   private void getAccountHandler(ServerRequest request, ServerResponse response) {
     int accountId = RequestUtils.intPathParam(request, "accountId");
-    Optional<Integer> selectedEmailId =
-        request.query().first("selectedEmailId").map(Integer::parseInt);
+    Optional<Integer> selectedEmailId = AccountMessagePagination.selectedEmailId(request);
     List<NamedFolder> folders = folderService.getFolders(accountId);
     if (redirectToFolderSetupWhenNeeded(response, accountId, folders)) {
       return;
     }
-    PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
     if (!folders.isEmpty()) {
       NamedFolder firstFolder = folders.getFirst();
       notificationService.markFolderViewed(firstFolder.id());
-      EmailPage emailPage =
-          emailService.getMessages(
-              firstFolder.id(),
-              PAGE_SIZE,
-              defaultOffsetReceivedTimestamp(pageParams),
-              defaultOffsetMessageId(pageParams),
-              pageParams.pageDirection(),
-              pageParams.sortOrder());
-      int messageCount = emailService.getMessageCount(accountId, firstFolder.id());
-      Pagination pagination =
-          new Pagination(
-              Optional.empty(),
-              Optional.empty(),
-              pageParams,
-              PAGE_SIZE,
-              Optional.of(messageCount),
-              emailPage.hasLeft(),
-              emailPage.hasRight());
-      renderAccount(
+      AccountMessagePagination.MessageListResult messageList =
+          AccountMessagePagination.loadFirstFolderPage(emailService, accountId, firstFolder.id());
+      pageRenderer.renderAccount(
           response,
           accountId,
           firstFolder,
-          emailPage,
-          pagination,
+          messageList.emailPage(),
+          messageList.pagination(),
           selectedEmailId,
           Optional.empty());
     } else {
-      renderDraftsAccount(response, accountId, Optional.empty());
+      pageRenderer.renderDrafts(response, accountId, Optional.empty());
     }
   }
 
@@ -173,33 +145,21 @@ public class AccountWebService implements HttpService {
       return;
     }
     int folderId = RequestUtils.intPathParam(request, "folderId");
-    Optional<Long> offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
-    Optional<Integer> offsetMessageId = parseOffsetMessageid(request);
-    PageParams pageParams = parseEmailPageParams(request);
-    var selectedEmailId = request.query().first("selectedEmailId").map(Integer::parseInt);
+    AccountMessagePagination.PageRequest pageRequest =
+        AccountMessagePagination.PageRequest.from(request);
+    Optional<Integer> selectedEmailId = AccountMessagePagination.selectedEmailId(request);
     NamedFolder folder = findFolder(folderId);
     notificationService.markFolderViewed(folderId);
-    int messageCount = emailService.getMessageCount(accountId, folder.id());
-    int effectivePageSize = isEndJump(request) ? terminalPageSize(messageCount) : PAGE_SIZE;
-    EmailPage emailPage =
-        emailService.getMessages(
-            folder.id(),
-            effectivePageSize,
-            offsetReceivedTimestamp.orElse(defaultOffsetReceivedTimestamp(pageParams)),
-            offsetMessageId.orElse(defaultOffsetMessageId(pageParams)),
-            pageParams.pageDirection(),
-            pageParams.sortOrder());
-    Pagination pagination =
-        new Pagination(
-            offsetReceivedTimestamp,
-            offsetMessageId,
-            pageParams,
-            effectivePageSize,
-            Optional.of(messageCount),
-            emailPage.hasLeft(),
-            emailPage.hasRight());
-    renderAccount(
-        response, accountId, folder, emailPage, pagination, selectedEmailId, Optional.empty());
+    AccountMessagePagination.MessageListResult messageList =
+        AccountMessagePagination.loadFolderPage(emailService, accountId, folder.id(), pageRequest);
+    pageRenderer.renderAccount(
+        response,
+        accountId,
+        folder,
+        messageList.emailPage(),
+        messageList.pagination(),
+        selectedEmailId,
+        Optional.empty());
   }
 
   private void getDraftsHandler(ServerRequest request, ServerResponse response) {
@@ -207,9 +167,8 @@ public class AccountWebService implements HttpService {
     if (redirectToFolderSetupWhenNeeded(response, accountId)) {
       return;
     }
-    Optional<Integer> selectedEmailId =
-        request.query().first("selectedEmailId").map(Integer::parseInt);
-    renderDraftsAccount(response, accountId, selectedEmailId);
+    pageRenderer.renderDrafts(
+        response, accountId, AccountMessagePagination.selectedEmailId(request));
   }
 
   private void getOutboxHandler(ServerRequest request, ServerResponse response) {
@@ -217,65 +176,8 @@ public class AccountWebService implements HttpService {
     if (redirectToFolderSetupWhenNeeded(response, accountId)) {
       return;
     }
-    Optional<Integer> selectedEmailId =
-        request.query().first("selectedEmailId").map(Integer::parseInt);
-    renderOutboxAccount(response, accountId, selectedEmailId);
-  }
-
-  private static PageParams parseEmailPageParams(ServerRequest request) {
-    return new PageParams(
-        request
-            .query()
-            .first("pageDirection")
-            .map(PageDirection::valueOf)
-            .orElse(PageDirection.RIGHT),
-        request.query().first("sortOrder").map(SortOrder::valueOf).orElse(SortOrder.DESCENDING));
-  }
-
-  private static Optional<Integer> parseOffsetMessageid(ServerRequest request) {
-    return request
-        .query()
-        .first("offsetMessageId")
-        .filter(AccountWebService::hasNumericValue)
-        .map(Integer::parseInt);
-  }
-
-  private static Optional<Long> parseOffsetReceivedTimestamp(ServerRequest request) {
-    return request
-        .query()
-        .first("offsetReceivedTimestamp")
-        .filter(AccountWebService::hasNumericValue)
-        .map(Long::parseLong);
-  }
-
-  private static boolean hasNumericValue(String value) {
-    return !value.isBlank() && !"null".equalsIgnoreCase(value);
-  }
-
-  private static boolean isEndJump(ServerRequest request) {
-    return request.query().first("pagePosition").map("END"::equals).orElse(false);
-  }
-
-  private static int terminalPageSize(int totalMessageCount) {
-    if (totalMessageCount == 0) {
-      return PAGE_SIZE;
-    }
-    int remainder = totalMessageCount % PAGE_SIZE;
-    return remainder == 0 ? PAGE_SIZE : remainder;
-  }
-
-  private static long defaultOffsetReceivedTimestamp(PageParams pageParams) {
-    return switch (pageParams.sortOrder()) {
-      case DESCENDING -> pageParams.pageDirection() == PageDirection.RIGHT ? Long.MAX_VALUE : 0L;
-      case ASCENDING -> pageParams.pageDirection() == PageDirection.RIGHT ? 0L : Long.MAX_VALUE;
-    };
-  }
-
-  private static int defaultOffsetMessageId(PageParams pageParams) {
-    return switch (pageParams.sortOrder()) {
-      case DESCENDING -> pageParams.pageDirection() == PageDirection.RIGHT ? Integer.MAX_VALUE : 0;
-      case ASCENDING -> pageParams.pageDirection() == PageDirection.RIGHT ? 0 : Integer.MAX_VALUE;
-    };
+    pageRenderer.renderOutbox(
+        response, accountId, AccountMessagePagination.selectedEmailId(request));
   }
 
   private void getSearchHandler(ServerRequest request, ServerResponse response) {
@@ -283,10 +185,9 @@ public class AccountWebService implements HttpService {
     if (redirectToFolderSetupWhenNeeded(response, accountId)) {
       return;
     }
-    Optional<Long> offsetReceivedTimestamp = parseOffsetReceivedTimestamp(request);
-    Optional<Integer> offsetMessageId = parseOffsetMessageid(request);
-    PageParams pageParams = parseEmailPageParams(request);
-    var selectedEmailId = request.query().first("selectedEmailId").map(Integer::parseInt);
+    AccountMessagePagination.PageRequest pageRequest =
+        AccountMessagePagination.PageRequest.from(request);
+    Optional<Integer> selectedEmailId = AccountMessagePagination.selectedEmailId(request);
     Optional<String> query =
         request.query().first("query").map(String::trim).filter(s -> !s.isBlank());
     if (query.isEmpty()) {
@@ -296,27 +197,16 @@ public class AccountWebService implements HttpService {
       return;
     }
     SearchFolder searchFolder = new SearchFolder(new Query(query.get()));
-    int resultCount = emailService.getSearchMessageCount(accountId, query.get());
-    int effectivePageSize = isEndJump(request) ? terminalPageSize(resultCount) : PAGE_SIZE;
-    EmailPage emailPage =
-        emailService.searchMessages(
-            accountId,
-            query.get(),
-            effectivePageSize,
-            offsetReceivedTimestamp.orElse(defaultOffsetReceivedTimestamp(pageParams)),
-            offsetMessageId.orElse(defaultOffsetMessageId(pageParams)),
-            pageParams.pageDirection(),
-            pageParams.sortOrder());
-    Pagination pagination =
-        new Pagination(
-            offsetReceivedTimestamp,
-            offsetMessageId,
-            pageParams,
-            effectivePageSize,
-            Optional.of(resultCount),
-            emailPage.hasLeft(),
-            emailPage.hasRight());
-    renderAccount(response, accountId, searchFolder, emailPage, pagination, selectedEmailId, query);
+    AccountMessagePagination.MessageListResult messageList =
+        AccountMessagePagination.loadSearchPage(emailService, accountId, query.get(), pageRequest);
+    pageRenderer.renderAccount(
+        response,
+        accountId,
+        searchFolder,
+        messageList.emailPage(),
+        messageList.pagination(),
+        selectedEmailId,
+        query);
   }
 
   private void getFolderSettingsHandler(ServerRequest request, ServerResponse response) {
@@ -465,175 +355,9 @@ public class AccountWebService implements HttpService {
     return parseFormEncoded(body);
   }
 
-  private void renderDraftsAccount(
-      ServerResponse response, int accountId, Optional<Integer> selectedEmailId) {
-    List<EmailHeader> draftHeaders = draftService.getDraftHeaders(accountId);
-    List<Email> drafts =
-        draftHeaders.stream()
-            .map(header -> new Email(header, true, header.bodyExcerpt(), Collections.emptyList()))
-            .toList();
-    PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
-    Pagination pagination =
-        new Pagination(
-            Optional.empty(),
-            Optional.empty(),
-            pageParams,
-            draftHeaders.size(),
-            Optional.empty(),
-            false,
-            false);
-    renderAccount(
-        response,
-        accountId,
-        new DraftsFolder(),
-        new EmailPage(drafts, false, false, pageParams),
-        pagination,
-        selectedEmailId,
-        Optional.empty());
-  }
-
-  private void renderOutboxAccount(
-      ServerResponse response, int accountId, Optional<Integer> selectedEmailId) {
-    List<EmailHeader> queuedHeaders = outboundMessageService.getQueuedHeaders(accountId);
-    List<Email> queuedMessages =
-        queuedHeaders.stream()
-            .map(header -> new Email(header, true, header.bodyExcerpt(), Collections.emptyList()))
-            .toList();
-    PageParams pageParams = new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING);
-    Pagination pagination =
-        new Pagination(
-            Optional.empty(),
-            Optional.empty(),
-            pageParams,
-            queuedHeaders.size(),
-            Optional.empty(),
-            false,
-            false);
-    renderAccount(
-        response,
-        accountId,
-        new OutboxFolder(),
-        new EmailPage(queuedMessages, false, false, pageParams),
-        pagination,
-        selectedEmailId,
-        Optional.empty());
-  }
-
-  private void renderAccount(
-      ServerResponse response,
-      int accountId,
-      Folder folder,
-      EmailPage emailPage,
-      Pagination pagination,
-      Optional<Integer> selectedEmailId,
-      Optional<String> query) {
-    List<NamedFolder> folders = folderService.getFolders(accountId);
-    List<EmailHeader> emailHeaders = emailPage.emails().stream().map(Email::header).toList();
-    List<EmailGroup> emailGroups =
-        query.isPresent()
-            ? EmailGroup.createNoGroupEmailgroup(emailHeaders)
-            : EmailGroup.createEmailGroups(
-                emailHeaders, clock, pagination.pageParams().sortOrder());
-    EmailGroupPage emailGroupPage = new EmailGroupPage(emailGroups, pagination);
-    List<NamedFolder> mailboxNavigationFolders = mailboxNavigationFolders(folders);
-    AccountNotificationSummary notificationSummary =
-        notificationService.getAccountSummary(accountId);
-    Map<String, Object> context = new HashMap<>();
-    context.put("bodyclass", "accountpage");
-    context.put("currentAccount", accountService.getAccount(accountId));
-    context.put("accounts", accountService.getAccounts());
-    context.put("moveFolders", mailboxNavigationFolders);
-    context.put(
-        "sidebarFolders",
-        toSidebarFolders(accountId, mailboxNavigationFolders, folder, notificationSummary));
-    context.put("notificationSummary", notificationSummary);
-    putInboxNotificationContext(context, notificationSummary, folder, folders);
-    context.put("emailGroupPage", emailGroupPage);
-    context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
-    context.put("currentFolder", folder);
-    context.put("currentFolderIsDrafts", folder instanceof DraftsFolder);
-    context.put("currentFolderIsOutbox", folder instanceof OutboxFolder);
-    if (selectedEmailId.isPresent()) {
-      context.put("selectedEmailId", selectedEmailId.get());
-    }
-    if (folder instanceof NamedFolder namedFolder) {
-      context.put("currentNamedFolderId", namedFolder.id());
-    }
-    boolean messageListLiveUpdates =
-        folder instanceof NamedFolder && query.isEmpty() && isAtListHead(pagination);
-    context.put("messageListLiveUpdates", messageListLiveUpdates);
-    if (messageListLiveUpdates) {
-      emailGroupPage
-          .getFirstEmailHeader()
-          .ifPresentOrElse(
-              header -> {
-                context.put("listCursorReceived", header.receivedDateTimeEpochSeconds());
-                context.put("listCursorMessageId", header.id());
-              },
-              () -> {
-                context.put("listCursorReceived", 0L);
-                context.put("listCursorMessageId", 0);
-              });
-    }
-    context.put("currentQuery", query);
-    response.headers().contentType(TEXT_HTML);
-    response.send(PebbleRenderer.renderTemplate(context, accountTemplate));
-  }
-
   private void getNotificationsHandler(ServerRequest request, ServerResponse response) {
     int accountId = RequestUtils.intPathParam(request, "accountId");
-    Optional<Integer> currentFolderId =
-        request.query().first("folderId").flatMap(AccountWebService::parseOptionalInt);
-    List<NamedFolder> folders = folderService.getFolders(accountId);
-    AccountNotificationSummary notificationSummary =
-        notificationService.getAccountSummary(accountId);
-    Folder currentFolder =
-        currentFolderId
-            .flatMap(
-                folderId -> folders.stream().filter(folder -> folder.id() == folderId).findFirst())
-            .map(folder -> (Folder) folder)
-            .orElse(new DraftsFolder());
-    Map<String, Object> context = new HashMap<>();
-    context.put(
-        "sidebarFolders",
-        toSidebarFolders(
-            accountId, mailboxNavigationFolders(folders), currentFolder, notificationSummary));
-    context.put("notificationSummary", notificationSummary);
-    putInboxNotificationContext(context, notificationSummary, currentFolder, folders);
-    Optional<Long> listCursorReceived =
-        request.query().first("listCursorReceived").flatMap(AccountWebService::parseOptionalLong);
-    Optional<Integer> listCursorMessageId =
-        request.query().first("listCursorMessageId").flatMap(AccountWebService::parseOptionalInt);
-    if (currentFolderId.isPresent()
-        && listCursorReceived.isPresent()
-        && listCursorMessageId.isPresent()) {
-      List<EmailHeader> newMessageHeaders =
-          emailService.getMessagesNewerThan(
-              currentFolderId.get(), listCursorReceived.get(), listCursorMessageId.get(), 20);
-      if (!newMessageHeaders.isEmpty()) {
-        context.put(
-            "newMessageGroups",
-            EmailGroup.createEmailGroups(newMessageHeaders, clock, SortOrder.DESCENDING));
-      }
-      context.put("currentFolderIsDrafts", false);
-      context.put("currentFolderIsOutbox", false);
-      context.put("currentQuery", Optional.empty());
-    }
-    request
-        .query()
-        .first("visibleMessageIds")
-        .flatMap(AccountWebService::parseCommaSeparatedInts)
-        .filter(ids -> !ids.isEmpty())
-        .ifPresent(
-            messageIds -> {
-              List<MessageReadState> readStates =
-                  emailService.getReadStatesForMessages(accountId, messageIds);
-              if (!readStates.isEmpty()) {
-                context.put("readStateUpdates", readStates);
-              }
-            });
-    response.headers().contentType(TEXT_HTML);
-    response.send(PebbleRenderer.renderTemplate(context, notificationsTemplate));
+    pageRenderer.renderNotifications(request, response, accountId);
   }
 
   private void getEventsHandler(ServerRequest request, ServerResponse response) {
@@ -669,109 +393,6 @@ public class AccountWebService implements HttpService {
         // Best-effort unsubscribe.
       }
     }
-  }
-
-  private static Optional<List<Integer>> parseCommaSeparatedInts(String value) {
-    if (value == null || value.isBlank()) {
-      return Optional.empty();
-    }
-    try {
-      List<Integer> ids = new java.util.ArrayList<>();
-      for (String part : value.split(",", -1)) {
-        if (!part.isBlank()) {
-          ids.add(Integer.valueOf(part.trim()));
-        }
-      }
-      return ids.isEmpty() ? Optional.empty() : Optional.of(ids);
-    } catch (NumberFormatException e) {
-      return Optional.empty();
-    }
-  }
-
-  private static Optional<Integer> parseOptionalInt(String value) {
-    try {
-      return Optional.of(Integer.valueOf(value));
-    } catch (NumberFormatException e) {
-      return Optional.empty();
-    }
-  }
-
-  private static Optional<Long> parseOptionalLong(String value) {
-    try {
-      return Optional.of(Long.valueOf(value));
-    } catch (NumberFormatException e) {
-      return Optional.empty();
-    }
-  }
-
-  private boolean isAtListHead(Pagination pagination) {
-    return pagination.pageParams().sortOrder() == SortOrder.DESCENDING
-        && pagination.pageParams().pageDirection() == PageDirection.RIGHT
-        && pagination.receivedDateOffsetInSeconds().isEmpty()
-        && pagination.messageIdOffset().isEmpty();
-  }
-
-  private void putInboxNotificationContext(
-      Map<String, Object> context,
-      AccountNotificationSummary summary,
-      Folder currentFolder,
-      List<NamedFolder> folders) {
-    Optional<NamedFolder> inbox =
-        folders.stream()
-            .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
-            .findFirst();
-    if (inbox.isEmpty()) {
-      context.put("showInboxStrip", false);
-      context.put("inboxStripLinked", false);
-      context.put("inboxStripMessage", "");
-      return;
-    }
-    Optional<Integer> currentFolderId =
-        currentFolder instanceof NamedFolder namedFolder
-            ? Optional.of(namedFolder.id())
-            : Optional.empty();
-    NotificationService.InboxNotification notification =
-        notificationService.inboxNotification(summary, currentFolderId, inbox.get());
-    context.put("showInboxStrip", notification.show());
-    context.put("inboxStripLinked", notification.linked());
-    context.put("inboxStripMessage", notification.message());
-  }
-
-  private List<SidebarFolderLink> toSidebarFolders(
-      int accountId,
-      List<NamedFolder> folders,
-      Folder currentFolder,
-      AccountNotificationSummary notificationSummary) {
-    List<SidebarFolderLink> sidebarFolders =
-        folders.stream()
-            .map(
-                folder ->
-                    new SidebarFolderLink(
-                        folder.name(),
-                        "/accounts/%s/folders/%s".formatted(accountId, folder.id()),
-                        currentFolder instanceof NamedFolder namedFolder
-                            && namedFolder.id() == folder.id(),
-                        notificationSummary.unreadCount(folder.id()),
-                        folder.id()))
-            .toList();
-    List<SidebarFolderLink> links = new java.util.ArrayList<>(sidebarFolders);
-    links.add(
-        new SidebarFolderLink(
-            "Outbox",
-            "/accounts/%s/outbox".formatted(accountId),
-            currentFolder instanceof OutboxFolder));
-    links.add(
-        new SidebarFolderLink(
-            "Drafts",
-            "/accounts/%s/drafts".formatted(accountId),
-            currentFolder instanceof DraftsFolder));
-    return links;
-  }
-
-  private List<NamedFolder> mailboxNavigationFolders(List<NamedFolder> folders) {
-    return folders.stream()
-        .filter(folder -> folder.specialUse() != FolderSpecialUse.DRAFTS)
-        .toList();
   }
 
   private void emailCreationHandler(ServerRequest request, ServerResponse response) {
