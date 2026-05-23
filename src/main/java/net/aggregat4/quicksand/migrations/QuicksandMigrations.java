@@ -10,7 +10,7 @@ import net.aggregat4.dblib.Migrations;
 
 public class QuicksandMigrations implements Migrations {
 
-  // TODO: Store password bcrypt encrypted and salted
+  // IMAP/SMTP passwords are stored encrypted at rest (see AccountCredentialCipher).
   // Quicksand is still pre-production, so keep the schema definition collapsed into one
   // explicit migration to make the current data model easy to read in one place.
   private static final Function<Connection, Integer> v2Migration =

@@ -71,6 +71,14 @@ mvn -DskipTests package            # build the jar without running tests
 npm run test:e2e                   # full Playwright e2e suite (builds jar + starts server)
 ```
 
+### Account credentials (IMAP/SMTP)
+
+Passwords in SQLite are encrypted at rest (`qsenc1:` + AES-256-GCM). The JVM still needs the real password when talking to mail servers.
+
+- **Key:** `QUICKSAND_CREDENTIAL_KEY` (base64, 32 bytes), or `config/credential-key` (created by `./scripts/start-real-server.sh` / `start-test-server.sh` if missing).
+- **Config passwords** stay plaintext in gitignored `application-local.conf` for bootstrap only.
+- **Ops:** see [`docs/account-credentials.md`](docs/account-credentials.md) (backups, lost key, `--wipe-db`, no key rotation).
+
 ### IMAP capability probe (CLI)
 
 Probe an IMAP server for extensions relevant to Quicksand sync:

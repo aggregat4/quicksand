@@ -1,5 +1,6 @@
 target/
 config/application-local.conf
+config/credential-key
 node_modules/
 playwright-report/
 test-results/

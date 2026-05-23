@@ -10,6 +10,8 @@ Environment overrides:
   PORT                  Server port (default: 8080)
   MAIL_FETCHER_ENABLED  Enable background fetcher (default: true)
 
+Credential key: QUICKSAND_CREDENTIAL_KEY or config/credential-key (see docs/account-credentials.md).
+
 Example:
   PORT=9090 ./scripts/start-test-server.sh
 EOF
@@ -24,6 +26,10 @@ PORT="${PORT:-8080}"
 MAIL_FETCHER_ENABLED="${MAIL_FETCHER_ENABLED:-true}"
 
 cd "${REPO_ROOT}"
+
+# shellcheck source=ensure-credential-key.sh
+source "${SCRIPT_DIR}/ensure-credential-key.sh"
+ensure_credential_key "${REPO_ROOT}"
 
 mvn -DskipTests package
 

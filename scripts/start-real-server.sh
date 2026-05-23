@@ -17,11 +17,12 @@ Configuration (pick one):
      optional SMTP: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
 
 Environment overrides:
-  QUICKSAND_CONFIG   Config file path (default: config/application-local.conf)
-  HOST               Bind host override (default: 127.0.0.1)
-  PORT               Bind port override (default: 8080)
-  WIPE_DB=1          Delete the SQLite database before startup
-  PROBE=1            Run ./scripts/imap-probe.sh before starting
+  QUICKSAND_CONFIG        Config file path (default: config/application-local.conf)
+  QUICKSAND_CREDENTIAL_KEY  Base64 32-byte key for SQLite password encryption (see docs/account-credentials.md)
+  HOST                    Bind host override (default: 127.0.0.1)
+  PORT                    Bind port override (default: 8080)
+  WIPE_DB=1               Delete the SQLite database before startup
+  PROBE=1                 Run ./scripts/imap-probe.sh before starting
 
 Flags:
   --wipe-db          Same as WIPE_DB=1
@@ -36,6 +37,8 @@ Examples:
     IMAP_NO_SSL=1 SMTP_PORT=25 ./scripts/start-real-server.sh --wipe-db
 
 Notes:
+  - IMAP/SMTP passwords in SQLite are encrypted at rest; the server needs a credential
+    key (QUICKSAND_CREDENTIAL_KEY or config/credential-key). See docs/account-credentials.md.
   - Accounts are inserted on first startup only; use --wipe-db when switching
     credentials or the account row in SQLite will stay stale.
   - IMAPS (993) and SMTP STARTTLS (587/465) require §4a TLS support in the app.
@@ -65,6 +68,10 @@ for arg in "$@"; do
 done
 
 cd "${REPO_ROOT}"
+
+# shellcheck source=ensure-credential-key.sh
+source "${SCRIPT_DIR}/ensure-credential-key.sh"
+ensure_credential_key "${REPO_ROOT}"
 
 JAR="${REPO_ROOT}/target/quicksand.jar"
 if [[ ! -f "${JAR}" ]]; then

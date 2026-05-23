@@ -37,6 +37,7 @@ import net.aggregat4.quicksand.repository.DraftRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
 import net.aggregat4.quicksand.repository.FolderRepository;
 import net.aggregat4.quicksand.repository.OutboundMessageRepository;
+import net.aggregat4.quicksand.security.AccountCredentialCipher;
 import net.aggregat4.quicksand.service.AccountFolderMappingService;
 import net.aggregat4.quicksand.service.AccountService;
 import net.aggregat4.quicksand.service.AttachmentService;
@@ -83,7 +84,9 @@ public final class Main {
     // Dependency Injection and Initialisation
     DataSource ds = createDataSource(config.get("database"));
     DatabaseMaintenance.migrateDb(ds);
-    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    AccountCredentialCipher credentialCipher = AccountCredentialCipher.load(config);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds, credentialCipher);
+    accountRepository.reencryptLegacyCredentials();
     AccountService accountService = new AccountService(accountRepository);
     FolderRepository folderRepository = new DbFolderRepository(ds);
     AccountFolderMappingRepository accountFolderMappingRepository =

@@ -195,6 +195,9 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.4</version>
                 <configuration>
+                    <environmentVariables>
+                        <QUICKSAND_CREDENTIAL_KEY>MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=</QUICKSAND_CREDENTIAL_KEY>
+                    </environmentVariables>
                     <systemPropertyVariables>
                         <user.language>en</user.language>
                         <user.country>DE</user.country>

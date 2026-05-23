@@ -38,6 +38,7 @@ import net.aggregat4.quicksand.repository.DbDraftRepository;
 import net.aggregat4.quicksand.repository.DbEmailRepository;
 import net.aggregat4.quicksand.repository.DbFolderRepository;
 import net.aggregat4.quicksand.repository.DbOutboundMessageRepository;
+import net.aggregat4.quicksand.security.AccountCredentialCipher;
 import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
 import org.junit.jupiter.api.Test;
@@ -697,10 +698,11 @@ public class MailSenderTest {
 
   private static void updateSmtpPassword(DataSource ds, int accountId, String password)
       throws Exception {
+    String encrypted = AccountCredentialCipher.load().encrypt(password);
     try (var connection = ds.getConnection();
         var statement =
             connection.prepareStatement("UPDATE accounts SET smtp_password = ? WHERE id = ?")) {
-      statement.setString(1, password);
+      statement.setString(1, encrypted);
       statement.setInt(2, accountId);
       statement.executeUpdate();
     }

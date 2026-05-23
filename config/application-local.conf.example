@@ -1,6 +1,9 @@
 # Copy to application-local.conf and fill in your credentials.
 # application-local.conf is gitignored.
 #
+# Mailbox passwords are encrypted in SQLite; the JVM needs a credential key.
+# See docs/account-credentials.md (generate config/credential-key or set QUICKSAND_CREDENTIAL_KEY).
+#
 #   cp config/application-local.conf.example config/application-local.conf
 #
 # Then start the server (after `mvn -DskipTests package`):
@@ -42,6 +45,11 @@ mailbox_action_sync = {
 demo = {
   enabled: false
 }
+
+# Optional alternative to QUICKSAND_CREDENTIAL_KEY / config/credential-key:
+# credentials {
+#   encryption_key_base64: "output-of-openssl-rand-base64-32"
+# }
 
 accounts = [
   {
