@@ -264,13 +264,39 @@ public class QuicksandMigrations implements Migrations {
         return 6;
       };
 
+  private static final Function<Connection, Integer> v7Migration =
+      (con) -> {
+        executeUpdate(
+            con,
+            """
+                CREATE INDEX messages_folder_paging_idx
+                ON messages(folder_id, received_date_epoch_s, id)""");
+        executeUpdate(
+            con,
+            """
+                CREATE UNIQUE INDEX messages_folder_imap_uid_idx
+                ON messages(folder_id, imap_uid)""");
+        executeUpdate(
+            con,
+            """
+                CREATE INDEX outbound_messages_status_next_attempt_idx
+                ON outbound_messages(status, next_attempt_at_epoch_s)""");
+        return 7;
+      };
+
   @Override
   public Map<Integer, Function<Connection, Integer>> getMigrations() {
-    return Map.of(2, v2Migration, 3, v3Migration, 4, v4Migration, 5, v5Migration, 6, v6Migration);
+    return Map.of(
+        2, v2Migration,
+        3, v3Migration,
+        4, v4Migration,
+        5, v5Migration,
+        6, v6Migration,
+        7, v7Migration);
   }
 
   @Override
   public int getCurrentVersion() {
-    return 6;
+    return 7;
   }
 }
