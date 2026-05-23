@@ -21,7 +21,7 @@ public class EmailServiceTest {
   @Test
   void updateReadFlipsFlagAndLeavesStarredUnchanged() {
     InMemoryEmailRepository repository = new InMemoryEmailRepository();
-    ZonedDateTime now = ZonedDateTime.now(Clock.system(ApplicationClock.ZONE));
+    ZonedDateTime now = ZonedDateTime.now(Clock.system(ApplicationClock.zone()));
     EmailHeader header =
         new EmailHeader(
             1,

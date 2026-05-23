@@ -19,7 +19,7 @@ public record Pagination(
   public Optional<String> formattedReceivedDateOffset() {
     return receivedDateOffsetInSeconds
         .map(Instant::ofEpochSecond)
-        .map(instant -> instant.atZone(ApplicationClock.ZONE))
+        .map(instant -> instant.atZone(ApplicationClock.zone()))
         .map(OFFSET_FORMATTER::format);
   }
 }

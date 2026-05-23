@@ -60,7 +60,6 @@ public class AccountWebService implements HttpService {
   private final NotificationService notificationService;
   private final MailboxUpdateBroadcaster mailboxUpdateBroadcaster;
   private final AccountPageRenderer pageRenderer;
-  private final Clock clock;
 
   public AccountWebService(
       FolderService folderService,
@@ -82,7 +81,6 @@ public class AccountWebService implements HttpService {
     this.mailboxSyncRecoveryService = mailboxSyncRecoveryService;
     this.notificationService = notificationService;
     this.mailboxUpdateBroadcaster = mailboxUpdateBroadcaster;
-    this.clock = clock;
     this.pageRenderer =
         new AccountPageRenderer(
             folderService,

@@ -174,9 +174,10 @@ public class ImapStoreSync {
       List<Actor> actors = getActorsForImapMessage(newMessage);
       addSenderIfPresent(newMessage, actors);
       ZonedDateTime sentDateTime =
-          ZonedDateTime.ofInstant(newMessage.getSentDate().toInstant(), ApplicationClock.ZONE);
+          ZonedDateTime.ofInstant(newMessage.getSentDate().toInstant(), ApplicationClock.zone());
       ZonedDateTime receivedDateTime =
-          ZonedDateTime.ofInstant(newMessage.getReceivedDate().toInstant(), ApplicationClock.ZONE);
+          ZonedDateTime.ofInstant(
+              newMessage.getReceivedDate().toInstant(), ApplicationClock.zone());
       ImapBodyExtractor.StoredBody storedBody = storedBodies.get(newMessage);
       List<InboundAttachment> inboundAttachments =
           ImapAttachmentExtractor.toInboundAttachments(storedAttachments.get(newMessage));

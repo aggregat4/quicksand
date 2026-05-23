@@ -130,7 +130,7 @@ class EmailWebServiceActionTest {
     emailRepository = new DbEmailRepository(dataSource, new DbAttachmentRepository(dataSource));
 
     List<Actor> actors = List.of(new Actor(ActorType.SENDER, "a@b.com", Optional.of("A")));
-    ZonedDateTime now = ZonedDateTime.now(ApplicationClock.ZONE);
+    ZonedDateTime now = ZonedDateTime.now(ApplicationClock.zone());
     EmailHeader header1 =
         new EmailHeader(
             -1, 1L, actors, "Subject 1", now, 0L, now, 0L, "Excerpt", false, false, false);
@@ -171,7 +171,7 @@ class EmailWebServiceActionTest {
             emailRepository,
             attachmentService,
             5L,
-            Clock.system(ApplicationClock.ZONE));
+            Clock.system(ApplicationClock.zone()));
     OutboundMessageService outboundMessageService =
         new OutboundMessageService(
             dataSource,
@@ -180,7 +180,7 @@ class EmailWebServiceActionTest {
             new DbAttachmentRepository(dataSource),
             new DbOutboundMessageRepository(dataSource),
             emailRepository,
-            Clock.system(ApplicationClock.ZONE));
+            Clock.system(ApplicationClock.zone()));
     AccountFolderMappingService accountFolderMappingService =
         new AccountFolderMappingService(mappingRepository, folderRepository, accountRepository);
 
@@ -463,7 +463,7 @@ class EmailWebServiceActionTest {
   void mappedActionRedirectsToFolderSettingsWhenRequiredMappingIsMissing()
       throws IOException, InterruptedException {
     List<Actor> actors = List.of(new Actor(ActorType.SENDER, "a@b.com", Optional.of("A")));
-    ZonedDateTime now = ZonedDateTime.now(ApplicationClock.ZONE);
+    ZonedDateTime now = ZonedDateTime.now(ApplicationClock.zone());
     EmailHeader header =
         new EmailHeader(
             -1, 6L, actors, "Subject 6", now, 0L, now, 0L, "Excerpt", false, false, true);

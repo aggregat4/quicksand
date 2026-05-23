@@ -375,13 +375,13 @@ class AccountFolderSettingsWebServiceTest {
             attachmentRepository,
             new DbOutboundMessageRepository(ds),
             emailRepository,
-            Clock.system(ApplicationClock.ZONE));
+            Clock.system(ApplicationClock.zone()));
     MailboxSyncRecoveryService mailboxSyncRecoveryService =
         new MailboxSyncRecoveryService(
-            emailRepository, mappingRepository, () -> {}, Clock.system(ApplicationClock.ZONE));
+            emailRepository, mappingRepository, () -> {}, Clock.system(ApplicationClock.zone()));
     NotificationService notificationService =
         new NotificationService(
-            folderRepository, emailRepository, Clock.system(ApplicationClock.ZONE));
+            folderRepository, emailRepository, Clock.system(ApplicationClock.zone()));
     MailboxUpdateBroadcaster mailboxUpdateBroadcaster = new MailboxUpdateBroadcaster();
     HttpRouting.Builder routing =
         HttpRouting.builder()
@@ -397,12 +397,12 @@ class AccountFolderSettingsWebServiceTest {
                         emailRepository,
                         attachmentService,
                         5L,
-                        Clock.system(ApplicationClock.ZONE)),
+                        Clock.system(ApplicationClock.zone())),
                     outboundMessageService,
                     mailboxSyncRecoveryService,
                     notificationService,
                     mailboxUpdateBroadcaster,
-                    Clock.system(ApplicationClock.ZONE)));
+                    Clock.system(ApplicationClock.zone())));
     return WebServer.builder().port(0).host("127.0.0.1").routing(routing).build().start();
   }
 
