@@ -8,8 +8,9 @@
 
 {% block content %}
 <main class="settings-layout sync-status-layout">
-    <nav class="settings-backlink" aria-label="Account sync navigation">
+    <nav class="settings-backlink" aria-label="Account settings navigation">
         <a href="/accounts/{{ currentAccount.id }}">Back to mailbox</a>
+        <a href="/accounts/{{ currentAccount.id }}/settings">All settings</a>
         <a href="/accounts/{{ currentAccount.id }}/settings/folders">Folder mappings</a>
     </nav>
 

@@ -47,6 +47,8 @@ public class AccountWebService implements HttpService {
       PebbleConfig.getEngine().getTemplate("templates/account-nofolders.peb");
   private static final PebbleTemplate folderSettingsTemplate =
       PebbleConfig.getEngine().getTemplate("templates/folder-settings.peb");
+  private static final PebbleTemplate settingsTemplate =
+      PebbleConfig.getEngine().getTemplate("templates/settings.peb");
   private static final PebbleTemplate syncStatusTemplate =
       PebbleConfig.getEngine().getTemplate("templates/sync-status.peb");
   private final FolderService folderService;
@@ -107,6 +109,7 @@ public class AccountWebService implements HttpService {
     rules.post("/{accountId}/sync/abandon", this::postSyncAbandonHandler);
     rules.post("/{accountId}/sync/rollback", this::postSyncRollbackHandler);
     rules.post("/{accountId}/sync/reset", this::postSyncResetHandler);
+    rules.get("/{accountId}/settings", this::getSettingsHandler);
     rules.get("/{accountId}/settings/folders", this::getFolderSettingsHandler);
     rules.post("/{accountId}/settings/folders", this::postFolderSettingsHandler);
     rules.post("/{accountId}/emails", this::emailCreationHandler);
@@ -205,6 +208,17 @@ public class AccountWebService implements HttpService {
         messageList.pagination(),
         selectedEmailId,
         query);
+  }
+
+  private void getSettingsHandler(ServerRequest request, ServerResponse response) {
+    int accountId = RequestUtils.intPathParam(request, "accountId");
+    Map<String, Object> context = new HashMap<>();
+    context.put("bodyclass", "accountpage settings-page");
+    context.put("currentAccount", accountService.getAccount(accountId));
+    context.put("accounts", accountService.getAccounts());
+    context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
+    response.headers().contentType(TEXT_HTML);
+    response.send(PebbleRenderer.renderTemplate(context, settingsTemplate));
   }
 
   private void getFolderSettingsHandler(ServerRequest request, ServerResponse response) {

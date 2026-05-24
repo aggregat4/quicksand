@@ -62,12 +62,15 @@
                     </ul>
                 </li>
             {% endif %}
-            <li>
-                {{ iconlink('/settings', 'Settings', 'settings') }}
-            </li>
-            <li>
-                {{ iconlink('/about', 'About', 'about') }}
-            </li>
+            {% if currentAccount != null %}
+                <li>
+                    {{ iconlink('/accounts/' ~ currentAccount.id ~ '/settings', 'Settings', 'settings') }}
+                </li>
+            {% elseif accounts != null and accounts|length == 1 %}
+                <li>
+                    {{ iconlink('/accounts/' ~ accounts[0].id ~ '/settings', 'Settings', 'settings') }}
+                </li>
+            {% endif %}
         </ul>
     </nav>
 </header>

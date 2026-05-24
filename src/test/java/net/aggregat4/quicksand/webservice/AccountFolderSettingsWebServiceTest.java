@@ -94,6 +94,52 @@ class AccountFolderSettingsWebServiceTest {
   }
 
   @Test
+  void rendersAccountSettingsHubWithSectionLinks() throws Exception {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Settings Hub", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    folderRepository.createFolder(account, "Inbox", "INBOX", FolderSpecialUse.INBOX, 1L);
+    createRequiredSpecialUseFolders(account, folderRepository);
+    DbAccountFolderMappingRepository mappingRepository = new DbAccountFolderMappingRepository(ds);
+
+    WebServer webServer = startServer(ds, accountRepository, folderRepository, mappingRepository);
+    try {
+      String baseUrl = "http://localhost:" + webServer.port(WebServer.DEFAULT_SOCKET_NAME);
+      HttpClient client = HttpClient.newHttpClient();
+
+      HttpResponse<String> settingsResponse =
+          client.send(
+              HttpRequest.newBuilder(
+                      URI.create(baseUrl + "/accounts/" + account.id() + "/settings"))
+                  .GET()
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+      HttpResponse<String> accountResponse =
+          client.send(
+              HttpRequest.newBuilder(URI.create(baseUrl + "/accounts/" + account.id()))
+                  .GET()
+                  .build(),
+              HttpResponse.BodyHandlers.ofString());
+
+      assertEquals(200, settingsResponse.statusCode());
+      assertTrue(settingsResponse.body().contains("Settings"));
+      assertTrue(
+          settingsResponse.body().contains("/accounts/" + account.id() + "/settings/folders"));
+      assertTrue(settingsResponse.body().contains("/accounts/" + account.id() + "/sync"));
+      assertFalse(settingsResponse.body().contains("/about"));
+      assertEquals(200, accountResponse.statusCode());
+      assertTrue(accountResponse.body().contains("/accounts/" + account.id() + "/settings"));
+      assertFalse(accountResponse.body().contains("href=\"/about\""));
+    } finally {
+      webServer.stop();
+    }
+  }
+
+  @Test
   void rendersMailboxWhenRequiredMappingsAreConfigured() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
@@ -315,6 +361,7 @@ class AccountFolderSettingsWebServiceTest {
       assertEquals(200, accountResponse.statusCode());
       assertTrue(accountResponse.body().contains("Sync needs attention"));
       assertTrue(accountResponse.body().contains("/accounts/" + account.id() + "/sync"));
+      assertTrue(accountResponse.body().contains("/accounts/" + account.id() + "/settings"));
     } finally {
       webServer.stop();
     }

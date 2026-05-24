@@ -10,6 +10,7 @@
 <main class="settings-layout">
     <nav class="settings-backlink" aria-label="Account settings navigation">
         <a href="/accounts/{{ currentAccount.id }}">Back to mailbox</a>
+        <a href="/accounts/{{ currentAccount.id }}/settings">All settings</a>
         <a href="/accounts/{{ currentAccount.id }}/sync">Sync status</a>
     </nav>
 

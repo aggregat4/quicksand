@@ -1,0 +1,42 @@
+{% extends "templates/base.peb" %}
+
+{% block pageTitle %} Settings for {{ currentAccount.name }} {% endblock %}
+
+{% block additionalHeader %}
+<link rel="stylesheet" href="/css/account.css">
+{% endblock %}
+
+{% block content %}
+<main class="settings-layout">
+    <nav class="settings-backlink" aria-label="Account settings navigation">
+        <a href="/accounts/{{ currentAccount.id }}">Back to mailbox</a>
+    </nav>
+
+    <section class="settings-index">
+        <header class="settings-header">
+            <h2>Settings</h2>
+            <p class="settings-notice">Account settings for {{ currentAccount.name }}.</p>
+        </header>
+
+        <nav class="settings-index-nav" aria-label="Settings sections">
+            <a class="settings-index-link" href="/accounts/{{ currentAccount.id }}/settings/folders">
+                <span class="settings-index-title">Folder mappings</span>
+                <span class="settings-index-description">
+                    Map Archive, Trash, Spam, Sent, and Drafts to folders on your mail server.
+                </span>
+            </a>
+            <a class="settings-index-link" href="/accounts/{{ currentAccount.id }}/sync">
+                <span class="settings-index-title">
+                    Sync status
+                    {% if syncStatus != null and syncStatus.needsAttention() %}
+                        <span class="settings-index-badge">Needs attention</span>
+                    {% endif %}
+                </span>
+                <span class="settings-index-description">
+                    Review queued mailbox actions, retry failures, and reset the local mirror.
+                </span>
+            </a>
+        </nav>
+    </section>
+</main>
+{% endblock %}

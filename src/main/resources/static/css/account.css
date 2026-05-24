@@ -27,7 +27,8 @@ main.settings-layout {
 }
 
 body.accountpage.folder-settings-page,
-body.accountpage.sync-status-page {
+body.accountpage.sync-status-page,
+body.accountpage.settings-page {
     display: block;
     height: auto;
     min-height: 100%;
@@ -35,7 +36,8 @@ body.accountpage.sync-status-page {
 }
 
 body.accountpage.folder-settings-page main.settings-layout,
-body.accountpage.sync-status-page main.settings-layout {
+body.accountpage.sync-status-page main.settings-layout,
+body.accountpage.settings-page main.settings-layout {
     flex: none;
     min-height: 0;
     overflow: visible;
@@ -310,6 +312,44 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     display: flex;
     gap: var(--gap-l);
     margin-bottom: var(--gap-l);
+}
+
+.settings-index-nav {
+    display: grid;
+    gap: var(--gap-l);
+}
+
+.settings-index-link {
+    display: grid;
+    gap: var(--gap-s);
+    padding: var(--gap-l);
+    border: var(--standard-border);
+    background: var(--highlighted-bgcolor);
+    color: inherit;
+    text-decoration: none;
+}
+
+.settings-index-link:hover {
+    border-color: var(--accent-color, #4a6fa5);
+}
+
+.settings-index-title {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.settings-index-description {
+    color: var(--muted-text-color);
+}
+
+.settings-index-badge {
+    margin-left: var(--gap-s);
+    padding: 0.1rem 0.45rem;
+    border: 1px solid #b65d5d;
+    color: #8a3f3f;
+    font-size: 12px;
+    font-weight: normal;
+    vertical-align: middle;
 }
 
 .settings-header {
