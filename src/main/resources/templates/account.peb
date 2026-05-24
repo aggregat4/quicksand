@@ -22,7 +22,28 @@
 
 {% block content %}
     <main data-current-folder-is-drafts="{{ currentFolderIsDrafts ? 'true' : 'false' }}" data-current-folder-is-outbox="{{ currentFolderIsOutbox ? 'true' : 'false' }}"{% if currentNamedFolderId %} data-current-named-folder-id="{{ currentNamedFolderId }}"{% endif %}{% if selectedEmailId %} data-selected-email-id="{{ selectedEmailId }}"{% endif %}>
-        <div id="accountnav">
+        <div id="folderlist">
+            {% if sidebarFolders.isEmpty() %}
+                <div class="emptycollection">No folders found</div>
+            {% else %}
+                {% for folder in sidebarFolders %}
+                <a class="iconlink folder-sidebar-link{{ folder.selected ? ' selected' : '' }}"
+                   href="{{ folder.href }}"
+                   {% if folder.folderId >= 0 %}data-folder-id="{{ folder.folderId }}"{% endif %}
+                   aria-label="{{ folder.name }}"
+                   title="{{ folder.name }}">
+                    {{ svgIcon('folder') | raw }} {{ folder.name }}
+                    {% if folder.folderId >= 0 and folder.unreadCount > 0 %}
+                        <span class="folder-unread-badge" data-folder-id="{{ folder.folderId }}">{{ folder.unreadCount }}</span>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            {% endif %}
+        </div>
+        {# need to declare emailActive here since otherwise it won't be in scope for the dialog below #}
+        {% set emailActive = false %}
+        <div id="messagelist"{% if messageListLiveUpdates %} data-live-updates="true" data-list-cursor-id="{{ listCursorMessageId }}" data-list-cursor-received="{{ listCursorReceived }}"{% endif %}>
+            {% if emailGroupPage.getNofMessages() > 0 %}
             <div id="emailcontrols">
                 {% if not currentFolderIsDrafts and not currentFolderIsOutbox %}
                     {#  as per https://www.barrierefreies-webdesign.de/knowhow/checkbox/ #}
@@ -115,28 +136,8 @@
                     {% endif %}
                 </div>
             </div>
-        </div>
-        <div id="folderlist">
-            {% if sidebarFolders.isEmpty() %}
-                <div class="emptycollection">No folders found</div>
-            {% else %}
-                {% for folder in sidebarFolders %}
-                <a class="iconlink folder-sidebar-link{{ folder.selected ? ' selected' : '' }}"
-                   href="{{ folder.href }}"
-                   {% if folder.folderId >= 0 %}data-folder-id="{{ folder.folderId }}"{% endif %}
-                   aria-label="{{ folder.name }}"
-                   title="{{ folder.name }}">
-                    {{ svgIcon('folder') | raw }} {{ folder.name }}
-                    {% if folder.folderId >= 0 and folder.unreadCount > 0 %}
-                        <span class="folder-unread-badge" data-folder-id="{{ folder.folderId }}">{{ folder.unreadCount }}</span>
-                    {% endif %}
-                </a>
-                {% endfor %}
             {% endif %}
-        </div>
-        {# need to declare emailActive here since otherwise it won't be in scope for the dialog below #}
-        {% set emailActive = false %}
-        <div id="messagelist"{% if messageListLiveUpdates %} data-live-updates="true" data-list-cursor-id="{{ listCursorMessageId }}" data-list-cursor-received="{{ listCursorReceived }}"{% endif %}>
+            <div id="messagelist-body">
             {% for group in emailGroupPage.groups() %}
                 {% if group.name().isPresent() %}
                     <div class="emailgroup">
@@ -148,6 +149,7 @@
                     {% include 'templates/emailheader.peb' %}
                 {% endfor %}
             {% endfor %}
+            </div>
         </div>
         {% if not currentFolderIsDrafts %}
             <dialog id="messagepreview" {{ emailActive ? 'open' : '' }}>

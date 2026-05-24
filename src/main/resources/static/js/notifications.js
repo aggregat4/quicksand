@@ -23,12 +23,17 @@
         return document.getElementById('messagepreview')?.open === true
     }
 
+    function messageListBody() {
+        return document.getElementById('messagelist-body')
+    }
+
     function listCursorParams() {
+        const messagelistBody = messageListBody()
         const messagelist = document.getElementById('messagelist')
-        if (!messagelist || messagelist.dataset.liveUpdates !== 'true') {
+        if (!messagelist || messagelist.dataset.liveUpdates !== 'true' || !messagelistBody) {
             return ''
         }
-        const firstHeader = messagelist.querySelector('.emailheader')
+        const firstHeader = messagelistBody.querySelector('.emailheader')
         const cursorId = firstHeader?.dataset.messageId || messagelist.dataset.listCursorId || '0'
         const cursorReceived =
             firstHeader?.dataset.receivedEpoch || messagelist.dataset.listCursorReceived || '0'
@@ -36,11 +41,12 @@
     }
 
     function visibleMessageIdParams() {
+        const messagelistBody = messageListBody()
         const messagelist = document.getElementById('messagelist')
-        if (!messagelist || messagelist.dataset.liveUpdates !== 'true') {
+        if (!messagelist || messagelist.dataset.liveUpdates !== 'true' || !messagelistBody) {
             return ''
         }
-        const ids = [...messagelist.querySelectorAll('.emailheader')]
+        const ids = [...messagelistBody.querySelectorAll('.emailheader')]
             .map((header) => header.dataset.messageId)
             .filter(Boolean)
         if (ids.length === 0) {
@@ -89,7 +95,8 @@
 
     function applyMessageListUpdates(payload) {
         const messagelist = document.getElementById('messagelist')
-        if (!messagelist || messagelist.dataset.liveUpdates !== 'true') {
+        const messagelistBody = messageListBody()
+        if (!messagelist || messagelist.dataset.liveUpdates !== 'true' || !messagelistBody) {
             return
         }
 
@@ -105,13 +112,13 @@
 
         ;[...updates.children].forEach((node) => {
             if (node.classList.contains('emailgroup')) {
-                insertGroupHeaderIfNeeded(messagelist, node)
+                insertGroupHeaderIfNeeded(messagelistBody, node)
             } else if (node.classList.contains('emailheader')) {
-                insertMessageIntoTopGroup(messagelist, node)
+                insertMessageIntoTopGroup(messagelistBody, node)
             }
         })
 
-        const firstHeader = messagelist.querySelector('.emailheader')
+        const firstHeader = messagelistBody.querySelector('.emailheader')
         if (firstHeader) {
             messagelist.dataset.listCursorId = firstHeader.dataset.messageId
             messagelist.dataset.listCursorReceived = firstHeader.dataset.receivedEpoch
@@ -131,23 +138,23 @@
         }
     }
 
-    function insertGroupHeaderIfNeeded(messagelist, groupNode) {
+    function insertGroupHeaderIfNeeded(messagelistBody, groupNode) {
         const label = groupNode.textContent.trim()
-        const firstGroup = messagelist.querySelector('.emailgroup')
+        const firstGroup = messagelistBody.querySelector('.emailgroup')
         if (firstGroup && firstGroup.textContent.trim() === label) {
             return
         }
-        messagelist.insertBefore(groupNode.cloneNode(true), messagelist.firstChild)
+        messagelistBody.insertBefore(groupNode.cloneNode(true), messagelistBody.firstChild)
     }
 
-    function insertMessageIntoTopGroup(messagelist, headerNode) {
+    function insertMessageIntoTopGroup(messagelistBody, headerNode) {
         if (document.getElementById(headerNode.id)) {
             return
         }
         const clone = headerNode.cloneNode(true)
-        const firstGroup = messagelist.querySelector('.emailgroup')
+        const firstGroup = messagelistBody.querySelector('.emailgroup')
         if (!firstGroup) {
-            messagelist.insertBefore(clone, messagelist.firstChild)
+            messagelistBody.insertBefore(clone, messagelistBody.firstChild)
             return
         }
         let insertBefore = null
@@ -163,7 +170,7 @@
             node = node.nextElementSibling
         }
         if (insertBefore) {
-            messagelist.insertBefore(clone, insertBefore)
+            messagelistBody.insertBefore(clone, insertBefore)
         } else {
             firstGroup.insertAdjacentElement('afterend', clone)
         }
