@@ -18,10 +18,12 @@ Deleting a folder cascades to its mirrored messages and actors. Deleting an acco
 
 | Setting | Value | Why |
 |---------|-------|-----|
-| `maximumPoolSize` | `2` | SQLite serializes writers; the pool stays tiny but allows nested repository reads that open a second connection while one is already checked out |
+| `maximumPoolSize` | `2` | SQLite serializes writers; the pool stays tiny but allows one unavoidable nested checkout |
 | `minimumIdle` | `1` | Keep one warm connection for the long-lived server process |
 
-Do not set the pool to `1` with the current repository layer — some code paths nest `DataSource.getConnection()` calls and will time out. If Quicksand ever moves to a server-grade database, revisit pool sizing separately.
+Repository code that loads related rows (actors, attachments) should reuse the caller's `Connection` instead of opening another pool checkout. Message load and list paths follow that rule; without it a single viewer request could need three connections and exhaust a pool of two under concurrent load.
+
+Do not set the pool to `1` with the current repository layer — some code paths may still open a second connection. If Quicksand ever moves to a server-grade database, revisit pool sizing separately.
 
 ## Schema constraints
 
