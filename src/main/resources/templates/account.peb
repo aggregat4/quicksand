@@ -42,9 +42,8 @@
         </div>
         {# need to declare emailActive here since otherwise it won't be in scope for the dialog below #}
         {% set emailActive = false %}
-        <div id="messagelist"{% if messageListLiveUpdates %} data-live-updates="true" data-list-cursor-id="{{ listCursorMessageId }}" data-list-cursor-received="{{ listCursorReceived }}"{% endif %}>
-            {% if emailGroupPage.getNofMessages() > 0 %}
-            <div id="emailcontrols">
+        {% if emailGroupPage.getNofMessages() > 0 %}
+        <div id="emailcontrols">
                 {% if not currentFolderIsDrafts and not currentFolderIsOutbox %}
                     {#  as per https://www.barrierefreies-webdesign.de/knowhow/checkbox/ #}
                     <div id="select-all-mail-checkbox" role="checkbox" aria-checked="false" tabindex="0" title="Select All E-Mails" onclick="onClickSelectAllEmails()">
@@ -135,8 +134,9 @@
                         </nav>
                     {% endif %}
                 </div>
-            </div>
-            {% endif %}
+        </div>
+        {% endif %}
+        <div id="messagelist"{% if messageListLiveUpdates %} data-live-updates="true" data-list-cursor-id="{{ listCursorMessageId }}" data-list-cursor-received="{{ listCursorReceived }}"{% endif %}>
             <div id="messagelist-body">
             {% for group in emailGroupPage.groups() %}
                 {% if group.name().isPresent() %}

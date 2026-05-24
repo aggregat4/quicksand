@@ -19,7 +19,7 @@
     {% if currentAccount == null %}
         <h1 id="apptitle">Quicksand E-Mail Home</h1>
     {% else %}
-        <h1 id="apptitle">E-Mail for {{ currentAccount.name }}</h1>
+        <h1 id="apptitle">{{ currentAccount.name }}</h1>
     {% endif %}
 
     {% if currentAccount != null %}
