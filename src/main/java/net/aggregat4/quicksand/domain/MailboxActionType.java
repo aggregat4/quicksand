@@ -28,4 +28,7 @@ public enum MailboxActionType {
           APPEND_SENT,
           UPSERT_DRAFT,
           DELETE_DRAFT);
+
+  public static final List<MailboxActionType> NON_READ_STATE_BACKGROUND_SYNCABLE =
+      List.of(MOVE, DELETE, ARCHIVE, MARK_SPAM, APPEND_SENT, UPSERT_DRAFT, DELETE_DRAFT);
 }

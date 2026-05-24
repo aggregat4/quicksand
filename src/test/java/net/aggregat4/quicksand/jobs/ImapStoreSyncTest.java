@@ -17,13 +17,23 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
+import javax.sql.DataSource;
+import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.GreenmailTestUtils;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Email;
+import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.FolderMappingStatus;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
+import net.aggregat4.quicksand.domain.PageDirection;
+import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
+import net.aggregat4.quicksand.repository.DatabaseMaintenance;
+import net.aggregat4.quicksand.repository.DbAccountRepository;
+import net.aggregat4.quicksand.repository.DbAttachmentRepository;
+import net.aggregat4.quicksand.repository.DbEmailRepository;
+import net.aggregat4.quicksand.repository.DbFolderRepository;
 import org.eclipse.angus.mail.imap.IMAPFolder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -367,6 +377,79 @@ public class ImapStoreSyncTest {
         "attachment body must not be indexed",
         new String(
             email.inboundAttachments().getFirst().content().bytes(), StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void doesNotRevertLocalReadStateWhileMarkReadActionsArePending() throws Exception {
+    for (int i = 0; i < 10; i++) {
+      GreenmailUtils.deliverOneMessage(
+          greenMail, GreenMailUtil.random(), "body-" + i, "from@foo.bar", "to@foo.bar");
+    }
+
+    DataSource ds = DbTestUtils.getTempSqlite();
+    DatabaseMaintenance.migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(
+            -1,
+            "Read Sync Account",
+            "localhost",
+            greenMail.getImap().getServerSetup().getPort(),
+            TEST_USERNAME,
+            TEST_PASSWORD,
+            "localhost",
+            greenMail.getSmtp().getServerSetup().getPort(),
+            TEST_USERNAME,
+            TEST_PASSWORD));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    Store store = GreenmailUtils.getImapStore(greenMail);
+    ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
+
+    NamedFolder inbox =
+        folderRepository.getFolders(account.id()).stream()
+            .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
+            .findFirst()
+            .orElseThrow();
+    EmailPage syncedMessages =
+        emailRepository.getMessages(
+            inbox.id(), 20, Long.MAX_VALUE, 0, PageDirection.RIGHT, SortOrder.DESCENDING);
+    assertEquals(10, syncedMessages.emails().size());
+    for (Email email : syncedMessages.emails()) {
+      assertFalse(email.header().read());
+      emailRepository.updateRead(email.header().id(), true);
+    }
+
+    assertEquals(
+        10,
+        emailRepository
+            .getPendingReadStateActionSourceUids(
+                account.id(), inbox.remoteName(), inbox.uidValidity())
+            .size());
+
+    ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
+
+    EmailPage afterResync =
+        emailRepository.getMessages(
+            inbox.id(), 20, Long.MAX_VALUE, 0, PageDirection.RIGHT, SortOrder.DESCENDING);
+    for (Email email : afterResync.emails()) {
+      assertTrue(email.header().read(), "message uid " + email.header().imapUid());
+    }
+    assertEquals(0, afterResync.emails().stream().filter(email -> !email.header().read()).count());
+
+    Store verifyStore = GreenmailUtils.getImapStore(greenMail);
+    Folder imapInbox = verifyStore.getFolder("INBOX");
+    imapInbox.open(Folder.READ_ONLY);
+    try {
+      for (Message message : imapInbox.getMessages()) {
+        assertFalse(message.isSet(Flags.Flag.SEEN));
+      }
+    } finally {
+      imapInbox.close();
+      verifyStore.close();
+    }
   }
 
   private static Email syncOnlyMessage() throws MessagingException {

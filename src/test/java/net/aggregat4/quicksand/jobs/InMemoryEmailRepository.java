@@ -132,6 +132,12 @@ public class InMemoryEmailRepository implements EmailRepository {
     return new HashSet<>(pendingMoveLikeActionSourceUids);
   }
 
+  @Override
+  public Set<Long> getPendingReadStateActionSourceUids(
+      int accountId, String sourceRemoteName, Long sourceUidValidity) {
+    return Set.of();
+  }
+
   public void addPendingMoveLikeActionSourceUid(long uid) {
     pendingMoveLikeActionSourceUids.add(uid);
   }
@@ -143,6 +149,12 @@ public class InMemoryEmailRepository implements EmailRepository {
 
   @Override
   public List<MailboxActionQueueRow> claimDueMailboxActions(
+      java.time.ZonedDateTime now, int limit) {
+    return List.of();
+  }
+
+  @Override
+  public List<MailboxActionQueueRow> claimDueReadStateActions(
       java.time.ZonedDateTime now, int limit) {
     return List.of();
   }

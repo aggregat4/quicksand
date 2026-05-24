@@ -10,6 +10,7 @@ import jakarta.mail.Store;
 import jakarta.mail.internet.MimeMessage;
 import java.time.Clock;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,6 +39,8 @@ public class MailboxActionSync {
   private static final Logger LOGGER = LoggerFactory.getLogger(MailboxActionSync.class);
   private static final long INITIAL_DELAY_SECONDS = 0;
   private static final int BATCH_SIZE = 50;
+  private static final int READ_STATE_BATCH_SIZE = 500;
+  private static final int MAX_READ_STATE_BATCHES_PER_SYNC = 20;
 
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
   private ScheduledFuture<?> scheduledTask;
@@ -92,6 +95,22 @@ public class MailboxActionSync {
   void syncDueActions() {
     ZonedDateTime now = ZonedDateTime.now(clock);
     emailRepository.purgeStaleMailboxActionRows(now);
+    syncDueReadStateActions(now);
+    syncDueOtherActions(now);
+  }
+
+  private void syncDueReadStateActions(ZonedDateTime now) {
+    for (int batchIndex = 0; batchIndex < MAX_READ_STATE_BATCHES_PER_SYNC; batchIndex++) {
+      List<MailboxActionQueueRow> actions =
+          emailRepository.claimDueReadStateActions(now, READ_STATE_BATCH_SIZE);
+      if (actions.isEmpty()) {
+        return;
+      }
+      applyReadStateBatch(actions, now);
+    }
+  }
+
+  private void syncDueOtherActions(ZonedDateTime now) {
     List<MailboxActionQueueRow> actions = emailRepository.claimDueMailboxActions(now, BATCH_SIZE);
     for (MailboxActionQueueRow action : actions) {
       try {
@@ -113,11 +132,49 @@ public class MailboxActionSync {
     }
   }
 
-  private void applyAction(MailboxActionQueueRow action) throws MessagingException {
-    if (MailboxActionType.READ_STATE_SYNCABLE.contains(action.actionType())) {
-      applyReadStateAction(action);
+  private void applyReadStateBatch(List<MailboxActionQueueRow> actions, ZonedDateTime now) {
+    List<MailboxActionQueueRow> invalidActions = new ArrayList<>();
+    List<MailboxActionQueueRow> validActions = new ArrayList<>();
+    for (MailboxActionQueueRow action : actions) {
+      if (action.sourceRemoteName() == null || action.sourceUid() == null) {
+        invalidActions.add(action);
+      } else {
+        validActions.add(action);
+      }
+    }
+    for (MailboxActionQueueRow action : invalidActions) {
+      emailRepository.markMailboxActionConflict(
+          action.id(), "Queued action is missing source mailbox identity", now);
+    }
+    if (validActions.isEmpty()) {
       return;
     }
+
+    try {
+      ReadStateBatchOutcome outcome = applyReadStateBatchToImap(validActions);
+      for (MailboxActionQueueRow action : outcome.succeeded()) {
+        emailRepository.markMailboxActionSucceeded(action.id(), now);
+      }
+      for (ReadStateBatchConflict conflict : outcome.conflicts()) {
+        emailRepository.markMailboxActionConflict(conflict.action().id(), conflict.error(), now);
+      }
+    } catch (MailboxActionConflictException e) {
+      String error = abbreviateError(e);
+      for (MailboxActionQueueRow action : validActions) {
+        emailRepository.markMailboxActionConflict(action.id(), error, now);
+      }
+    } catch (MessagingException | RuntimeException e) {
+      LOGGER.warn("Failed to sync read-state batch of {} actions", validActions.size(), e);
+      ZonedDateTime retryAt =
+          now.plusSeconds(backoffSeconds(validActions.getFirst().attemptCount()));
+      String error = abbreviateError(e);
+      for (MailboxActionQueueRow action : validActions) {
+        emailRepository.markMailboxActionRetry(action.id(), error, retryAt, now);
+      }
+    }
+  }
+
+  private void applyAction(MailboxActionQueueRow action) throws MessagingException {
     if (MailboxActionType.MOVE_LIKE.contains(action.actionType())) {
       applyMoveLikeAction(action);
       return;
@@ -270,21 +327,48 @@ public class MailboxActionSync {
     }
   }
 
-  private void applyReadStateAction(MailboxActionQueueRow action) throws MessagingException {
-    if (action.sourceRemoteName() == null || action.sourceUid() == null) {
-      throw new MailboxActionConflictException("Queued action is missing source mailbox identity");
-    }
-    Account account = accountRepository.getAccount(action.accountId());
+  private ReadStateBatchOutcome applyReadStateBatchToImap(List<MailboxActionQueueRow> actions)
+      throws MessagingException {
+    MailboxActionQueueRow first = actions.getFirst();
+    Account account = accountRepository.getAccount(first.accountId());
+    boolean seen = first.actionType() == MailboxActionType.MARK_READ;
+
     try (Store store = createConnectedStore(account)) {
-      IMAPFolder imapFolder = openSourceFolder(store, action);
+      IMAPFolder imapFolder = openSourceFolder(store, first);
       try {
-        Message message = getSourceMessage(imapFolder, action);
-        message.setFlag(Flags.Flag.SEEN, action.actionType() == MailboxActionType.MARK_READ);
+        long[] uids = new long[actions.size()];
+        for (int index = 0; index < actions.size(); index++) {
+          uids[index] = actions.get(index).sourceUid();
+        }
+        Message[] messages = imapFolder.getMessagesByUID(uids);
+
+        List<MailboxActionQueueRow> succeeded = new ArrayList<>();
+        List<ReadStateBatchConflict> conflicts = new ArrayList<>();
+        List<Message> messagesToUpdate = new ArrayList<>();
+        for (int index = 0; index < messages.length; index++) {
+          MailboxActionQueueRow action = actions.get(index);
+          if (messages[index] == null) {
+            conflicts.add(new ReadStateBatchConflict(action, "Source UID no longer exists"));
+          } else {
+            messagesToUpdate.add(messages[index]);
+            succeeded.add(action);
+          }
+        }
+        if (!messagesToUpdate.isEmpty()) {
+          imapFolder.setFlags(
+              messagesToUpdate.toArray(Message[]::new), new Flags(Flags.Flag.SEEN), seen);
+        }
+        return new ReadStateBatchOutcome(succeeded, conflicts);
       } finally {
         imapFolder.close(false);
       }
     }
   }
+
+  private record ReadStateBatchOutcome(
+      List<MailboxActionQueueRow> succeeded, List<ReadStateBatchConflict> conflicts) {}
+
+  private record ReadStateBatchConflict(MailboxActionQueueRow action, String error) {}
 
   private void applyMoveLikeAction(MailboxActionQueueRow action) throws MessagingException {
     if (action.sourceRemoteName() == null

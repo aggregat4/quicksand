@@ -13,9 +13,14 @@ public interface MailboxActionRepository {
   Set<Long> getPendingMoveLikeActionSourceUids(
       int accountId, String sourceRemoteName, Long sourceUidValidity);
 
+  Set<Long> getPendingReadStateActionSourceUids(
+      int accountId, String sourceRemoteName, Long sourceUidValidity);
+
   MailboxSyncStatus getMailboxSyncStatus(int accountId);
 
   List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit);
+
+  List<MailboxActionQueueRow> claimDueReadStateActions(ZonedDateTime now, int limit);
 
   void markMailboxActionSucceeded(int id, ZonedDateTime now);
 

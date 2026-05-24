@@ -515,7 +515,7 @@ final class MailboxActionDbSupport {
                     MailboxActionType.UPSERT_DRAFT.name(),
                     MailboxActionType.DELETE_DRAFT.name(),
                     EnumSql.inClause(MailboxActionStatus.CLAIMABLE),
-                    EnumSql.inClause(MailboxActionType.BACKGROUND_SYNCABLE)))) {
+                    EnumSql.inClause(MailboxActionType.NON_READ_STATE_BACKGROUND_SYNCABLE)))) {
       stmt.setLong(1, now.toEpochSecond());
       stmt.setInt(2, limit);
       try (ResultSet rs = stmt.executeQuery()) {
@@ -527,6 +527,125 @@ final class MailboxActionDbSupport {
       }
     }
   }
+
+  static List<MailboxActionQueueRow> findDueReadStateActions(
+      Connection con, ZonedDateTime now, int limit) throws SQLException {
+    Optional<ReadStateBatchKey> batchKey = findOldestDueReadStateBatchKey(con, now);
+    if (batchKey.isEmpty()) {
+      return List.of();
+    }
+    ReadStateBatchKey key = batchKey.get();
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                SELECT
+                  q.id,
+                  q.account_id,
+                  q.message_id,
+                  COALESCE(m.subject, ''),
+                  q.action_type,
+                  q.source_folder_id,
+                  q.source_remote_name,
+                  q.source_uidvalidity,
+                  q.source_uid,
+                  q.target_folder_id,
+                  q.target_remote_name,
+                  q.target_special_use,
+                  q.status,
+                  q.execution_state,
+                  q.resolution_type,
+                  q.attempt_count,
+                  q.next_attempt_at,
+                  q.last_error,
+                  q.created_at,
+                  q.updated_at,
+                  q.payload_json
+                FROM mailbox_action_queue q
+                LEFT JOIN messages m ON m.id = q.message_id
+                WHERE q.status IN (%s)
+                  AND q.action_type = ?
+                  AND q.account_id = ?
+                  AND q.source_remote_name = ?
+                  AND q.source_uidvalidity IS ?
+                  AND (q.next_attempt_at_epoch_s IS NULL OR q.next_attempt_at_epoch_s <= ?)
+                ORDER BY q.created_at, q.id
+                LIMIT ?"""
+                .formatted(EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
+      stmt.setString(1, key.actionType().name());
+      stmt.setInt(2, key.accountId());
+      stmt.setString(3, key.sourceRemoteName());
+      if (key.sourceUidValidity() == null) {
+        stmt.setNull(4, java.sql.Types.BIGINT);
+      } else {
+        stmt.setLong(4, key.sourceUidValidity());
+      }
+      stmt.setLong(5, now.toEpochSecond());
+      stmt.setInt(6, limit);
+      try (ResultSet rs = stmt.executeQuery()) {
+        List<MailboxActionQueueRow> rows = new ArrayList<>();
+        while (rs.next()) {
+          rows.add(toMailboxActionQueueRow(rs));
+        }
+        return rows;
+      }
+    }
+  }
+
+  static void claimMailboxActions(
+      Connection con, ZonedDateTime now, List<MailboxActionQueueRow> actions) throws SQLException {
+    for (MailboxActionQueueRow action : actions) {
+      try (PreparedStatement stmt =
+          con.prepareStatement(
+              """
+                  UPDATE mailbox_action_queue
+                  SET status = ?,
+                      updated_at = ?
+                  WHERE id = ?
+                    AND status IN (%s)"""
+                  .formatted(EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
+        stmt.setString(1, MailboxActionStatus.APPLYING.name());
+        stmt.setString(2, toIsoString(now));
+        stmt.setInt(3, action.id());
+        stmt.executeUpdate();
+      }
+    }
+  }
+
+  private static Optional<ReadStateBatchKey> findOldestDueReadStateBatchKey(
+      Connection con, ZonedDateTime now) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                SELECT account_id, source_remote_name, source_uidvalidity, action_type
+                FROM mailbox_action_queue
+                WHERE status IN (%s)
+                  AND action_type IN (%s)
+                  AND (next_attempt_at_epoch_s IS NULL OR next_attempt_at_epoch_s <= ?)
+                ORDER BY created_at, id
+                LIMIT 1"""
+                .formatted(
+                    EnumSql.inClause(MailboxActionStatus.CLAIMABLE),
+                    EnumSql.inClause(MailboxActionType.READ_STATE_SYNCABLE)))) {
+      stmt.setLong(1, now.toEpochSecond());
+      try (ResultSet rs = stmt.executeQuery()) {
+        if (!rs.next()) {
+          return Optional.empty();
+        }
+        return Optional.of(
+            new ReadStateBatchKey(
+                rs.getInt(1),
+                rs.getString(2),
+                getNullableLong(rs, 3),
+                MailboxActionType.valueOf(rs.getString(4))));
+      }
+    }
+  }
+
+  record ReadStateBatchKey(
+      int accountId,
+      String sourceRemoteName,
+      Long sourceUidValidity,
+      MailboxActionType actionType) {}
 
   static Optional<MailboxActionQueueRow> findMailboxAction(
       Connection con, int actionId, int accountId) throws SQLException {

@@ -68,6 +68,31 @@ class MailboxActionSyncTest {
   }
 
   @Test
+  void syncsBatchedMarkReadActionsToImapInOneSession() throws Exception {
+    SyncFixture fixture = syncInboxMessages("batch-read-body", 12);
+    int inboxFolderId =
+        fixture.folderRepository().getFolders(fixture.account().id()).stream()
+            .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
+            .findFirst()
+            .orElseThrow()
+            .id();
+    EmailPage page =
+        fixture
+            .emailRepository()
+            .getMessages(
+                inboxFolderId, 20, Long.MAX_VALUE, 0, PageDirection.RIGHT, SortOrder.DESCENDING);
+    for (Email email : page.emails()) {
+      fixture.emailRepository().updateRead(email.header().id(), true);
+    }
+
+    runMailboxActionSync(fixture);
+
+    assertAllRemoteSeen(page.emails().size());
+    assertEquals(
+        12, queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "SUCCEEDED"));
+  }
+
+  @Test
   void syncsQueuedArchiveActionToImap() throws Exception {
     SyncFixture fixture =
         configureMappedFolder(
@@ -300,7 +325,46 @@ class MailboxActionSyncTest {
   }
 
   private static SyncFixture syncInboxMessage(String body) throws Exception {
-    return syncInboxMessageWithExtraFolders(body);
+    return syncInboxMessages(body, 1);
+  }
+
+  private static SyncFixture syncInboxMessages(String body, int messageCount) throws Exception {
+    for (int index = 0; index < messageCount; index++) {
+      GreenmailUtils.deliverOneMessage(
+          greenMail, GreenMailUtil.random(), body + "-" + index, "from@foo.bar", "to@foo.bar");
+    }
+
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    accountRepository.createAccountIfNew(
+        new Account(
+            -1,
+            "Mailbox Action Account",
+            "localhost",
+            greenMail.getImap().getServerSetup().getPort(),
+            "testuser",
+            "testpassword",
+            "localhost",
+            greenMail.getSmtp().getServerSetup().getPort(),
+            "testuser",
+            "testpassword"));
+    Account account = accountRepository.getAccounts().getFirst();
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    Store syncStore = GreenmailUtils.getImapStore(greenMail);
+    ImapStoreSync.syncImapFolders(account, syncStore, folderRepository, emailRepository);
+
+    int inboxFolderId =
+        folderRepository.getFolders(account.id()).stream()
+            .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
+            .findFirst()
+            .orElseThrow()
+            .id();
+    Email message = onlySyncedMessage(emailRepository, inboxFolderId, messageCount);
+    return new SyncFixture(
+        ds, account, accountRepository, folderRepository, emailRepository, message);
   }
 
   private static SyncFixture syncInboxMessageWithExtraFolders(String body, String... extraFolders)
@@ -394,19 +458,31 @@ class MailboxActionSyncTest {
   }
 
   private static Email onlySyncedMessage(DbEmailRepository emailRepository, int folderId) {
+    return onlySyncedMessage(emailRepository, folderId, 1);
+  }
+
+  private static Email onlySyncedMessage(
+      DbEmailRepository emailRepository, int folderId, int expectedCount) {
     EmailPage page =
-        emailRepository.getMessages(folderId, 10, 0, 0, PageDirection.RIGHT, SortOrder.ASCENDING);
-    assertEquals(1, page.emails().size());
+        emailRepository.getMessages(
+            folderId, expectedCount + 5, 0, 0, PageDirection.RIGHT, SortOrder.ASCENDING);
+    assertEquals(expectedCount, page.emails().size());
     return page.emails().getFirst();
   }
 
   private static void assertRemoteSeen() throws Exception {
+    assertAllRemoteSeen(1);
+  }
+
+  private static void assertAllRemoteSeen(int expectedCount) throws Exception {
     Store store = GreenmailUtils.getImapStore(greenMail);
     Folder inbox = store.getFolder("INBOX");
     inbox.open(Folder.READ_ONLY);
     try {
-      Message message = inbox.getMessage(1);
-      assertTrue(message.isSet(Flags.Flag.SEEN));
+      assertEquals(expectedCount, inbox.getMessageCount());
+      for (Message message : inbox.getMessages()) {
+        assertTrue(message.isSet(Flags.Flag.SEEN));
+      }
     } finally {
       inbox.close();
       store.close();
@@ -453,6 +529,21 @@ class MailboxActionSyncTest {
       try (var rs = stmt.executeQuery()) {
         assertTrue(rs.next());
         return rs.getString(1);
+      }
+    }
+  }
+
+  private static int queuedActionCount(DataSource ds, MailboxActionType actionType, String status)
+      throws Exception {
+    try (Connection con = ds.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement(
+                "SELECT COUNT(*) FROM mailbox_action_queue WHERE action_type = ? AND status = ?")) {
+      stmt.setString(1, actionType.name());
+      stmt.setString(2, status);
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        return rs.getInt(1);
       }
     }
   }

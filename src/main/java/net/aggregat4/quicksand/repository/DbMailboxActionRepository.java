@@ -63,6 +63,44 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
         });
   }
 
+  public Set<Long> getPendingReadStateActionSourceUids(
+      int accountId, String sourceRemoteName, Long sourceUidValidity) {
+    return DbUtil.withPreparedStmtFunction(
+        ds,
+        """
+            SELECT source_uid
+            FROM mailbox_action_queue
+            WHERE account_id = ?
+              AND source_remote_name = ?
+              AND source_uidvalidity IS ?
+              AND action_type IN (%s)
+              AND status IN (%s)"""
+            .formatted(
+                EnumSql.inClause(MailboxActionType.READ_STATE_SYNCABLE),
+                EnumSql.inClause(
+                    MailboxActionStatus.PENDING,
+                    MailboxActionStatus.APPLYING,
+                    MailboxActionStatus.FAILED_RETRYABLE)),
+        stmt -> {
+          stmt.setInt(1, accountId);
+          stmt.setString(2, sourceRemoteName);
+          if (sourceUidValidity == null) {
+            stmt.setNull(3, java.sql.Types.BIGINT);
+          } else {
+            stmt.setLong(3, sourceUidValidity);
+          }
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                HashSet<Long> sourceUids = new HashSet<>();
+                while (rs.next()) {
+                  sourceUids.add(rs.getLong(1));
+                }
+                return sourceUids;
+              });
+        });
+  }
+
   @Override
   public MailboxSyncStatus getMailboxSyncStatus(int accountId) {
     return DbUtil.withConFunction(
@@ -83,30 +121,25 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
 
   @Override
   public List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit) {
+    return claimActions(con -> MailboxActionDbSupport.findDueMailboxActions(con, now, limit), now);
+  }
+
+  @Override
+  public List<MailboxActionQueueRow> claimDueReadStateActions(ZonedDateTime now, int limit) {
+    return claimActions(
+        con -> MailboxActionDbSupport.findDueReadStateActions(con, now, limit), now);
+  }
+
+  private List<MailboxActionQueueRow> claimActions(
+      SqlFunction<List<MailboxActionQueueRow>> findActions, ZonedDateTime now) {
     return DbUtil.withConFunction(
         ds,
         con -> {
           boolean previousAutoCommit = con.getAutoCommit();
           con.setAutoCommit(false);
           try {
-            List<MailboxActionQueueRow> actions =
-                MailboxActionDbSupport.findDueMailboxActions(con, now, limit);
-            for (MailboxActionQueueRow action : actions) {
-              try (PreparedStatement stmt =
-                  con.prepareStatement(
-                      """
-                          UPDATE mailbox_action_queue
-                          SET status = ?,
-                              updated_at = ?
-                          WHERE id = ?
-                            AND status IN (%s)"""
-                          .formatted(EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
-                stmt.setString(1, MailboxActionStatus.APPLYING.name());
-                stmt.setString(2, MailboxActionDbSupport.toIsoString(now));
-                stmt.setInt(3, action.id());
-                stmt.executeUpdate();
-              }
-            }
+            List<MailboxActionQueueRow> actions = findActions.apply(con);
+            MailboxActionDbSupport.claimMailboxActions(con, now, actions);
             con.commit();
             return actions;
           } catch (SQLException | RuntimeException e) {
@@ -116,6 +149,11 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
             con.setAutoCommit(previousAutoCommit);
           }
         });
+  }
+
+  @FunctionalInterface
+  private interface SqlFunction<T> {
+    T apply(Connection con) throws SQLException;
   }
 
   @Override

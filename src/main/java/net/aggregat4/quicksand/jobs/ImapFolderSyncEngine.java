@@ -135,6 +135,9 @@ final class ImapFolderSyncEngine {
     Set<Long> pendingMoveLikeSourceUids =
         messageRepository.getPendingMoveLikeActionSourceUids(
             accountId, localFolder.remoteName(), localFolder.uidValidity());
+    Set<Long> pendingReadStateSourceUids =
+        messageRepository.getPendingReadStateActionSourceUids(
+            accountId, localFolder.remoteName(), localFolder.uidValidity());
 
     Message[] changedMessages = access.getMessagesByUIDChangedSince(storedModSeq);
     FetchProfile changedProfile = new FetchProfile();
@@ -152,7 +155,11 @@ final class ImapFolderSyncEngine {
       Optional<net.aggregat4.quicksand.domain.Email> existingMessage =
           messageRepository.findByMessageUid(uid);
       if (existingMessage.isPresent()) {
-        updateFlagsIfNeeded(messageRepository, existingMessage.get(), message.getFlags());
+        updateFlagsIfNeeded(
+            messageRepository,
+            existingMessage.get(),
+            message.getFlags(),
+            pendingReadStateSourceUids);
       } else if (!pendingMoveLikeSourceUids.contains(uid)) {
         messagesToDownload.add(message);
       }
@@ -188,8 +195,16 @@ final class ImapFolderSyncEngine {
     Set<Long> pendingMoveLikeSourceUids =
         messageRepository.getPendingMoveLikeActionSourceUids(
             accountId, localFolder.remoteName(), localFolder.uidValidity());
+    Set<Long> pendingReadStateSourceUids =
+        messageRepository.getPendingReadStateActionSourceUids(
+            accountId, localFolder.remoteName(), localFolder.uidValidity());
     List<Message> messagesToDownload =
-        updateLocalMessages(access, messageRepository, remoteUids, pendingMoveLikeSourceUids);
+        updateLocalMessages(
+            access,
+            messageRepository,
+            remoteUids,
+            pendingMoveLikeSourceUids,
+            pendingReadStateSourceUids);
     deleteExpungedMessages(localFolder, messageRepository, remoteUids);
     downloadNewMessages(localFolder, access, messageRepository, messagesToDownload);
   }
@@ -198,7 +213,8 @@ final class ImapFolderSyncEngine {
       ImapFolderAccess access,
       EmailRepository messageRepository,
       Set<Long> remoteUids,
-      Set<Long> pendingMoveLikeSourceUids)
+      Set<Long> pendingMoveLikeSourceUids,
+      Set<Long> pendingReadStateSourceUids)
       throws MessagingException {
     Message[] remoteMessages = access.getMessages();
     FetchProfile fetchProfile = new FetchProfile();
@@ -213,7 +229,11 @@ final class ImapFolderSyncEngine {
       Optional<net.aggregat4.quicksand.domain.Email> existingMessage =
           messageRepository.findByMessageUid(uid);
       if (existingMessage.isPresent()) {
-        updateFlagsIfNeeded(messageRepository, existingMessage.get(), message.getFlags());
+        updateFlagsIfNeeded(
+            messageRepository,
+            existingMessage.get(),
+            message.getFlags(),
+            pendingReadStateSourceUids);
       } else if (!pendingMoveLikeSourceUids.contains(uid)) {
         messagesToDownload.add(message);
       }
@@ -235,15 +255,17 @@ final class ImapFolderSyncEngine {
   private static void updateFlagsIfNeeded(
       EmailRepository messageRepository,
       net.aggregat4.quicksand.domain.Email localMessage,
-      Flags flags) {
+      Flags flags,
+      Set<Long> pendingReadStateSourceUids) {
     boolean imapMessageStarred = flags.contains(Flags.Flag.FLAGGED);
     boolean imapMessageRead = flags.contains(Flags.Flag.SEEN);
+    boolean skipReadSync = pendingReadStateSourceUids.contains(localMessage.header().imapUid());
     boolean localMessageNeedsUpdate =
-        (imapMessageRead != localMessage.header().read())
+        (!skipReadSync && imapMessageRead != localMessage.header().read())
             || (imapMessageStarred != localMessage.header().starred());
     if (localMessageNeedsUpdate) {
-      messageRepository.updateFlags(
-          localMessage.header().id(), imapMessageStarred, imapMessageRead);
+      boolean readToApply = skipReadSync ? localMessage.header().read() : imapMessageRead;
+      messageRepository.updateFlags(localMessage.header().id(), imapMessageStarred, readToApply);
     }
   }
 

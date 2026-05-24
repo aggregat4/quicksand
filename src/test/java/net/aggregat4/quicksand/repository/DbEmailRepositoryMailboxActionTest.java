@@ -155,6 +155,20 @@ class DbEmailRepositoryMailboxActionTest {
   }
 
   @Test
+  void claimDueReadStateActionsGroupsByFolderAndActionType() throws Exception {
+    emailRepository.updateRead(messageId, true);
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC"));
+
+    java.util.List<MailboxActionQueueRow> readBatch =
+        emailRepository.claimDueReadStateActions(now, 10);
+
+    assertEquals(1, readBatch.size());
+    assertEquals(MailboxActionType.MARK_READ, readBatch.getFirst().actionType());
+    assertEquals(MailboxActionStatus.APPLYING.name(), queueStatus(readBatch.getFirst().id()));
+    assertTrue(emailRepository.claimDueMailboxActions(now, 10).isEmpty());
+  }
+
+  @Test
   void enqueueAppendSentCreatesQueueRowWhenSentMappingExists() throws Exception {
     NamedFolder sent =
         folderRepository.createFolder(account, "Sent", "Sent", FolderSpecialUse.SENT, 300L);

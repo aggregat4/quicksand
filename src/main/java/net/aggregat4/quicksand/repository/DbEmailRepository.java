@@ -900,6 +900,13 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
+  public Set<Long> getPendingReadStateActionSourceUids(
+      int accountId, String sourceRemoteName, Long sourceUidValidity) {
+    return mailboxActions.getPendingReadStateActionSourceUids(
+        accountId, sourceRemoteName, sourceUidValidity);
+  }
+
+  @Override
   public MailboxSyncStatus getMailboxSyncStatus(int accountId) {
     return mailboxActions.getMailboxSyncStatus(accountId);
   }
@@ -907,6 +914,11 @@ public class DbEmailRepository implements EmailRepository {
   @Override
   public List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit) {
     return mailboxActions.claimDueMailboxActions(now, limit);
+  }
+
+  @Override
+  public List<MailboxActionQueueRow> claimDueReadStateActions(ZonedDateTime now, int limit) {
+    return mailboxActions.claimDueReadStateActions(now, limit);
   }
 
   @Override
