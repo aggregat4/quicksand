@@ -67,6 +67,11 @@ public class DbAttachmentRepository implements AttachmentRepository {
   }
 
   @Override
+  public List<Attachment> findByMessageId(Connection con, int messageId) {
+    return findByAssociation(con, "message_id", messageId);
+  }
+
+  @Override
   public void saveMessageAttachments(
       Connection con, int messageId, List<InboundAttachment> attachments) {
     if (attachments.isEmpty()) {
@@ -160,8 +165,12 @@ public class DbAttachmentRepository implements AttachmentRepository {
   }
 
   private List<Attachment> findByAssociation(String columnName, int id) {
+    return DbUtil.withConFunction(ds, con -> findByAssociation(con, columnName, id));
+  }
+
+  private List<Attachment> findByAssociation(Connection con, String columnName, int id) {
     return DbUtil.withPreparedStmtFunction(
-        ds,
+        con,
         """
                 SELECT id, name, size_bytes, media_type
                 FROM attachments

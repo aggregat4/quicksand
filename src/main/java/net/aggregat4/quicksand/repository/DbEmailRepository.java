@@ -51,21 +51,24 @@ public class DbEmailRepository implements EmailRepository {
 
   @Override
   public Optional<Email> findById(int id) {
-    return DbUtil.withPreparedStmtFunction(
+    return DbUtil.withConFunction(
         ds,
-        "SELECT " + MESSAGE_VIEWER_COLUMNS + " FROM messages WHERE id = ?",
-        stmt -> {
-          stmt.setInt(1, id);
-          return DbUtil.withResultSetFunction(
-              stmt,
-              rs -> {
-                if (!rs.next()) {
-                  return Optional.empty();
-                }
-                List<Actor> actors = getActors(id);
-                return Optional.of(convertRowToViewerEmail(rs, actors, id));
-              });
-        });
+        con ->
+            DbUtil.withPreparedStmtFunction(
+                con,
+                "SELECT " + MESSAGE_VIEWER_COLUMNS + " FROM messages WHERE id = ?",
+                stmt -> {
+                  stmt.setInt(1, id);
+                  return DbUtil.withResultSetFunction(
+                      stmt,
+                      rs -> {
+                        if (!rs.next()) {
+                          return Optional.empty();
+                        }
+                        List<Actor> actors = getActors(con, id);
+                        return Optional.of(convertRowToViewerEmail(con, rs, actors, id));
+                      });
+                }));
   }
 
   @Override
@@ -88,23 +91,26 @@ public class DbEmailRepository implements EmailRepository {
 
   @Override
   public Optional<Email> findByMessageUid(long uid) {
-    return DbUtil.withPreparedStmtFunction(
+    return DbUtil.withConFunction(
         ds,
-        "SELECT " + MESSAGE_HEADER_COLUMNS + " FROM messages WHERE imap_uid = ?",
-        stmt -> {
-          stmt.setLong(1, uid);
-          return DbUtil.withResultSetFunction(
-              stmt,
-              rs -> {
-                if (rs.next()) {
-                  int messageId = rs.getInt(1);
-                  List<Actor> actors = getActors(messageId);
-                  return Optional.of(convertRowToListEmail(rs, actors, messageId));
-                } else {
-                  return Optional.empty();
-                }
-              });
-        });
+        con ->
+            DbUtil.withPreparedStmtFunction(
+                con,
+                "SELECT " + MESSAGE_HEADER_COLUMNS + " FROM messages WHERE imap_uid = ?",
+                stmt -> {
+                  stmt.setLong(1, uid);
+                  return DbUtil.withResultSetFunction(
+                      stmt,
+                      rs -> {
+                        if (rs.next()) {
+                          int messageId = rs.getInt(1);
+                          List<Actor> actors = getActors(con, messageId);
+                          return Optional.of(convertRowToListEmail(con, rs, actors, messageId));
+                        } else {
+                          return Optional.empty();
+                        }
+                      });
+                }));
   }
 
   private static EmailHeader convertRowToHeader(
@@ -124,16 +130,16 @@ public class DbEmailRepository implements EmailRepository {
         rs.getInt(10) == 1);
   }
 
-  private Email convertRowToListEmail(ResultSet rs, List<Actor> actors, int messageId)
-      throws SQLException {
-    List<Attachment> attachments = attachmentRepository.findByMessageId(messageId);
+  private Email convertRowToListEmail(
+      Connection con, ResultSet rs, List<Actor> actors, int messageId) throws SQLException {
+    List<Attachment> attachments = attachmentRepository.findByMessageId(con, messageId);
     return new Email(
         convertRowToHeader(rs, actors, !attachments.isEmpty()), false, null, attachments);
   }
 
-  private Email convertRowToViewerEmail(ResultSet rs, List<Actor> actors, int messageId)
-      throws SQLException {
-    List<Attachment> attachments = attachmentRepository.findByMessageId(messageId);
+  private Email convertRowToViewerEmail(
+      Connection con, ResultSet rs, List<Actor> actors, int messageId) throws SQLException {
+    List<Attachment> attachments = attachmentRepository.findByMessageId(con, messageId);
     return new Email(
         convertRowToHeader(rs, actors, !attachments.isEmpty()),
         rs.getInt(12) == 1,
@@ -141,9 +147,9 @@ public class DbEmailRepository implements EmailRepository {
         attachments);
   }
 
-  private List<Actor> getActors(int messageId) {
+  private List<Actor> getActors(Connection con, int messageId) {
     return DbUtil.withPreparedStmtFunction(
-        ds,
+        con,
         "SELECT type, name, email_address FROM actors WHERE message_id = ?",
         stmt -> {
           stmt.setInt(1, messageId);
@@ -376,59 +382,66 @@ public class DbEmailRepository implements EmailRepository {
     // unique, so we add the message id as a second discriminator
     // if we would not do this, we would skip over all messages that have the same received date
     // which is not unlikely as the precision is only seconds
-    return DbUtil.withPreparedStmtFunction(
+    return DbUtil.withConFunction(
         ds,
-        """
+        con ->
+            DbUtil.withPreparedStmtFunction(
+                con,
+                """
                 SELECT %s
                 FROM messages
                 WHERE folder_id = ? AND (received_date_epoch_s, id) %s (?, ?) ORDER BY received_date_epoch_s %s, id %s LIMIT ?
                 """
-            .formatted(MESSAGE_HEADER_COLUMNS, operatorString, orderByString, orderByString),
-        stmt -> {
-          stmt.setInt(1, folderId);
-          stmt.setLong(2, dateTimeOffsetEpochSeconds);
-          stmt.setInt(3, offsetMessageId);
-          stmt.setInt(4, pageSize + 1);
-          return DbUtil.withResultSetFunction(
-              stmt,
-              rs -> {
-                List<Email> messages = new ArrayList<>();
-                while (rs.next()) {
-                  int messageId = rs.getInt(1);
-                  // TODO: profile this and potentially optimise by directly joining? Or by
-                  // gathering message ids and getting all actors in batch
-                  List<Actor> actors = getActors(messageId);
-                  messages.add(convertRowToListEmail(rs, actors, messageId));
-                }
-                boolean hasMoreResults = messages.size() > pageSize;
-                if (hasMoreResults) {
-                  messages.remove(messages.size() - 1);
-                }
-                if (direction == PageDirection.LEFT) {
-                  Collections.reverse(messages);
-                }
-                // TODO: we are probably missing the case where we have an offset that is equal to
-                // the first el
-                boolean hasLeft =
-                    switch (direction) {
-                      case LEFT -> hasMoreResults;
-                      case RIGHT ->
-                          !((order == SortOrder.ASCENDING && dateTimeOffsetEpochSeconds == 0)
-                              || (order == SortOrder.DESCENDING
-                                  && dateTimeOffsetEpochSeconds == Long.MAX_VALUE));
-                    };
-                boolean hasRight =
-                    switch (direction) {
-                      case LEFT ->
-                          !((order == SortOrder.ASCENDING
-                                  && dateTimeOffsetEpochSeconds == Long.MAX_VALUE)
-                              || (order == SortOrder.DESCENDING
-                                  && dateTimeOffsetEpochSeconds == 0));
-                      case RIGHT -> hasMoreResults;
-                    };
-                return new EmailPage(messages, hasLeft, hasRight, new PageParams(direction, order));
-              });
-        });
+                    .formatted(
+                        MESSAGE_HEADER_COLUMNS, operatorString, orderByString, orderByString),
+                stmt -> {
+                  stmt.setInt(1, folderId);
+                  stmt.setLong(2, dateTimeOffsetEpochSeconds);
+                  stmt.setInt(3, offsetMessageId);
+                  stmt.setInt(4, pageSize + 1);
+                  return DbUtil.withResultSetFunction(
+                      stmt,
+                      rs -> {
+                        List<Email> messages = new ArrayList<>();
+                        while (rs.next()) {
+                          int messageId = rs.getInt(1);
+                          // TODO: profile this and potentially optimise by directly joining? Or by
+                          // gathering message ids and getting all actors in batch
+                          List<Actor> actors = getActors(con, messageId);
+                          messages.add(convertRowToListEmail(con, rs, actors, messageId));
+                        }
+                        boolean hasMoreResults = messages.size() > pageSize;
+                        if (hasMoreResults) {
+                          messages.remove(messages.size() - 1);
+                        }
+                        if (direction == PageDirection.LEFT) {
+                          Collections.reverse(messages);
+                        }
+                        // TODO: we are probably missing the case where we have an offset that is
+                        // equal to
+                        // the first el
+                        boolean hasLeft =
+                            switch (direction) {
+                              case LEFT -> hasMoreResults;
+                              case RIGHT ->
+                                  !((order == SortOrder.ASCENDING
+                                          && dateTimeOffsetEpochSeconds == 0)
+                                      || (order == SortOrder.DESCENDING
+                                          && dateTimeOffsetEpochSeconds == Long.MAX_VALUE));
+                            };
+                        boolean hasRight =
+                            switch (direction) {
+                              case LEFT ->
+                                  !((order == SortOrder.ASCENDING
+                                          && dateTimeOffsetEpochSeconds == Long.MAX_VALUE)
+                                      || (order == SortOrder.DESCENDING
+                                          && dateTimeOffsetEpochSeconds == 0));
+                              case RIGHT -> hasMoreResults;
+                            };
+                        return new EmailPage(
+                            messages, hasLeft, hasRight, new PageParams(direction, order));
+                      });
+                }));
   }
 
   @Override
@@ -523,35 +536,38 @@ public class DbEmailRepository implements EmailRepository {
   @Override
   public List<EmailHeader> getMessagesNewerThan(
       int folderId, long afterReceivedEpochSeconds, int afterMessageId, int limit) {
-    return DbUtil.withPreparedStmtFunction(
+    return DbUtil.withConFunction(
         ds,
-        """
+        con ->
+            DbUtil.withPreparedStmtFunction(
+                con,
+                """
             SELECT %s
             FROM messages
             WHERE folder_id = ?
               AND (received_date_epoch_s, id) > (?, ?)
             ORDER BY received_date_epoch_s DESC, id DESC
             LIMIT ?"""
-            .formatted(MESSAGE_HEADER_COLUMNS),
-        stmt -> {
-          stmt.setInt(1, folderId);
-          stmt.setLong(2, afterReceivedEpochSeconds);
-          stmt.setInt(3, afterMessageId);
-          stmt.setInt(4, limit);
-          return DbUtil.withResultSetFunction(
-              stmt,
-              rs -> {
-                List<EmailHeader> headers = new ArrayList<>();
-                while (rs.next()) {
-                  int messageId = rs.getInt(1);
-                  List<Actor> actors = getActors(messageId);
-                  boolean hasAttachment =
-                      !attachmentRepository.findByMessageId(messageId).isEmpty();
-                  headers.add(convertRowToHeader(rs, actors, hasAttachment));
-                }
-                return headers;
-              });
-        });
+                    .formatted(MESSAGE_HEADER_COLUMNS),
+                stmt -> {
+                  stmt.setInt(1, folderId);
+                  stmt.setLong(2, afterReceivedEpochSeconds);
+                  stmt.setInt(3, afterMessageId);
+                  stmt.setInt(4, limit);
+                  return DbUtil.withResultSetFunction(
+                      stmt,
+                      rs -> {
+                        List<EmailHeader> headers = new ArrayList<>();
+                        while (rs.next()) {
+                          int messageId = rs.getInt(1);
+                          List<Actor> actors = getActors(con, messageId);
+                          boolean hasAttachment =
+                              !attachmentRepository.findByMessageId(con, messageId).isEmpty();
+                          headers.add(convertRowToHeader(rs, actors, hasAttachment));
+                        }
+                        return headers;
+                      });
+                }));
   }
 
   @Override
@@ -606,9 +622,12 @@ public class DbEmailRepository implements EmailRepository {
       operatorString = direction == PageDirection.RIGHT ? ">" : "<";
     }
     String matchQuery = SearchQueryUtils.toFtsMatchQuery(query);
-    return DbUtil.withPreparedStmtFunction(
+    return DbUtil.withConFunction(
         ds,
-        """
+        con ->
+            DbUtil.withPreparedStmtFunction(
+                con,
+                """
                 SELECT %s
                 FROM messages m
                 JOIN message_search ON message_search.rowid = m.id
@@ -619,52 +638,57 @@ public class DbEmailRepository implements EmailRepository {
                 ORDER BY m.received_date_epoch_s %s, m.id %s
                 LIMIT ?
                 """
-            .formatted(
-                QUALIFIED_MESSAGE_HEADER_COLUMNS, operatorString, orderByString, orderByString),
-        stmt -> {
-          bindSearchParams(
-              stmt,
-              accountId,
-              matchQuery,
-              dateTimeOffsetEpochSeconds,
-              offsetMessageId,
-              pageSize + 1);
-          return DbUtil.withResultSetFunction(
-              stmt,
-              rs -> {
-                List<Email> messages = new ArrayList<>();
-                while (rs.next()) {
-                  int messageId = rs.getInt(1);
-                  List<Actor> actors = getActors(messageId);
-                  messages.add(convertRowToListEmail(rs, actors, messageId));
-                }
-                boolean hasMoreResults = messages.size() > pageSize;
-                if (hasMoreResults) {
-                  messages.removeLast();
-                }
-                if (direction == PageDirection.LEFT) {
-                  Collections.reverse(messages);
-                }
-                boolean hasLeft =
-                    switch (direction) {
-                      case LEFT -> hasMoreResults;
-                      case RIGHT ->
-                          !((order == SortOrder.ASCENDING && dateTimeOffsetEpochSeconds == 0)
-                              || (order == SortOrder.DESCENDING
-                                  && dateTimeOffsetEpochSeconds == Long.MAX_VALUE));
-                    };
-                boolean hasRight =
-                    switch (direction) {
-                      case LEFT ->
-                          !((order == SortOrder.ASCENDING
-                                  && dateTimeOffsetEpochSeconds == Long.MAX_VALUE)
-                              || (order == SortOrder.DESCENDING
-                                  && dateTimeOffsetEpochSeconds == 0));
-                      case RIGHT -> hasMoreResults;
-                    };
-                return new EmailPage(messages, hasLeft, hasRight, new PageParams(direction, order));
-              });
-        });
+                    .formatted(
+                        QUALIFIED_MESSAGE_HEADER_COLUMNS,
+                        operatorString,
+                        orderByString,
+                        orderByString),
+                stmt -> {
+                  bindSearchParams(
+                      stmt,
+                      accountId,
+                      matchQuery,
+                      dateTimeOffsetEpochSeconds,
+                      offsetMessageId,
+                      pageSize + 1);
+                  return DbUtil.withResultSetFunction(
+                      stmt,
+                      rs -> {
+                        List<Email> messages = new ArrayList<>();
+                        while (rs.next()) {
+                          int messageId = rs.getInt(1);
+                          List<Actor> actors = getActors(con, messageId);
+                          messages.add(convertRowToListEmail(con, rs, actors, messageId));
+                        }
+                        boolean hasMoreResults = messages.size() > pageSize;
+                        if (hasMoreResults) {
+                          messages.removeLast();
+                        }
+                        if (direction == PageDirection.LEFT) {
+                          Collections.reverse(messages);
+                        }
+                        boolean hasLeft =
+                            switch (direction) {
+                              case LEFT -> hasMoreResults;
+                              case RIGHT ->
+                                  !((order == SortOrder.ASCENDING
+                                          && dateTimeOffsetEpochSeconds == 0)
+                                      || (order == SortOrder.DESCENDING
+                                          && dateTimeOffsetEpochSeconds == Long.MAX_VALUE));
+                            };
+                        boolean hasRight =
+                            switch (direction) {
+                              case LEFT ->
+                                  !((order == SortOrder.ASCENDING
+                                          && dateTimeOffsetEpochSeconds == Long.MAX_VALUE)
+                                      || (order == SortOrder.DESCENDING
+                                          && dateTimeOffsetEpochSeconds == 0));
+                              case RIGHT -> hasMoreResults;
+                            };
+                        return new EmailPage(
+                            messages, hasLeft, hasRight, new PageParams(direction, order));
+                      });
+                }));
   }
 
   @Override

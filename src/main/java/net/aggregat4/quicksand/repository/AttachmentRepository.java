@@ -31,5 +31,7 @@ public interface AttachmentRepository {
 
   List<Attachment> findByMessageId(int messageId);
 
+  List<Attachment> findByMessageId(Connection con, int messageId);
+
   void deleteByDraftId(int draftId);
 }

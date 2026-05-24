@@ -48,7 +48,7 @@ class MainTest {
     assertTrue(response.contains("Greenmail Test Account"));
     assertTrue(response.contains("Outbox"));
     assertTrue(response.contains("Drafts"));
-    assertTrue(response.contains("0 drafts"));
+    assertTrue(response.contains("data-current-folder-is-drafts=\"true\""));
   }
 
   private static String get(String path) throws IOException, InterruptedException {
