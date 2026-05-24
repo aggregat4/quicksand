@@ -90,6 +90,96 @@ class MailboxActionSyncTest {
     assertAllRemoteSeen(page.emails().size());
     assertEquals(
         12, queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "SUCCEEDED"));
+    assertEquals(
+        0, queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "PENDING"));
+  }
+
+  @Test
+  void queuedMarkReadActionsStayPendingUntilMailboxActionSyncRuns() throws Exception {
+    SyncFixture fixture = syncInboxMessages("pending-until-sync", 5);
+    int inboxFolderId =
+        fixture.folderRepository().getFolders(fixture.account().id()).stream()
+            .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
+            .findFirst()
+            .orElseThrow()
+            .id();
+    EmailPage page =
+        fixture
+            .emailRepository()
+            .getMessages(
+                inboxFolderId, 10, Long.MAX_VALUE, 0, PageDirection.RIGHT, SortOrder.DESCENDING);
+    for (Email email : page.emails()) {
+      fixture.emailRepository().updateRead(email.header().id(), true);
+    }
+
+    assertEquals(
+        5, queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "PENDING"));
+
+    runMailboxActionSync(fixture);
+
+    assertEquals(
+        5, queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "SUCCEEDED"));
+    assertEquals(
+        0, queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "PENDING"));
+  }
+
+  @Test
+  void drainsAllQueuedMarkReadActionsWithinSyncCycles() throws Exception {
+    int messageCount = 100;
+    SyncFixture fixture = syncInboxMessages("bulk-read-body", messageCount);
+    int inboxFolderId =
+        fixture.folderRepository().getFolders(fixture.account().id()).stream()
+            .filter(folder -> folder.specialUse() == FolderSpecialUse.INBOX)
+            .findFirst()
+            .orElseThrow()
+            .id();
+    EmailPage page =
+        fixture
+            .emailRepository()
+            .getMessages(
+                inboxFolderId,
+                messageCount + 5,
+                Long.MAX_VALUE,
+                0,
+                PageDirection.RIGHT,
+                SortOrder.DESCENDING);
+    assertEquals(messageCount, page.emails().size());
+    for (Email email : page.emails()) {
+      fixture.emailRepository().updateRead(email.header().id(), true);
+    }
+    assertEquals(
+        messageCount,
+        queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "PENDING"));
+
+    MailboxActionSync sync =
+        new MailboxActionSync(
+            fixture.accountRepository(),
+            fixture.emailRepository(),
+            new DbOutboundMessageRepository(fixture.dataSource()),
+            new DbAttachmentRepository(fixture.dataSource()),
+            new DbDraftRepository(fixture.dataSource()),
+            fixture.folderRepository(),
+            FIXED_CLOCK,
+            15,
+            60);
+
+    for (int cycle = 0; cycle < 10; cycle++) {
+      sync.syncNow();
+      if (queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "PENDING") == 0
+          && queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "APPLYING")
+              == 0) {
+        break;
+      }
+    }
+
+    assertEquals(
+        messageCount,
+        queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "SUCCEEDED"));
+    assertEquals(
+        0, queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "PENDING"));
+    assertEquals(
+        0, queuedActionCount(fixture.dataSource(), MailboxActionType.MARK_READ, "APPLYING"));
+    assertAllRemoteSeen(messageCount);
   }
 
   @Test

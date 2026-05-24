@@ -38,5 +38,6 @@ exec java \
   -Dserver.port="${PORT}" \
   -Ddemo.enabled=true \
   -Dmail_fetcher.enabled="${MAIL_FETCHER_ENABLED}" \
+  -Dmailbox_action_sync.enabled=true \
   -Duser.language=en -Duser.country=DE -Duser.timezone=Europe/Berlin \
   -jar target/quicksand.jar

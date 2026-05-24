@@ -182,6 +182,10 @@ public final class Main {
     } else if (mailboxActionSyncEnabled) {
       LOGGER.info(
           "Mailbox action sync was enabled, but no accounts are configured. Skipping startup.");
+    } else {
+      LOGGER.info(
+          "Mailbox action sync is disabled; queued mailbox actions will remain pending until it"
+              + " is enabled.");
     }
 
     FolderService folderService = new FolderService(folderRepository);
