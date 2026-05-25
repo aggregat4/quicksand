@@ -14,10 +14,11 @@ function initEmailComposer() {
     const composerTitle = document.getElementById('composer-title')
     const composerSaveStatus = document.getElementById('composer-save-status')
     const subjectField = document.getElementById('email-subject')
-    const recipientsExtra = document.getElementById('composer-recipients-extra')
     const toggleCcBccButton = document.getElementById('toggle-cc-bcc')
     const ccField = document.getElementById('email-cc')
     const bccField = document.getElementById('email-bcc')
+    const ccLabel = document.querySelector('label[for="email-cc"]')
+    const bccLabel = document.querySelector('label[for="email-bcc"]')
     if (!visibleForm || !autosaveForm || !autosaveFrame || !attachmentUploadForm || !attachmentUploadInput || !addAttachmentButton) {
         return
     }
@@ -59,7 +60,7 @@ function initEmailComposer() {
         updateComposerTitle()
     }
 
-    if (recipientsExtra && toggleCcBccButton) {
+    if (toggleCcBccButton) {
         toggleCcBccButton.addEventListener('click', () => {
             const expanded = toggleCcBccButton.getAttribute('aria-expanded') === 'true'
             setRecipientsExtraExpanded(!expanded)
@@ -70,10 +71,14 @@ function initEmailComposer() {
     }
 
     function setRecipientsExtraExpanded(expanded) {
-        if (!recipientsExtra || !toggleCcBccButton) {
+        if (!toggleCcBccButton) {
             return
         }
-        recipientsExtra.hidden = !expanded
+        for (const element of [ccField, bccField, ccLabel, bccLabel]) {
+            if (element) {
+                element.hidden = !expanded
+            }
+        }
         toggleCcBccButton.setAttribute('aria-expanded', expanded ? 'true' : 'false')
         toggleCcBccButton.setAttribute('aria-pressed', expanded ? 'true' : 'false')
     }
