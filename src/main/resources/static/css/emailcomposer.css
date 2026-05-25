@@ -2,8 +2,37 @@ body {
     background-color: var(--highlighted-bgcolor);
 }
 
-.email-composer main {
+body.email-composer {
+    display: flex;
+    flex-direction: column;
     height: 100%;
+}
+
+#composer-chrome {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap-l);
+    padding: var(--gap-m) var(--gap-l);
+    border-bottom: var(--standard-border);
+    flex-shrink: 0;
+}
+
+#composer-chrome h1 {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+#composer-save-status {
+    color: var(--muted-text-color);
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.email-composer main {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
 }
 
 #save-email-form {

@@ -11,6 +11,9 @@ function initEmailComposer() {
     const attachmentUploadForm = document.getElementById('attachment-upload-form')
     const attachmentUploadInput = document.getElementById('attachment-upload-input')
     const addAttachmentButton = document.querySelector('.add-attachment-button')
+    const composerTitle = document.getElementById('composer-title')
+    const composerSaveStatus = document.getElementById('composer-save-status')
+    const subjectField = document.getElementById('email-subject')
     if (!visibleForm || !autosaveForm || !autosaveFrame || !attachmentUploadForm || !attachmentUploadInput || !addAttachmentButton) {
         return
     }
@@ -19,6 +22,8 @@ function initEmailComposer() {
     let autoSaveTimer = null
     let saveChain = Promise.resolve()
     let lastSavedSnapshot = serializeDraftFields(draftFieldNames)
+    let lastSavedAt = null
+    let saveStatusTimer = null
 
     addAttachmentButton.addEventListener('click', event => {
         event.preventDefault()
@@ -43,6 +48,37 @@ function initEmailComposer() {
         }
         field.addEventListener('input', () => debounce(queueDraftSave, 300))
         field.addEventListener('change', () => debounce(queueDraftSave, 300))
+    }
+
+    if (subjectField && composerTitle) {
+        subjectField.addEventListener('input', () => updateComposerTitle())
+        updateComposerTitle()
+    }
+
+    function updateComposerTitle() {
+        if (!composerTitle || !subjectField) {
+            return
+        }
+        const subject = subjectField.value.trim()
+        composerTitle.textContent = subject === '' ? 'New message' : subject
+    }
+
+    function markDraftSaved() {
+        lastSavedAt = Date.now()
+        updateSaveStatusText()
+        if (saveStatusTimer) {
+            clearInterval(saveStatusTimer)
+        }
+        saveStatusTimer = setInterval(updateSaveStatusText, 1000)
+    }
+
+    function updateSaveStatusText() {
+        if (!composerSaveStatus || !lastSavedAt) {
+            return
+        }
+        const seconds = Math.floor((Date.now() - lastSavedAt) / 1000)
+        composerSaveStatus.textContent =
+            seconds === 0 ? 'Draft saved just now' : `Draft saved ${seconds}s ago`
     }
 
     window.addEventListener('message', event => {
@@ -73,6 +109,7 @@ function initEmailComposer() {
         return submitAutosaveForm()
             .then(() => {
                 lastSavedSnapshot = snapshot
+                markDraftSaved()
             })
     }
 

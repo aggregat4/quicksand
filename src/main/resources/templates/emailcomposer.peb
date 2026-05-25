@@ -9,6 +9,10 @@
     <link rel="stylesheet" href="/css/emailcomposer.css">
 </head>
 <body class="email-composer" data-draft-id="{{ draft.id() }}">
+    <header id="composer-chrome">
+        <h1 id="composer-title">New message</h1>
+        <p id="composer-save-status" aria-live="polite"></p>
+    </header>
     <main>
         <form id="save-email-form" method="POST" enctype="multipart/form-data" action="/emails/{{ draft.id() }}">
             {# Note that this div must be empty when no validation errors since the CSS selects on :empty #}
