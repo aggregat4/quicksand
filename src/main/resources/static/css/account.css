@@ -213,6 +213,7 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
 .emailheader.active:hover {
     background-color: var(--selected-bgcolor);
     color: var(--selected-color);
+    border-left: 2px solid var(--button-primary-border-color);
 }
 
 .emailheader.active {
