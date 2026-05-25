@@ -98,13 +98,6 @@ body {
     display: flex;
     gap: var(--gap-m);
     align-items: center;
-    justify-content: space-between;
-}
-
-#emailactions > div,
-#emailactions > form {
-    display: flex;
-    gap: var(--gap-m);
 }
 
 #emailimages {
