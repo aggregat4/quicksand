@@ -281,6 +281,8 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
 }
 
 .emailheader,
+.emailheader:visited,
+.emailheader:hover,
 .emailheader:active {
     color: var(--text-color);
 }
@@ -290,7 +292,9 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
 }
 
 .emailheader.active,
-.emailheader.active:hover {
+.emailheader.active:visited,
+.emailheader.active:hover,
+.emailheader.active:active {
     background-color: var(--selected-bgcolor);
     color: var(--selected-color);
     border-left: 2px solid var(--button-primary-border-color);
