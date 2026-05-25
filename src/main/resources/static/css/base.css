@@ -455,6 +455,12 @@ header #apptitle {
     height: calc(100% - var(--dialog-padding-top) - var(--dialog-padding-other));
 }
 
+@media screen and (max-width: 900px) {
+    button[name="create_new_email"] .button-label {
+        display: none;
+    }
+}
+
 /* ---- Notifications ---- */
 .validation-errors,
 .info-notification {

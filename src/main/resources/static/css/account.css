@@ -661,6 +661,10 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
 }
 
 @media screen and (max-width: 900px) {
+    #emailcontrols .emailaction .button-label {
+        display: none;
+    }
+
     main:has(#messagepreview[open]) {
         grid-template-columns: min-content minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) minmax(16rem, 45%);

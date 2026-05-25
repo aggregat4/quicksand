@@ -34,7 +34,7 @@
             aria-label="{{ label }}"
             {% if clickHandler != null %}onclick="{{ clickHandler }}"{% endif %}
             {% if form != null %}form="{{ form }}"{% endif %}>
-            {% if icon != null %}{{ svgIcon(icon) | raw }}{% endif %}{{ showText ? label : '' }}
+            {% if icon != null %}{{ svgIcon(icon) | raw }}{% endif %}{% if showText %}<span class="button-label">{{ label }}</span>{% endif %}
         </button>
     {% endmacro %}
 
