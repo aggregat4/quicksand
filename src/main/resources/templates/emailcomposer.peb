@@ -19,13 +19,18 @@
             <div id="validation-errors"  class="validation-errors">{% if validationErrors != null %}{{ validationErrors }}{% endif %}</div>
 
             <label for="email-to">To:</label>
-            <input id="email-to" type="text" name="email-to" value="{{ draft.to() }}">
+            <div class="composer-to-row">
+                <input id="email-to" type="text" name="email-to" value="{{ draft.to() }}">
+                <button type="button" id="toggle-cc-bcc" class="composer-field-toggle" aria-expanded="false" aria-controls="composer-recipients-extra">CC/BCC</button>
+            </div>
 
-            <label for="email-cc">CC:</label>
-            <input id="email-cc" type="text" name="email-cc" value="{{ draft.cc() }}">
+            <div id="composer-recipients-extra" hidden>
+                <label for="email-cc">CC:</label>
+                <input id="email-cc" type="text" name="email-cc" value="{{ draft.cc() }}">
 
-            <label for="email-bcc">BCC:</label>
-            <input id="email-bcc" type="text" name="email-bcc" value="{{ draft.bcc() }}">
+                <label for="email-bcc">BCC:</label>
+                <input id="email-bcc" type="text" name="email-bcc" value="{{ draft.bcc() }}">
+            </div>
 
             <label for="email-subject">Subject:</label>
             <input id="email-subject" type="text" name="email-subject" value="{{ draft.subject() }}">
