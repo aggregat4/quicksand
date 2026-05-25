@@ -476,7 +476,34 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
 
 .folder-mapping-row legend span {
     margin-left: var(--gap-m);
-    color: var(--muted-text-color);
+    font-weight: normal;
+}
+
+.folder-mapping-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    font-size: 0.95rem;
+    line-height: 1;
+    font-weight: bold;
+}
+
+.folder-mapping-status.is-configured::before {
+    content: '✓';
+    color: #2d6a4f;
+}
+
+.folder-mapping-status.is-missing::before,
+.folder-mapping-status.is-conflict::before {
+    content: '✗';
+    color: #9b3333;
+}
+
+.folder-mapping-status.is-auto-detected::before {
+    content: '○';
+    color: #6b6560;
     font-weight: normal;
 }
 
@@ -485,6 +512,21 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     display: grid;
     align-content: start;
     gap: var(--gap-m);
+}
+
+.folder-create-section {
+    position: relative;
+    padding-left: var(--gap-l);
+}
+
+.folder-create-section::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: var(--gap-l);
+    bottom: var(--gap-l);
+    width: 1px;
+    background: lightgray;
 }
 
 .folder-choice-section h3,
@@ -502,8 +544,6 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     grid-template-columns: minmax(0, 1fr) max-content;
     gap: var(--gap-m);
     align-items: end;
-    padding: var(--gap-m);
-    border: var(--standard-border);
 }
 
 .folder-create-controls label {
@@ -700,8 +740,22 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
 
 @media screen and (max-width: 900px) {
     .folder-mapping-row,
-    .folder-create-controls,
     .sync-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .folder-create-section {
+        padding-left: 0;
+        padding-top: var(--gap-l);
+        margin-top: var(--gap-s);
+        border-top: 1px solid lightgray;
+    }
+
+    .folder-create-section::before {
+        display: none;
+    }
+
+    .folder-create-controls {
         grid-template-columns: 1fr;
     }
 }

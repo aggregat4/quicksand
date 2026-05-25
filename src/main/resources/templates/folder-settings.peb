@@ -47,7 +47,9 @@
                 <fieldset class="folder-mapping-row{% if row.hasConflict() %} folder-mapping-row-conflict{% elseif row.isMissing() %} folder-mapping-row-missing{% endif %}">
                     <legend>
                         {{ row.label() }}
-                        <span>{{ row.statusLabel() }}</span>
+                        <span class="folder-mapping-status{% if row.hasConflict() %} is-conflict{% elseif row.isMissing() %} is-missing{% elseif row.needsConfirmation() %} is-auto-detected{% else %} is-configured{% endif %}"
+                              aria-label="{{ row.statusLabel() }}"
+                              title="{{ row.statusLabel() }}"></span>
                     </legend>
 
                     {% if row.hasConflict() %}
