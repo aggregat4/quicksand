@@ -27,9 +27,9 @@ public interface EmailRepository extends MailboxActionRepository {
 
   void updateMessageImapUid(int messageId, long imapUid);
 
-  void removeAllByUid(Collection<Long> localMessageIds);
+  void removeAllByUid(int folderId, Collection<Long> imapUids);
 
-  void removeBatchByUid(List<Long> batch);
+  void removeBatchByUid(int folderId, List<Long> batch);
 
   void deleteById(int id);
 

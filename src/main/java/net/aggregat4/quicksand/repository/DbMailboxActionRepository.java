@@ -532,11 +532,55 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
         });
   }
 
+  /**
+   * Wipes all locally mirrored folders and messages for an account.
+   *
+   * <p>Uses the same message-eviction order as {@link DbEmailRepository#removeBatchByUid}: clear
+   * non-cascading references to {@code messages(id)} before deleting FTS rows and message rows.
+   */
   @Override
   public void clearMirroredMailboxState(int accountId) {
     DbUtil.withConConsumer(
         ds,
         con -> {
+          try (PreparedStatement stmt =
+              con.prepareStatement(
+                  """
+                      DELETE FROM mailbox_action_queue
+                      WHERE message_id IN (
+                        SELECT m.id
+                        FROM messages m
+                        JOIN folders f ON m.folder_id = f.id
+                        WHERE f.account_id = ?)""")) {
+            stmt.setInt(1, accountId);
+            stmt.executeUpdate();
+          }
+          try (PreparedStatement stmt =
+              con.prepareStatement(
+                  """
+                      UPDATE drafts
+                      SET source_message_id = NULL
+                      WHERE source_message_id IN (
+                        SELECT m.id
+                        FROM messages m
+                        JOIN folders f ON m.folder_id = f.id
+                        WHERE f.account_id = ?)""")) {
+            stmt.setInt(1, accountId);
+            stmt.executeUpdate();
+          }
+          try (PreparedStatement stmt =
+              con.prepareStatement(
+                  """
+                      UPDATE outbound_messages
+                      SET source_message_id = NULL
+                      WHERE source_message_id IN (
+                        SELECT m.id
+                        FROM messages m
+                        JOIN folders f ON m.folder_id = f.id
+                        WHERE f.account_id = ?)""")) {
+            stmt.setInt(1, accountId);
+            stmt.executeUpdate();
+          }
           try (PreparedStatement stmt =
               con.prepareStatement(
                   """

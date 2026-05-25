@@ -232,14 +232,14 @@ class ImapFolderSyncEngineTest {
     }
 
     @Override
-    public void removeAllByUid(java.util.Collection<Long> localMessageIds) {
+    public void removeAllByUid(int folderId, java.util.Collection<Long> localMessageIds) {
       if (!localMessageIds.isEmpty()) {
         removedUids.addAll(localMessageIds);
       }
       if (!localMessageIds.isEmpty()) {
         clearedFolder = true;
       }
-      super.removeAllByUid(localMessageIds);
+      super.removeAllByUid(folderId, localMessageIds);
     }
   }
 }

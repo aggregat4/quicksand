@@ -90,6 +90,25 @@ class DbEmailRepositoryMailboxActionTest {
   }
 
   @Test
+  void removeAllByUidClearsPendingMailboxActions() throws Exception {
+    emailRepository.deleteById(messageId);
+
+    emailRepository.removeAllByUid(trash.id(), Set.of(messageUid));
+
+    assertTrue(emailRepository.findByMessageUid(messageUid).isEmpty());
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement(
+                "SELECT COUNT(*) FROM mailbox_action_queue WHERE message_id = ?")) {
+      stmt.setInt(1, messageId);
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(0, rs.getInt(1));
+      }
+    }
+  }
+
+  @Test
   void deleteByIdEnqueuesMoveLikeActionWithSourceIdentity() {
     emailRepository.deleteById(messageId);
 

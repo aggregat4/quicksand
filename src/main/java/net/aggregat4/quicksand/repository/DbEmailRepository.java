@@ -253,16 +253,17 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
-  public void removeAllByUid(Collection<Long> localMessageIds) {
+  public void removeAllByUid(int folderId, Collection<Long> imapUids) {
     List<Long> batch = new ArrayList<>();
-    for (Long messageId : localMessageIds) {
-      batch.add(messageId);
+    for (Long imapUid : imapUids) {
+      batch.add(imapUid);
       if (batch.size() >= IN_BATCH_SIZE) {
-        removeBatchByUid(batch);
+        removeBatchByUid(folderId, batch);
+        batch.clear();
       }
     }
     if (!batch.isEmpty()) {
-      removeBatchByUid(batch);
+      removeBatchByUid(folderId, batch);
     }
   }
 
@@ -717,37 +718,88 @@ public class DbEmailRepository implements EmailRepository {
         });
   }
 
+  /**
+   * Removes a batch of mirrored messages from one folder by IMAP UID.
+   *
+   * <p>IMAP UIDs are only unique within a folder, so every statement scopes to {@code folderId}.
+   *
+   * <p>Deletion must follow this order because several tables reference {@code messages(id)}
+   * without {@code ON DELETE CASCADE} (see {@code QuicksandMigrations}):
+   *
+   * <ol>
+   *   <li>{@code mailbox_action_queue} rows keyed by {@code message_id}
+   *   <li>{@code drafts.source_message_id} and {@code outbound_messages.source_message_id} cleared
+   *       (reply/forward metadata should survive mirror eviction)
+   *   <li>{@code message_search} FTS rows (virtual table, not FK-managed)
+   *   <li>{@code messages} rows ({@code actors} and {@code attachments} cascade from here)
+   * </ol>
+   *
+   * <p>UIDVALIDITY changes and expunge reconciliation both call through here when evicting local
+   * mirror state.
+   */
   @Override
-  public void removeBatchByUid(List<Long> batch) {
+  public void removeBatchByUid(int folderId, List<Long> batch) {
+    if (batch.isEmpty()) {
+      return;
+    }
     if (batch.size() > DbEmailRepository.IN_BATCH_SIZE) {
       throw new IllegalStateException(
           "Only allowed to delete batches of maximally %s messages"
               .formatted(DbEmailRepository.IN_BATCH_SIZE));
     }
     String inString = batch.stream().map(msgId -> "?").collect(Collectors.joining(", "));
+    String folderScopedMessageIds =
+        "SELECT id FROM messages WHERE folder_id = ? AND imap_uid IN (%s)".formatted(inString);
     DbUtil.withConConsumer(
         ds,
         con -> {
           DbUtil.withPreparedStmtConsumer(
               con,
-              "DELETE FROM message_search WHERE rowid IN (SELECT id FROM messages WHERE imap_uid IN (%s))"
-                  .formatted(inString),
+              "DELETE FROM mailbox_action_queue WHERE message_id IN (%s)"
+                  .formatted(folderScopedMessageIds),
               stmt -> {
-                for (int i = 0; i < batch.size(); i++) {
-                  stmt.setLong(i + 1, batch.get(i));
-                }
+                bindFolderUidBatch(stmt, folderId, batch);
                 stmt.executeUpdate();
               });
           DbUtil.withPreparedStmtConsumer(
               con,
-              "DELETE FROM messages WHERE imap_uid IN (%s)".formatted(inString),
+              "UPDATE drafts SET source_message_id = NULL WHERE source_message_id IN (%s)"
+                  .formatted(folderScopedMessageIds),
               stmt -> {
-                for (int i = 0; i < batch.size(); i++) {
-                  stmt.setLong(i + 1, batch.get(i));
-                }
+                bindFolderUidBatch(stmt, folderId, batch);
+                stmt.executeUpdate();
+              });
+          DbUtil.withPreparedStmtConsumer(
+              con,
+              "UPDATE outbound_messages SET source_message_id = NULL WHERE source_message_id IN (%s)"
+                  .formatted(folderScopedMessageIds),
+              stmt -> {
+                bindFolderUidBatch(stmt, folderId, batch);
+                stmt.executeUpdate();
+              });
+          DbUtil.withPreparedStmtConsumer(
+              con,
+              "DELETE FROM message_search WHERE rowid IN (%s)".formatted(folderScopedMessageIds),
+              stmt -> {
+                bindFolderUidBatch(stmt, folderId, batch);
+                stmt.executeUpdate();
+              });
+          DbUtil.withPreparedStmtConsumer(
+              con,
+              "DELETE FROM messages WHERE folder_id = ? AND imap_uid IN (%s)".formatted(inString),
+              stmt -> {
+                bindFolderUidBatch(stmt, folderId, batch);
                 stmt.executeUpdate();
               });
         });
+  }
+
+  private static void bindFolderUidBatch(PreparedStatement stmt, int folderId, List<Long> batch)
+      throws SQLException {
+    stmt.setInt(1, folderId);
+    for (int i = 0; i < batch.size(); i++) {
+      stmt.setLong(i + 2, batch.get(i));
+    }
   }
 
   @Override

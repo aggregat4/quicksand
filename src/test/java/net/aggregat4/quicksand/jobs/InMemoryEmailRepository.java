@@ -229,15 +229,17 @@ public class InMemoryEmailRepository implements EmailRepository {
   public void enqueueDraftDelete(java.sql.Connection con, int draftId) {}
 
   @Override
-  public void removeAllByUid(Collection<Long> localMessageIds) {
-    for (List<Email> emails : messages.values()) {
-      emails.removeIf(email -> localMessageIds.contains(email.header().imapUid()));
+  public void removeAllByUid(int folderId, Collection<Long> imapUids) {
+    List<Email> emails = messages.get(folderId);
+    if (emails == null) {
+      return;
     }
+    emails.removeIf(email -> imapUids.contains(email.header().imapUid()));
   }
 
   @Override
-  public void removeBatchByUid(List<Long> batch) {
-    this.removeAllByUid(batch);
+  public void removeBatchByUid(int folderId, List<Long> batch) {
+    this.removeAllByUid(folderId, batch);
   }
 
   @Override

@@ -90,7 +90,8 @@ final class ImapFolderSyncEngine {
           access.getFullName(),
           localFolder.uidValidity(),
           remoteUidValidity);
-      messageRepository.removeAllByUid(messageRepository.getAllMessageIds(localFolder.id()));
+      messageRepository.removeAllByUid(
+          localFolder.id(), messageRepository.getAllMessageIds(localFolder.id()));
       localFolder = folderRepository.updateSyncCheckpoint(localFolder, null, null);
     }
 
@@ -166,7 +167,7 @@ final class ImapFolderSyncEngine {
     }
 
     if (qresyncSupported && access.openedWithQresync()) {
-      deleteVanishedUids(messageRepository, access.getVanishedUids());
+      deleteVanishedUids(messageRepository, localFolder.id(), access.getVanishedUids());
     } else {
       collectRemoteUids(access, remoteUids);
       deleteExpungedMessages(localFolder, messageRepository, remoteUids);
@@ -174,7 +175,8 @@ final class ImapFolderSyncEngine {
     downloadNewMessages(localFolder, access, messageRepository, messagesToDownload);
   }
 
-  private static void deleteVanishedUids(EmailRepository messageRepository, long[] vanishedUids) {
+  private static void deleteVanishedUids(
+      EmailRepository messageRepository, int folderId, long[] vanishedUids) {
     if (vanishedUids.length == 0) {
       return;
     }
@@ -182,7 +184,7 @@ final class ImapFolderSyncEngine {
     for (long uid : vanishedUids) {
       uids.add(uid);
     }
-    messageRepository.removeAllByUid(uids);
+    messageRepository.removeAllByUid(folderId, uids);
   }
 
   private static void naiveFolderSync(
@@ -273,7 +275,7 @@ final class ImapFolderSyncEngine {
       NamedFolder localFolder, EmailRepository emailRepository, Set<Long> remoteUids) {
     Set<Long> localUids = new HashSet<>(emailRepository.getAllMessageIds(localFolder.id()));
     localUids.removeAll(remoteUids);
-    emailRepository.removeAllByUid(localUids);
+    emailRepository.removeAllByUid(localFolder.id(), localUids);
   }
 
   private static void downloadNewMessages(

@@ -16,14 +16,26 @@ import jakarta.mail.internet.MimeMultipart;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import javax.sql.DataSource;
+import net.aggregat4.dblib.DbUtil;
 import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.GreenmailTestUtils;
 import net.aggregat4.quicksand.domain.Account;
+import net.aggregat4.quicksand.domain.Actor;
+import net.aggregat4.quicksand.domain.ActorType;
 import net.aggregat4.quicksand.domain.Email;
+import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
+import net.aggregat4.quicksand.domain.FolderSpecialUse;
+import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
@@ -120,7 +132,8 @@ public class DbEmailRepositoryTest {
     assertTrue(messages.hasLeft());
     assertFalse(messages.hasRight());
 
-    emailRepository.removeAllByUid(Set.of(message.header().imapUid()));
+    int inboxId = folderRepository.getFolders(account.id()).get(0).id();
+    emailRepository.removeAllByUid(inboxId, Set.of(message.header().imapUid()));
     assertTrue(emailRepository.findByMessageUid(message.header().imapUid()).isEmpty());
   }
 
@@ -170,8 +183,128 @@ public class DbEmailRepositoryTest {
     assertEquals(13, emailRepository.getSearchMessageCount(account.id(), "fixture body"));
     assertEquals(0, emailRepository.getSearchMessageCount(account.id(), "definitely absent"));
 
-    emailRepository.removeAllByUid(Set.of(subjectResults.emails().getFirst().header().imapUid()));
+    int inboxId = folderRepository.getFolders(account.id()).get(0).id();
+    emailRepository.removeAllByUid(
+        inboxId, Set.of(subjectResults.emails().getFirst().header().imapUid()));
     assertEquals(12, emailRepository.getSearchMessageCount(account.id(), "fixture subject"));
+  }
+
+  @Test
+  public void removeAllByUidDeletesMoreThanOneBatch() throws SQLException, IOException {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    NamedFolder inbox =
+        folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+
+    int messageCount = 101;
+    ZonedDateTime now =
+        ZonedDateTime.ofInstant(Instant.parse("2026-03-25T09:15:00Z"), ZoneId.of("UTC"));
+    List<Long> uids = new ArrayList<>();
+    for (long uid = 1; uid <= messageCount; uid++) {
+      uids.add(uid);
+      emailRepository.addMessage(
+          inbox.id(),
+          new Email(
+              new EmailHeader(
+                  -1,
+                  uid,
+                  List.of(
+                      new Actor(
+                          ActorType.SENDER, "sender@example.com", java.util.Optional.empty())),
+                  "Subject " + uid,
+                  now,
+                  now.toEpochSecond(),
+                  now,
+                  now.toEpochSecond(),
+                  "Excerpt",
+                  false,
+                  false,
+                  false),
+              true,
+              "Body",
+              Collections.emptyList()));
+    }
+    assertEquals(messageCount, emailRepository.getAllMessageIds(inbox.id()).size());
+    assertEquals(
+        messageCount,
+        messageCountForFolder(ds, inbox.id()),
+        "messages should exist in SQL before delete");
+
+    emailRepository.removeAllByUid(inbox.id(), uids);
+
+    assertEquals(0, messageCountForFolder(ds, inbox.id()), "messages should be gone after delete");
+    assertTrue(emailRepository.getAllMessageIds(inbox.id()).isEmpty());
+  }
+
+  private static int messageCountForFolder(DataSource ds, int folderId) {
+    return DbUtil.withPreparedStmtFunction(
+        ds,
+        "SELECT COUNT(*) FROM messages WHERE folder_id = ?",
+        stmt -> {
+          stmt.setInt(1, folderId);
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                rs.next();
+                return rs.getInt(1);
+              });
+        });
+  }
+
+  @Test
+  public void removeAllByUidIsScopedToFolder() throws SQLException, IOException {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    NamedFolder inbox =
+        folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+    NamedFolder sent =
+        folderRepository.createFolder(account, "Sent", "Sent", FolderSpecialUse.SENT, 101L);
+
+    ZonedDateTime now =
+        ZonedDateTime.ofInstant(Instant.parse("2026-03-25T09:15:00Z"), ZoneId.of("UTC"));
+    long sharedUid = 7L;
+    for (NamedFolder folder : List.of(inbox, sent)) {
+      emailRepository.addMessage(
+          folder.id(),
+          new Email(
+              new EmailHeader(
+                  -1,
+                  sharedUid,
+                  List.of(
+                      new Actor(
+                          ActorType.SENDER, "sender@example.com", java.util.Optional.empty())),
+                  "Subject",
+                  now,
+                  now.toEpochSecond(),
+                  now,
+                  now.toEpochSecond(),
+                  "Excerpt",
+                  false,
+                  false,
+                  false),
+              true,
+              "Body",
+              Collections.emptyList()));
+    }
+
+    emailRepository.removeAllByUid(inbox.id(), Set.of(sharedUid));
+
+    assertTrue(emailRepository.getAllMessageIds(inbox.id()).isEmpty());
+    assertEquals(Set.of(sharedUid), emailRepository.getAllMessageIds(sent.id()));
   }
 
   @Test
