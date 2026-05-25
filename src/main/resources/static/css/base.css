@@ -383,19 +383,32 @@ header {
     display: flex;
     flex-direction: row;
     align-items: center;
+    justify-content: space-between;
+    gap: var(--gap-l);
     padding: var(--gap-m);
     /*border-bottom: 1px dashed gray;*/
 }
 
-#toggle-folderlist-button {
-    margin-right: var(--gap-m);
+.header-context,
+.header-utilities {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-m);
+    min-width: 0;
+}
+
+.header-context {
+    flex: 1 1 auto;
+}
+
+.header-utilities {
+    flex: 0 0 auto;
 }
 
 #searchemailform {
     display: flex;
     align-items: center;
     gap: var(--gap-m);
-    margin: 0 var(--gap-l);
 }
 
 #clearsearchlink {
@@ -413,7 +426,7 @@ li.has-submenu a {
 }
 
 header #apptitle {
-    flex-grow: 1;
+    flex-grow: 0;
 }
 
 #newmail-composer-dialog {

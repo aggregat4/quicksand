@@ -11,68 +11,74 @@
 <body class="{{ bodyclass }}">
 {% import "templates/macros.peb" %}
 <header>
-    <button id="toggle-folderlist-button" type="button" aria-pressed="true" title="Toggle folder list">
-        {{ svgIcon('folders') | raw }}
-        Folders
-    </button>
+    <div class="header-context">
+        <button id="toggle-folderlist-button" type="button" aria-pressed="true" title="Toggle folder list">
+            {{ svgIcon('folders') | raw }}
+            Folders
+        </button>
 
-    {% if currentAccount == null %}
-        <h1 id="apptitle">Quicksand E-Mail Home</h1>
-    {% else %}
-        <h1 id="apptitle">{{ currentAccount.name }}</h1>
-    {% endif %}
-
-    {% if currentAccount != null %}
-        {% if syncStatus != null and syncStatus.needsAttention() %}
-            <a class="sync-attention-link" href="/accounts/{{ currentAccount.id }}/sync">Sync needs attention</a>
+        {% if currentAccount == null %}
+            <h1 id="apptitle">Quicksand E-Mail Home</h1>
+        {% else %}
+            <h1 id="apptitle">{{ currentAccount.name }}</h1>
         {% endif %}
 
-        {% block notificationStrip %}{% endblock %}
+        {% if currentAccount != null %}
+            {% if syncStatus != null and syncStatus.needsAttention() %}
+                <a class="sync-attention-link" href="/accounts/{{ currentAccount.id }}/sync">Sync needs attention</a>
+            {% endif %}
 
-        {{ submitButton(true, 'newmail', false, 'create_new_email', 'New Mail', clickHandler = 'void createEmailAndShowComposer()', type = 'button', primary = true) }}
-        <dialog id="newmail-composer-dialog">
-            <form class="dialogcloser" method="dialog">
-                {{ submitButton(false, 'close', false, 'closeMessageComposer', 'Close Message Comoposer', 'return onCloseEmailComposerDialog(event)') }}
+            {% block notificationStrip %}{% endblock %}
+
+            {{ submitButton(true, 'newmail', false, 'create_new_email', 'New Mail', clickHandler = 'void createEmailAndShowComposer()', type = 'button', primary = true) }}
+            <dialog id="newmail-composer-dialog">
+                <form class="dialogcloser" method="dialog">
+                    {{ submitButton(false, 'close', false, 'closeMessageComposer', 'Close Message Comoposer', 'return onCloseEmailComposerDialog(event)') }}
+                </form>
+                <iframe id="newmail-composer-frame" name="newmailframe" ></iframe>
+            </dialog>
+        {% endif %}
+    </div>
+
+    <div class="header-utilities">
+        {% if currentAccount != null %}
+            <form id="searchemailform" method="GET" action="/accounts/{{ currentAccount.id }}/search">
+                <input id="searchemailinput"
+                       name="query"
+                       type="search"
+                       {% if currentQuery.isPresent() %}value="{{ currentQuery.get() }}"{% endif %}
+                       aria-label="Search all e-mail">
+                <button type="submit">Search</button>
+                {% if currentQuery.isPresent() %}
+                    <a id="clearsearchlink" href="/accounts/{{ currentAccount.id }}">Clear</a>
+                {% endif %}
             </form>
-            <iframe id="newmail-composer-frame" name="newmailframe" ></iframe>
-        </dialog>
+        {% endif %}
 
-        <form id="searchemailform" method="GET" action="/accounts/{{ currentAccount.id }}/search">
-            <input id="searchemailinput"
-                   name="query"
-                   type="search"
-                   {% if currentQuery.isPresent() %}value="{{ currentQuery.get() }}"{% endif %}
-                   aria-label="Search all e-mail">
-            <button type="submit">Search</button>
-            {% if currentQuery.isPresent() %}
-                <a id="clearsearchlink" href="/accounts/{{ currentAccount.id }}">Clear</a>
-            {% endif %}
-        </form>
-    {% endif %}
-
-    <nav id="sitenavigation" aria-labelledby="apptitle">
-        <ul>
-            {% if accounts != null %}
-                <li class="has-submenu">
-                    <a href="#flyoutnavkbfixed" aria-expanded="false">Accounts</a>
-                    <ul hidden>
-                        {% for account in accounts %}
-                            <li><a href="/accounts/{{ account.id }}">{{ account.name }}</a></li>
-                        {% endfor %}
-                    </ul>
-                </li>
-            {% endif %}
-            {% if currentAccount != null %}
-                <li>
-                    {{ iconlink('/accounts/' ~ currentAccount.id ~ '/settings', 'Settings', 'settings') }}
-                </li>
-            {% elseif accounts != null and accounts|length == 1 %}
-                <li>
-                    {{ iconlink('/accounts/' ~ accounts[0].id ~ '/settings', 'Settings', 'settings') }}
-                </li>
-            {% endif %}
-        </ul>
-    </nav>
+        <nav id="sitenavigation" aria-labelledby="apptitle">
+            <ul>
+                {% if accounts != null %}
+                    <li class="has-submenu">
+                        <a href="#flyoutnavkbfixed" aria-expanded="false">Accounts</a>
+                        <ul hidden>
+                            {% for account in accounts %}
+                                <li><a href="/accounts/{{ account.id }}">{{ account.name }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                {% endif %}
+                {% if currentAccount != null %}
+                    <li>
+                        {{ iconlink('/accounts/' ~ currentAccount.id ~ '/settings', 'Settings', 'settings') }}
+                    </li>
+                {% elseif accounts != null and accounts|length == 1 %}
+                    <li>
+                        {{ iconlink('/accounts/' ~ accounts[0].id ~ '/settings', 'Settings', 'settings') }}
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
 </header>
     {% block content %}{% endblock %}
     {% if currentAccount != null %}
