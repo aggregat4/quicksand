@@ -1,5 +1,7 @@
 package net.aggregat4.quicksand.repository;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -154,16 +156,115 @@ public class DbFolderRepository implements FolderRepository {
         });
   }
 
-  /** TODO: verify that we are cascade deleting all messages and associated things */
+  /** Clears dependent rows that do not cascade before removing a mirrored folder row. */
   @Override
   public void deleteFolder(NamedFolder folder) {
-    DbUtil.withPreparedStmtConsumer(
+    DbUtil.withConConsumer(
         ds,
-        "DELETE FROM folders WHERE id = ?",
-        stmt -> {
-          stmt.setInt(1, folder.id());
-          stmt.executeUpdate();
+        con -> {
+          int folderId = folder.id();
+          deleteMailboxActionsForFolderMessages(con, folderId);
+          nullifyDraftSourcesForFolderMessages(con, folderId);
+          nullifyOutboundSourcesForFolderMessages(con, folderId);
+          deleteSearchRowsForFolderMessages(con, folderId);
+          deleteMessagesInFolder(con, folderId);
+          deleteMailboxActionsReferencingFolder(con, folderId);
+          detachFolderMappings(con, folderId);
+          deleteFolderRow(con, folderId);
         });
+  }
+
+  private static void deleteMailboxActionsForFolderMessages(Connection con, int folderId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                DELETE FROM mailbox_action_queue
+                WHERE message_id IN (SELECT id FROM messages WHERE folder_id = ?)""")) {
+      stmt.setInt(1, folderId);
+      stmt.executeUpdate();
+    }
+  }
+
+  private static void nullifyDraftSourcesForFolderMessages(Connection con, int folderId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                UPDATE drafts
+                SET source_message_id = NULL
+                WHERE source_message_id IN (SELECT id FROM messages WHERE folder_id = ?)""")) {
+      stmt.setInt(1, folderId);
+      stmt.executeUpdate();
+    }
+  }
+
+  private static void nullifyOutboundSourcesForFolderMessages(Connection con, int folderId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                UPDATE outbound_messages
+                SET source_message_id = NULL
+                WHERE source_message_id IN (SELECT id FROM messages WHERE folder_id = ?)""")) {
+      stmt.setInt(1, folderId);
+      stmt.executeUpdate();
+    }
+  }
+
+  private static void deleteSearchRowsForFolderMessages(Connection con, int folderId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                DELETE FROM message_search
+                WHERE rowid IN (SELECT id FROM messages WHERE folder_id = ?)""")) {
+      stmt.setInt(1, folderId);
+      stmt.executeUpdate();
+    }
+  }
+
+  private static void deleteMessagesInFolder(Connection con, int folderId) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement("DELETE FROM messages WHERE folder_id = ?")) {
+      stmt.setInt(1, folderId);
+      stmt.executeUpdate();
+    }
+  }
+
+  private static void deleteMailboxActionsReferencingFolder(Connection con, int folderId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                DELETE FROM mailbox_action_queue
+                WHERE source_folder_id = ? OR target_folder_id = ?""")) {
+      stmt.setInt(1, folderId);
+      stmt.setInt(2, folderId);
+      stmt.executeUpdate();
+    }
+  }
+
+  private static void detachFolderMappings(Connection con, int folderId) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                UPDATE account_folder_mappings
+                SET folder_id = NULL,
+                    status = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE folder_id = ?""")) {
+      stmt.setString(1, FolderMappingStatus.MISSING.name());
+      stmt.setInt(2, folderId);
+      stmt.executeUpdate();
+    }
+  }
+
+  private static void deleteFolderRow(Connection con, int folderId) throws SQLException {
+    try (PreparedStatement stmt = con.prepareStatement("DELETE FROM folders WHERE id = ?")) {
+      stmt.setInt(1, folderId);
+      stmt.executeUpdate();
+    }
   }
 
   @Override

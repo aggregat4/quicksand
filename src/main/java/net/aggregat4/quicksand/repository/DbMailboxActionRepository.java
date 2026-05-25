@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import javax.sql.DataSource;
 import net.aggregat4.dblib.DbUtil;
+import net.aggregat4.quicksand.domain.FolderMappingStatus;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.MailboxActionExecutionState;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
@@ -599,6 +600,29 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
                       DELETE FROM messages
                       WHERE folder_id IN (SELECT id FROM folders WHERE account_id = ?)""")) {
             stmt.setInt(1, accountId);
+            stmt.executeUpdate();
+          }
+          try (PreparedStatement stmt =
+              con.prepareStatement(
+                  """
+                      DELETE FROM mailbox_action_queue
+                      WHERE source_folder_id IN (SELECT id FROM folders WHERE account_id = ?)
+                         OR target_folder_id IN (SELECT id FROM folders WHERE account_id = ?)""")) {
+            stmt.setInt(1, accountId);
+            stmt.setInt(2, accountId);
+            stmt.executeUpdate();
+          }
+          try (PreparedStatement stmt =
+              con.prepareStatement(
+                  """
+                      UPDATE account_folder_mappings
+                      SET folder_id = NULL,
+                          status = ?,
+                          updated_at = CURRENT_TIMESTAMP
+                      WHERE account_id = ?
+                        AND folder_id IS NOT NULL""")) {
+            stmt.setString(1, FolderMappingStatus.MISSING.name());
+            stmt.setInt(2, accountId);
             stmt.executeUpdate();
           }
           try (PreparedStatement stmt =
