@@ -118,6 +118,7 @@ test('account page supports message preview and composer dialogs', async ({ page
   await expect(composerDialog).toBeVisible();
 
   const composerFrame = page.frameLocator('#newmail-composer-frame');
+  await expect(composerFrame.locator('#composer-title')).toHaveText('New message');
   await expect(composerFrame.locator('form#save-email-form')).toBeVisible();
   await expect(composerFrame.getByLabel('Email Body')).toBeVisible();
 
@@ -179,6 +180,7 @@ test('new drafts persist headers and body and reopen from the drafts folder', as
 
   await page.getByRole('button', { name: 'New Mail' }).click();
   const composerFrame = page.frameLocator('#newmail-composer-frame');
+  await expect(composerFrame.locator('#composer-title')).toHaveText('New message');
   await expect(composerFrame.locator('form#save-email-form')).toBeVisible();
 
   await composerFrame.locator('#email-to').fill('Alice <alice@example.com>');
@@ -197,7 +199,7 @@ test('new drafts persist headers and body and reopen from the drafts folder', as
   await page.locator('#newmail-composer-dialog .dialogcloser button').click();
   await page.locator('#folderlist a[title="Drafts"]').click();
 
-  await expect(page.locator('#pagination-status')).toContainText('drafts');
+  await expect(page.locator('#pagination-status')).toContainText('draft');
   const draftRow = page.locator('#messagelist a.emailheader').filter({
     has: page.locator('.subjectline', { hasText: 'Drafts folder subject' })
   });
@@ -283,7 +285,9 @@ test('search finds targeted messages inside the existing account viewer flow', a
   await expect(page).toHaveURL(/\/accounts\/1\/search\?query=Launch\+Digest/);
   await expect(page.locator('#searchemailinput')).toHaveValue('Launch Digest');
   await expect(page.locator('#clearsearchlink')).toBeVisible();
-  await expect(page.locator('#pagination-status')).toContainText('1 of 1');
+  await expect(page.locator('#pagination-status')).toContainText('1 message');
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', /1 message total/);
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', /Page 1 of 1/);
   await expect(page.locator('#messagelist .emailgroup')).toHaveCount(0);
 
   const resultRow = page.locator('#messagelist a.emailheader').filter({
@@ -325,18 +329,22 @@ test('search paging stays stable for multi-page result sets', async ({ page }) =
   await page.goto('/accounts/1/search?query=Duplicate%20timestamp%20sample');
 
   await expect(page.locator('#searchemailinput')).toHaveValue('Duplicate timestamp sample');
-  await expect(page.locator('#pagination-status')).toContainText(`${PAGE_SIZE} of ${DUPLICATE_SEARCH_COUNT}`);
+  await expect(page.locator('#pagination-status')).toContainText(`${PAGE_SIZE} messages`);
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', new RegExp(`${DUPLICATE_SEARCH_COUNT} messages total`));
   await expect(page.locator('#messagelist a.emailheader')).toHaveCount(PAGE_SIZE);
   await expect(page.locator('#messagelist .emailgroup')).toHaveCount(0);
 
   const firstPageSubjects = await pageSubjects(page);
   await page.locator('#emailpagination a[title="Next"]').click();
-  await expect(page.locator('#pagination-status')).toContainText(`${PAGE_SIZE} of ${DUPLICATE_SEARCH_COUNT}`);
+  await expect(page.locator('#pagination-status')).toContainText(`${PAGE_SIZE} messages`);
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', new RegExp(`${DUPLICATE_SEARCH_COUNT} messages total`));
   expect(await pageSubjects(page)).not.toEqual(firstPageSubjects);
 
   await page.locator('#emailpagination a[title="End"]').click();
   await expect(page.locator('#messagelist a.emailheader')).toHaveCount(DUPLICATE_SEARCH_LAST_PAGE_COUNT);
-  await expect(page.locator('#pagination-status')).toContainText(`${DUPLICATE_SEARCH_LAST_PAGE_COUNT} of ${DUPLICATE_SEARCH_COUNT}`);
+  await expect(page.locator('#pagination-status')).toContainText(`${DUPLICATE_SEARCH_LAST_PAGE_COUNT} messages`);
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', new RegExp(`${DUPLICATE_SEARCH_COUNT} messages total`));
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', /Page 3 of 3/);
 
   await page.locator('#emailpagination a[title="Beginning"]').click();
   expect(await pageSubjects(page)).toEqual(firstPageSubjects);
@@ -345,7 +353,9 @@ test('search paging stays stable for multi-page result sets', async ({ page }) =
 test('descending inbox shows all temporal groups and seeded HTML examples', async ({ page }) => {
   await waitForDemoInbox(page);
 
-  await expect(page.locator('#pagination-status')).toContainText(`${PAGE_SIZE} of ${DEMO_MESSAGE_COUNT}`);
+  await expect(page.locator('#pagination-status')).toContainText(`${PAGE_SIZE} messages`);
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', new RegExp(`${DEMO_MESSAGE_COUNT} messages total`));
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', /Page 1 of 3/);
   await expect(page.locator('#messagelist a.emailheader')).toHaveCount(PAGE_SIZE);
   expect(await pageGroupLabels(page)).toEqual(DESCENDING_GROUPS);
 
@@ -458,7 +468,9 @@ test('sorting, grouping and paging stay stable in descending and ascending order
 
   await page.locator('#emailpagination a[title="End"]').click();
   await expect(page.locator('#messagelist a.emailheader')).toHaveCount(LAST_PAGE_COUNT);
-  await expect(page.locator('#pagination-status')).toContainText(`${LAST_PAGE_COUNT} of ${DEMO_MESSAGE_COUNT}`);
+  await expect(page.locator('#pagination-status')).toContainText(`${LAST_PAGE_COUNT} messages`);
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', new RegExp(`${DEMO_MESSAGE_COUNT} messages total`));
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', /Page 3 of 3/);
   await page.locator('#emailpagination a[title="Beginning"]').click();
   expect(await pageSubjects(page)).toEqual(descendingFirstPageSubjects);
 
@@ -473,7 +485,9 @@ test('sorting, grouping and paging stay stable in descending and ascending order
 
   await page.locator('#emailpagination a[title="End"]').click();
   await expect(page.locator('#messagelist a.emailheader')).toHaveCount(LAST_PAGE_COUNT);
-  await expect(page.locator('#pagination-status')).toContainText(`${LAST_PAGE_COUNT} of ${DEMO_MESSAGE_COUNT}`);
+  await expect(page.locator('#pagination-status')).toContainText(`${LAST_PAGE_COUNT} messages`);
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', new RegExp(`${DEMO_MESSAGE_COUNT} messages total`));
+  await expect(page.locator('#pagination-status')).toHaveAttribute('title', /Page 3 of 3/);
   expect(await pageGroupLabels(page)).toEqual(ASCENDING_END_GROUPS);
   await page.locator('#emailpagination a[title="Beginning"]').click();
   expect(await pageSubjects(page)).toEqual(ascendingFirstPageSubjects);
