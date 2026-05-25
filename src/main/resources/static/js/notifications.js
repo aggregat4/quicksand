@@ -125,15 +125,28 @@
         }
 
         const status = document.getElementById('pagination-status')
-        if (status && !messageViewerOpen()) {
-            const match = status.textContent.match(/^(\d+)\s+of\s+(\d+)/)
-            if (match) {
-                const visible = parseInt(match[1], 10) + incomingHeaders.length
-                const total = parseInt(match[2], 10) + incomingHeaders.length
-                status.textContent = status.textContent.replace(
-                    /^(\d+)\s+of\s+(\d+)/,
-                    `${visible} of ${total}`
-                )
+        if (status && !messageViewerOpen() && status.dataset.messageCount) {
+            const incomingCount = incomingHeaders.length
+            const visible = parseInt(status.dataset.messageCount, 10) + incomingCount
+            status.dataset.messageCount = String(visible)
+            status.textContent = visible === 1 ? '1 message' : `${visible} messages`
+
+            if (status.dataset.totalCount) {
+                const total = parseInt(status.dataset.totalCount, 10) + incomingCount
+                status.dataset.totalCount = String(total)
+                const parts = [
+                    total === 1 ? '1 message total' : `${total} messages total`
+                ]
+                const existingTitle = status.getAttribute('title') || ''
+                const dateRangeMatch = existingTitle.match(/\d{2} \w{3} to \d{2} \w{3}/)
+                if (dateRangeMatch) {
+                    parts.push(dateRangeMatch[0])
+                }
+                const pageMatch = existingTitle.match(/Page \d+ of \d+/)
+                if (pageMatch) {
+                    parts.push(pageMatch[0])
+                }
+                status.title = parts.join(' · ')
             }
         }
     }

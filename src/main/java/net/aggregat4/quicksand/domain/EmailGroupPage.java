@@ -2,6 +2,7 @@ package net.aggregat4.quicksand.domain;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,5 +52,17 @@ public record EmailGroupPage(List<EmailGroup> groups, Pagination pagination) {
     }
     return Optional.of(
         RECEIVED_RANGE_FORMATTER.format(start) + " to " + RECEIVED_RANGE_FORMATTER.format(end));
+  }
+
+  public String paginationStatusTooltip() {
+    List<String> parts = new ArrayList<>();
+    pagination
+        .totalMessageCount()
+        .ifPresent(total -> parts.add(total == 1 ? "1 message total" : total + " messages total"));
+    formattedReceivedDateRange().ifPresent(parts::add);
+    pagination
+        .currentPageNumber()
+        .ifPresent(page -> parts.add("Page " + page + " of " + pagination.totalPages()));
+    return String.join(" · ", parts);
   }
 }

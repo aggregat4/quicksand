@@ -77,27 +77,25 @@
                     </dialog>
                 {% endif %}
                 <div id="email-paging-controls">
-                    <div id="pagination-status">
+                    {% set visibleMessageCount = emailGroupPage.getNofMessages() %}
+                    <div id="pagination-status"
+                         {% if currentFolderIsDrafts or currentFolderIsOutbox %}
+                             {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
+                                 title="{{ emailGroupPage.formattedReceivedDateRange().get() }}"
+                             {% endif %}
+                         {% else %}
+                             title="{{ emailGroupPage.paginationStatusTooltip() }}"
+                             data-message-count="{{ visibleMessageCount }}"
+                             {% if emailGroupPage.pagination().totalMessageCount().isPresent() %}
+                                 data-total-count="{{ emailGroupPage.pagination().totalMessageCount().get() }}"
+                             {% endif %}
+                         {% endif %}>
                         {% if currentFolderIsDrafts %}
-                            {{ emailGroupPage.getNofMessages() }} drafts
-                            {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
-                                - {{ emailGroupPage.formattedReceivedDateRange().get() }}
-                            {% endif %}
+                            {{ visibleMessageCount }} draft{% if visibleMessageCount != 1 %}s{% endif %}
                         {% elseif currentFolderIsOutbox %}
-                            {{ emailGroupPage.getNofMessages() }} outgoing
-                            {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
-                                - {{ emailGroupPage.formattedReceivedDateRange().get() }}
-                            {% endif %}
+                            {{ visibleMessageCount }} outgoing
                         {% else %}
-                            {{ emailGroupPage.getNofMessages() }}
-                            {% if emailGroupPage.pagination().totalMessageCount().isPresent() %}
-                                of {{ emailGroupPage.pagination().totalMessageCount().get() }}
-                            {% else %}
-                                messages
-                            {% endif %}
-                            {% if emailGroupPage.formattedReceivedDateRange().isPresent() %}
-                                - {{ emailGroupPage.formattedReceivedDateRange().get() }}
-                            {% endif %}
+                            {{ visibleMessageCount }} message{% if visibleMessageCount != 1 %}s{% endif %}
                         {% endif %}
                     </div>
                     {% if not currentFolderIsDrafts and not currentFolderIsOutbox %}

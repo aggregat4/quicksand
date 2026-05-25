@@ -162,6 +162,11 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     display: inline-block;
 }
 
+#pagination-status[title]:not([title=""]) {
+    cursor: help;
+    border-bottom: 1px dotted var(--muted-text-color);
+}
+
 #emailpagination {
     display: inline-block;
 }
