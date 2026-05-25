@@ -22,39 +22,6 @@ function init() {
             }
         })
     }
-    // Open submenus on hover for pointer devices; click toggles for keyboard and touch.
-    const menuItems = document.querySelectorAll('li.has-submenu')
-    let menuTimer = null
-    const hoverCapable = window.matchMedia('(hover: hover) and (pointer: fine)').matches
-    Array.prototype.forEach.call(menuItems, function(el){
-        if (hoverCapable) {
-            el.addEventListener('mouseover', function(){
-                this.classList.add('open')
-                clearTimeout(menuTimer)
-            })
-            el.addEventListener('mouseout', function(){
-                menuTimer = setTimeout(function(){
-                    const openMenu = document.querySelector('.has-submenu.open')
-                    if (openMenu) {
-                        openMenu.classList.remove('open')
-                        openMenu.querySelector('a')?.setAttribute('aria-expanded', 'false')
-                    }
-                }, 1000)
-            })
-        }
-        // activate the submenus on activation (click, keyboard activation, etc) for non sighted users
-        el.querySelector('a').addEventListener('click',  function(event){
-            if (!this.parentNode.classList.contains('open')) {
-                this.parentNode.classList.add('open')
-                this.setAttribute('aria-expanded', 'true')
-            } else {
-                this.parentNode.classList.remove('open')
-                this.setAttribute('aria-expanded', 'false')
-            }
-            event.preventDefault()
-            return false
-        })
-    })
     initSelectedDraftComposer()
     initSelectedEmailActions()
 }

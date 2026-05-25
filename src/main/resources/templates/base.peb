@@ -58,16 +58,22 @@
         <nav id="sitenavigation" aria-labelledby="apptitle">
             <ul>
                 {% if accounts != null %}
-                    <li class="has-submenu">
-                        <a href="#flyoutnavkbfixed" aria-expanded="false" aria-label="Accounts" title="Accounts">
+                    <li>
+                        <button type="button"
+                                id="accounts-menu-button"
+                                class="nav-menu-button"
+                                popovertarget="accounts-menu-popover"
+                                aria-label="Accounts">
                             {{ svgIcon('accounts') | raw }}
                             <span class="nav-link-label">Accounts</span>
-                        </a>
-                        <ul hidden>
-                            {% for account in accounts %}
-                                <li><a href="/accounts/{{ account.id }}">{{ account.name }}</a></li>
-                            {% endfor %}
-                        </ul>
+                        </button>
+                        <div id="accounts-menu-popover" popover="auto" class="accounts-menu-popover">
+                            <ul>
+                                {% for account in accounts %}
+                                    <li><a href="/accounts/{{ account.id }}">{{ account.name }}</a></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
                     </li>
                 {% endif %}
                 {% if currentAccount != null %}

@@ -318,37 +318,63 @@ button.iconButton:disabled {
 }
 
 dialog,
-.has-submenu ul {
+.accounts-menu-popover {
     background: var(--highlighted-bgcolor);
     box-shadow: var(--shadow-elevation-medium);
     border: var(--standard-border);
 }
 
-/* submenus are position specifically */
-.has-submenu ul {
-    list-style-type: none;
-    padding: 0;
+.accounts-menu-popover {
     margin: 0;
-
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    background-color: var(--highlighted-bgcolor);
-    /* We need to set the z-index explicitly so the background is visible*/
-    z-index: 1;
+    margin-top: var(--gap-s);
+    padding: 0;
+    inset: unset;
+    position-area: bottom span-right;
+    width: max-content;
+    min-width: 10rem;
+    max-width: min(20rem, 90vw);
 }
 
-.has-submenu ul li {
+.accounts-menu-popover ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.accounts-menu-popover a {
+    display: block;
     padding: var(--gap-s) var(--gap-m);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.has-submenu.open ul a {
-    display: inline-block;
-}
-
-.has-submenu ul a:hover {
+.accounts-menu-popover a:hover {
     background-color: var(--link-hover-bgcolor);
+}
+
+.nav-menu-button {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-m);
+    padding: var(--gap-m) var(--gap-m);
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--link-color);
+    cursor: pointer;
+    font: inherit;
+    line-height: inherit;
+}
+
+.nav-menu-button:hover {
+    color: var(--link-hover-color);
+    background-color: var(--link-hover-bgcolor);
+}
+
+.nav-menu-button:focus-visible {
+    outline: 2px solid var(--link-color);
+    outline-offset: 2px;
 }
 
 /* icon-link component ------ */
@@ -464,10 +490,6 @@ mark {
     padding: 0 1px;
 }
 
-li.has-submenu a {
-    padding: var(--gap-m) var(--gap-l);
-}
-
 #sitenavigation > ul {
     display: flex;
     align-items: center;
@@ -475,28 +497,6 @@ li.has-submenu a {
     list-style: none;
     margin: 0;
     padding: 0;
-}
-
-#sitenavigation li.has-submenu {
-    position: relative;
-}
-
-#sitenavigation li.has-submenu > ul {
-    display: none;
-}
-
-#sitenavigation li.has-submenu.open > ul {
-    display: block;
-}
-
-#sitenavigation li.has-submenu > a {
-    display: flex;
-    align-items: center;
-    gap: var(--gap-m);
-}
-
-#sitenavigation li.has-submenu > a:hover {
-    background-color: var(--link-hover-bgcolor);
 }
 
 header #apptitle {
@@ -532,7 +532,7 @@ header #apptitle {
 
     #toggle-folderlist-button,
     button[name="create_new_email"],
-    #sitenavigation li.has-submenu > a,
+    #sitenavigation .nav-menu-button,
     #sitenavigation a.iconlink {
         min-height: var(--header-button-min-height);
         min-width: var(--header-button-min-height);
@@ -541,7 +541,7 @@ header #apptitle {
     }
 
     #sitenavigation a.iconlink svg,
-    #sitenavigation li.has-submenu > a svg {
+    #sitenavigation .nav-menu-button svg {
         margin-right: 0;
     }
 
