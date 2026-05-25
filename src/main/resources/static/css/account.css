@@ -219,12 +219,7 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     color: var(--selected-color);
 }
 
-.emailheader:active button.iconbutton {
-    border-color: var(--selected-color);
-}
-
 .emailheader .iconbutton {
-    border: none;
     padding: var(--gap-s);
 }
 

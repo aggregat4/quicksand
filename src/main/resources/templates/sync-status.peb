@@ -113,7 +113,7 @@
                                     {% if action.canRetryNow() %}
                                         <form method="post" action="/accounts/{{ currentAccount.id }}/sync/retry">
                                             <input type="hidden" name="actionId" value="{{ action.id() }}">
-                                            <button type="submit">Retry now</button>
+                                            <button type="submit" class="primary">Retry now</button>
                                         </form>
                                     {% endif %}
                                     {% if action.canDismiss() %}
@@ -129,7 +129,7 @@
                                                 <p>Abandon this queued action? Local and remote mailbox state may diverge until the next resync.</p>
                                                 <input type="hidden" name="actionId" value="{{ action.id() }}">
                                                 <div class="sync-confirm-actions">
-                                                    <button type="submit">Abandon action</button>
+                                                    <button type="submit" class="primary">Abandon action</button>
                                                     <button type="button" class="dialogcloser-button" onclick="this.closest('dialog').close()">Cancel</button>
                                                 </div>
                                             </form>
@@ -142,7 +142,7 @@
                                                 <p>Move this message back to its original local folder and stop retrying the remote action?</p>
                                                 <input type="hidden" name="actionId" value="{{ action.id() }}">
                                                 <div class="sync-confirm-actions">
-                                                    <button type="submit">Rollback local move</button>
+                                                    <button type="submit" class="primary">Rollback local move</button>
                                                     <button type="button" class="dialogcloser-button" onclick="this.closest('dialog').close()">Cancel</button>
                                                 </div>
                                             </form>
@@ -171,7 +171,7 @@
                         abandoned and local folders/messages will be rebuilt from IMAP on the next sync.
                     </p>
                     <div class="sync-confirm-actions">
-                        <button type="submit">Reset local mirror</button>
+                        <button type="submit" class="primary">Reset local mirror</button>
                         <button type="button" class="dialogcloser-button" onclick="this.closest('dialog').close()">Cancel</button>
                     </div>
                 </form>

@@ -35,7 +35,7 @@
                     Confirm them to finish setup, or adjust individual mappings below.
                 </p>
                 <form method="POST" action="/accounts/{{ currentAccount.id }}/settings/folders">
-                    <button type="submit" name="confirm_auto_detected" value="true">
+                    <button type="submit" name="confirm_auto_detected" value="true" class="primary">
                         Confirm all auto-detected mappings
                     </button>
                 </form>
@@ -123,7 +123,7 @@
                   id="folder-mapping-save-form"
                   class="folder-mapping-save-form">
                 <div class="settings-actions">
-                    <button type="submit" name="save_mappings" value="true">Save mappings</button>
+                    <button type="submit" name="save_mappings" value="true" class="primary">Save mappings</button>
                 </div>
             </form>
         </div>

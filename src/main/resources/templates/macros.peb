@@ -24,10 +24,10 @@
         {% endif %}
     {% endmacro %}
 
-    {% macro submitButton(showText, icon, disabled, name, label, clickHandler = null, type = 'submit', classes = '', form = null) %}
+    {% macro submitButton(showText, icon, disabled, name, label, clickHandler = null, type = 'submit', classes = '', form = null, primary = false) %}
         <button
             {{ disabled ? 'disabled' : '' }}
-            class="{{showText ? '' : 'iconButton' }}{{ classes == '' ? '' : ' ' + classes }}"
+            class="{{ showText ? '' : 'iconbutton' }}{{ classes == '' ? '' : ' ' + classes }}{{ primary ? ' primary' : '' }}"
             type="{{ type }}"
             name="{{ name }}"
             title="{{ label }}"

@@ -73,7 +73,7 @@
                                 </label>
                             {% endfor %}
                         </fieldset>
-                        {{ submitButton(true, null, false, 'email_action_move', 'Move Emails', form = 'selected-email-actions') }}
+                        {{ submitButton(true, null, false, 'email_action_move', 'Move Emails', form = 'selected-email-actions', primary = true) }}
                     </dialog>
                 {% endif %}
                 <div id="email-paging-controls">

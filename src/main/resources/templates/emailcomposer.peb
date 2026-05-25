@@ -60,7 +60,7 @@
             </div>
 
             <div id="email-toolbar">
-                {{ submitButton(true, 'send', false, 'email-action-send', 'Send Email') }}
+                {{ submitButton(true, 'send', false, 'email-action-send', 'Send Email', primary = true) }}
                 {{ submitButton(true, 'delete', false, 'email-action-delete', 'Delete Draft') }}
                 {{ submitButton(true, 'add', false, 'email-action-send', 'Add Attachment', type = 'button', classes = 'add-attachment-button') }}
             </div>

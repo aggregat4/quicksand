@@ -72,7 +72,30 @@ p, h1, h2, h3, h4, h5, h6 {
     --button-bgcolor: white;
     --button-pressed-color: var(--selected-color);
     --button-pressed-bgcolor: #d5d5d5;
-    --button-border-color: #d5d5d5;
+    --button-pressed-border-color: #525252;
+    /* Button tokens target WCAG 1.4.11 (3:1 non-text contrast for boundaries/states).
+       Text on buttons uses --text-color and already exceeds 1.4.3. Verify with:
+       border vs page bg, hover border vs default border, and :focus-visible ring vs fill. */
+    --button-border-color: #8a8a8a;
+    --button-hover-bgcolor: #dedede;
+    --button-hover-border-color: #404040;
+    --button-hover-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
+    --button-active-bgcolor: #cfcfcf;
+    --button-active-border-color: #333333;
+    --button-focus-ring-color: #2f62a8;
+    --button-focus-ring: 0 0 0 2px white, 0 0 0 4px var(--button-focus-ring-color);
+    --button-disabled-bgcolor: var(--muted-bgcolor);
+    --button-disabled-text-color: var(--disabled-text-color);
+    --button-transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    --button-primary-bgcolor: #b8d4fa;
+    --button-primary-border-color: #2558a0;
+    --button-primary-hover-bgcolor: #9ec0f0;
+    --button-primary-hover-border-color: #1a4588;
+    --button-primary-active-bgcolor: #89b5eb;
+    --button-primary-active-border-color: #143d78;
+    --iconbutton-hover-bgcolor: #dedede;
+    --iconbutton-active-bgcolor: #cfcfcf;
+    --iconbutton-hover-ring: 0 0 0 1px var(--button-hover-border-color);
 
     --shadow-color: 0deg 0% 58%;
     --shadow-elevation-medium: 2px 4px 8px hsl(var(--shadow-color) / 0.5);
@@ -137,20 +160,140 @@ button {
     border: 1px solid var(--button-border-color);
     border-radius: 3px;
     background-color: var(--button-bgcolor);
+    color: var(--text-color);
     padding: var(--gap-s) var(--gap-m);
     display: flex;
     align-items: center;
     gap: var(--gap-m);
+    cursor: pointer;
+    transition: var(--button-transition);
+}
+
+button:hover:not(:disabled) {
+    background-color: var(--button-hover-bgcolor);
+    border-color: var(--button-hover-border-color);
+    box-shadow: var(--button-hover-shadow);
+}
+
+button:active:not(:disabled) {
+    background-color: var(--button-active-bgcolor);
+    border-color: var(--button-active-border-color);
+    box-shadow: none;
+    transform: translateY(1px);
+}
+
+button:focus-visible {
+    outline: none;
+    box-shadow: var(--button-focus-ring);
+}
+
+button:disabled {
+    background-color: var(--button-disabled-bgcolor);
+    color: var(--button-disabled-text-color);
+    border-color: var(--button-border-color);
+    cursor: not-allowed;
 }
 
 button[aria-pressed=true] {
     color: var(--button-pressed-color);
     background-color: var(--button-pressed-bgcolor);
+    border-color: var(--button-pressed-border-color);
+}
+
+button[aria-pressed=true]:hover:not(:disabled) {
+    background-color: var(--button-active-bgcolor);
+    border-color: var(--button-active-border-color);
+    box-shadow: var(--button-hover-shadow);
+}
+
+button[aria-pressed=true]:active:not(:disabled) {
+    background-color: var(--button-pressed-bgcolor);
+    border-color: var(--button-active-border-color);
+}
+
+button.primary {
+    background-color: var(--button-primary-bgcolor);
+    border-color: var(--button-primary-border-color);
+}
+
+button.primary:hover:not(:disabled) {
+    background-color: var(--button-primary-hover-bgcolor);
+    border-color: var(--button-primary-hover-border-color);
+    box-shadow: var(--button-hover-shadow);
+}
+
+button.primary:active:not(:disabled) {
+    background-color: var(--button-primary-active-bgcolor);
+    border-color: var(--button-primary-active-border-color);
+    box-shadow: none;
+}
+
+button.primary:disabled {
+    background-color: var(--button-disabled-bgcolor);
     border-color: var(--button-border-color);
 }
 
-button:hover {
-    /* TODO figure out a nice hover on button effect */
+button.iconbutton,
+button.iconButton {
+    border: none;
+    border-radius: 4px;
+    background-color: transparent;
+}
+
+button.iconbutton:hover:not(:disabled),
+button.iconButton:hover:not(:disabled) {
+    background-color: var(--iconbutton-hover-bgcolor);
+    border-color: transparent;
+    box-shadow: var(--iconbutton-hover-ring);
+}
+
+button.iconbutton:active:not(:disabled),
+button.iconButton:active:not(:disabled) {
+    background-color: var(--iconbutton-active-bgcolor);
+    border-color: transparent;
+    box-shadow: var(--iconbutton-hover-ring);
+    transform: none;
+}
+
+button.iconbutton:focus-visible,
+button.iconButton:focus-visible {
+    box-shadow: var(--button-focus-ring);
+}
+
+button.iconbutton:disabled,
+button.iconButton:disabled {
+    background-color: transparent;
+    color: var(--button-disabled-text-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    button {
+        transition: none;
+    }
+
+    button:active:not(:disabled) {
+        transform: none;
+    }
+}
+
+@media (prefers-contrast: more) {
+    :root {
+        --button-border-color: #525252;
+        --button-hover-bgcolor: #d0d0d0;
+        --button-hover-border-color: #212121;
+        --button-active-bgcolor: #bdbdbd;
+        --button-active-border-color: #000000;
+        --button-pressed-border-color: #212121;
+        --button-primary-bgcolor: #9ec0f0;
+        --button-primary-border-color: #1a4588;
+        --button-primary-hover-bgcolor: #84ade8;
+        --button-primary-hover-border-color: #12386f;
+        --button-primary-active-bgcolor: #6b9bdf;
+        --button-primary-active-border-color: #0d2d5c;
+        --iconbutton-hover-bgcolor: #d0d0d0;
+        --iconbutton-active-bgcolor: #bdbdbd;
+        --button-focus-ring-color: #12386f;
+    }
 }
 
 dialog,
