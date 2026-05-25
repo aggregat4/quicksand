@@ -45,21 +45,23 @@
         {% if emailGroupPage.getNofMessages() > 0 %}
         <div id="emailcontrols">
                 {% if not currentFolderIsDrafts and not currentFolderIsOutbox %}
-                    {#  as per https://www.barrierefreies-webdesign.de/knowhow/checkbox/ #}
-                    <div id="select-all-mail-checkbox" role="checkbox" aria-checked="false" tabindex="0" title="Select All E-Mails" onclick="onClickSelectAllEmails()">
-                        {{ svgIcon('noneselected') | raw }}
-                        {{ svgIcon('someselected') | raw }}
-                        {{ svgIcon('allselected')  | raw }}
+                    <div id="email-toolbar-actions">
+                        {#  as per https://www.barrierefreies-webdesign.de/knowhow/checkbox/ #}
+                        <div id="select-all-mail-checkbox" role="checkbox" aria-checked="false" tabindex="0" title="Select All E-Mails" onclick="onClickSelectAllEmails()">
+                            {{ svgIcon('noneselected') | raw }}
+                            {{ svgIcon('someselected') | raw }}
+                            {{ svgIcon('allselected')  | raw }}
+                        </div>
+                        <form id="selected-email-actions" method="POST" action="/emails/selection">
+                            <input id="current-email-action-selection" type="hidden" name="email_select" value="" disabled>
+                            {{ submitButton(true, 'archive',    true, 'email_action_archive', 'Archive', classes = 'emailaction') }}
+                            {{ submitButton(true, 'markspam',   true, 'email_action_mark_spam', 'Mark Spam', classes = 'emailaction') }}
+                            {{ submitButton(true, 'delete',     true, 'email_action_delete', 'Delete', classes = 'emailaction') }}
+                            {{ submitButton(true, 'markread',   true, 'email_action_mark_read', 'Mark Read', classes = 'emailaction') }}
+                            {{ submitButton(true, 'markunread', true, 'email_action_mark_unread', 'Mark Unread', classes = 'emailaction') }}
+                        </form>
+                        {{ submitButton(true, 'move',       true, '', 'Move', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
                     </div>
-                    <form id="selected-email-actions" method="POST" action="/emails/selection">
-                        <input id="current-email-action-selection" type="hidden" name="email_select" value="" disabled>
-                        {{ submitButton(true, 'archive',    true, 'email_action_archive', 'Archive', classes = 'emailaction') }}
-                        {{ submitButton(true, null,         true, 'email_action_mark_spam', 'Mark Spam', classes = 'emailaction') }}
-                        {{ submitButton(true, 'delete',     true, 'email_action_delete', 'Delete', classes = 'emailaction') }}
-                        {{ submitButton(true, 'markread',   true, 'email_action_mark_read', 'Mark Read', classes = 'emailaction') }}
-                        {{ submitButton(true, 'markunread', true, 'email_action_mark_unread', 'Mark Unread', classes = 'emailaction') }}
-                    </form>
-                    {{ submitButton(true, 'move',       true, '', 'Move', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
                     <dialog id="move-emails-dialog">
                         <form class="dialogcloser" method="dialog">
                                 {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}

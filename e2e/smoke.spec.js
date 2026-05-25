@@ -184,6 +184,7 @@ test('new drafts persist headers and body and reopen from the drafts folder', as
   await expect(composerFrame.locator('form#save-email-form')).toBeVisible();
 
   await composerFrame.locator('#email-to').fill('Alice <alice@example.com>');
+  await composerFrame.locator('#toggle-cc-bcc').click();
   await composerFrame.locator('#email-cc').fill('Bob <bob@example.com>');
   await composerFrame.locator('#email-bcc').fill('Carol <carol@example.com>');
   await composerFrame.locator('#email-subject').fill('Drafts folder subject');
@@ -196,7 +197,7 @@ test('new drafts persist headers and body and reopen from the drafts folder', as
   await expect(composerFrame.locator('#draft-attachments')).toContainText('draft-note.txt');
   await expect(composerFrame.locator('#email-subject')).toHaveValue('Drafts folder subject');
 
-  await page.locator('#newmail-composer-dialog .dialogcloser button').click();
+  await composerFrame.locator('.composer-close-button').click();
   await page.locator('#folderlist a[title="Drafts"]').click();
 
   await expect(page.locator('#pagination-status')).toContainText('draft');
@@ -219,7 +220,7 @@ test('new drafts persist headers and body and reopen from the drafts folder', as
   expect(attachmentResponse.ok()).toBeTruthy();
   expect(await attachmentResponse.text()).toBe('draft attachment body');
 
-  await page.locator('#newmail-composer-dialog .dialogcloser button').click();
+  await composerFrame.locator('.composer-close-button').click();
   await page.getByRole('button', { name: 'New Mail' }).click();
   await expect(composerFrame.locator('#email-to')).toHaveValue('');
   await expect(composerFrame.locator('#email-cc')).toHaveValue('');

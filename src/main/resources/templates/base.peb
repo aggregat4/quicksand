@@ -11,25 +11,13 @@
 <body class="{{ bodyclass }}">
 {% import "templates/macros.peb" %}
 <header>
-    <div class="header-context">
+    <div class="header-left">
         <button id="toggle-folderlist-button" type="button" aria-pressed="true" title="Toggle folder list">
             {{ svgIcon('folders') | raw }}
-            Folders
+            <span class="button-label">Folders</span>
         </button>
 
-        {% if currentAccount == null %}
-            <h1 id="apptitle">Quicksand E-Mail Home</h1>
-        {% else %}
-            <h1 id="apptitle">{{ currentAccount.name }}</h1>
-        {% endif %}
-
         {% if currentAccount != null %}
-            {% if syncStatus != null and syncStatus.needsAttention() %}
-                <a class="sync-attention-link" href="/accounts/{{ currentAccount.id }}/sync">Sync needs attention</a>
-            {% endif %}
-
-            {% block notificationStrip %}{% endblock %}
-
             {{ submitButton(true, 'newmail', false, 'create_new_email', 'New Mail', clickHandler = 'void createEmailAndShowComposer()', type = 'button', primary = true) }}
             <dialog id="newmail-composer-dialog">
                 <form class="dialogcloser" method="dialog">
@@ -37,6 +25,18 @@
                 </form>
                 <iframe id="newmail-composer-frame" name="newmailframe" ></iframe>
             </dialog>
+        {% endif %}
+    </div>
+
+    <div class="header-center">
+        {% if currentAccount == null %}
+            <h1 id="apptitle">Quicksand E-Mail Home</h1>
+        {% else %}
+            <h1 id="apptitle">{{ currentAccount.name }}</h1>
+            {% if syncStatus != null and syncStatus.needsAttention() %}
+                <a class="sync-attention-link" href="/accounts/{{ currentAccount.id }}/sync">Sync needs attention</a>
+            {% endif %}
+            {% block notificationStrip %}{% endblock %}
         {% endif %}
     </div>
 

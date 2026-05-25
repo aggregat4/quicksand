@@ -100,6 +100,12 @@ body {
     align-items: center;
 }
 
+#emailreplyforward {
+    display: flex;
+    gap: var(--gap-m);
+    align-items: center;
+}
+
 #emailimages {
     grid-column-start: 1;
     grid-column-end: 2;

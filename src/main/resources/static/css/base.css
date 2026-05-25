@@ -115,6 +115,8 @@ p, h1, h2, h3, h4, h5, h6 {
     --gap-l: 12px;
     --gap-xl: 24px;
 
+    --header-button-min-height: 2rem;
+
     --dialog-padding-top: 36px;
     --dialog-padding-other: 24px;
 
@@ -380,16 +382,19 @@ body.homepage main {
 
 /* header -------- */
 header {
-    display: flex;
-    flex-direction: row;
+    container-type: inline-size;
+    container-name: app-header;
+
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--gap-l);
+    gap: var(--gap-m);
     padding: var(--gap-m);
     /*border-bottom: 1px dashed gray;*/
 }
 
-.header-context,
+.header-left,
+.header-center,
 .header-utilities {
     display: flex;
     align-items: center;
@@ -397,22 +402,37 @@ header {
     min-width: 0;
 }
 
-.header-context {
-    flex: 1 1 auto;
+.header-left {
+    flex-shrink: 0;
+}
+
+.header-center {
+    justify-content: center;
+    overflow: hidden;
 }
 
 .header-utilities {
-    flex: 0 0 auto;
+    justify-content: flex-end;
+    flex-shrink: 0;
 }
 
 #searchemailform {
     display: flex;
     align-items: center;
     gap: var(--gap-m);
+    min-width: 0;
+}
+
+#searchemailinput {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 10rem;
+    max-width: 16rem;
 }
 
 #clearsearchlink {
     color: var(--muted-text-color);
+    flex-shrink: 0;
 }
 
 mark {
@@ -426,7 +446,58 @@ li.has-submenu a {
 }
 
 header #apptitle {
-    flex-grow: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@container app-header (max-width: 56rem) {
+    .header-center {
+        justify-content: flex-start;
+    }
+
+    header #apptitle {
+        text-align: left;
+    }
+
+    #searchemailinput {
+        width: 8rem;
+        max-width: 10rem;
+    }
+}
+
+@container app-header (max-width: 44rem) {
+    #toggle-folderlist-button .button-label,
+    button[name="create_new_email"] .button-label {
+        display: none;
+    }
+
+    #toggle-folderlist-button,
+    button[name="create_new_email"] {
+        min-height: var(--header-button-min-height);
+        min-width: var(--header-button-min-height);
+        justify-content: center;
+        padding: var(--gap-s);
+    }
+
+    #searchemailinput {
+        width: 6rem;
+        max-width: 8rem;
+    }
+}
+
+@container app-header (max-width: 32rem) {
+    #searchemailinput {
+        width: 4.5rem;
+        max-width: 6rem;
+    }
+
+    li.has-submenu a {
+        padding: var(--gap-m);
+    }
 }
 
 #newmail-composer-dialog {
@@ -436,9 +507,13 @@ header #apptitle {
     left: auto;
     min-width: 60ch;
     min-height: 60ch;
-    padding: var(--dialog-padding-top) var(--dialog-padding-other) var(--dialog-padding-other) var(--dialog-padding-other);
+    padding: var(--dialog-padding-other);
     /* make sure it is on top of the message  preview dialog */
     z-index: 10;
+}
+
+#newmail-composer-dialog .dialogcloser {
+    display: none;
 }
 
 #newmail-composer-dialog.minimized {
@@ -452,13 +527,7 @@ header #apptitle {
     position: absolute;
     /* Since we are position absolute, the 100% does not take into account the padding of the container,  we need to deduct that manually */
     width: calc(100% - var(--dialog-padding-other) - var(--dialog-padding-other));
-    height: calc(100% - var(--dialog-padding-top) - var(--dialog-padding-other));
-}
-
-@media screen and (max-width: 900px) {
-    button[name="create_new_email"] .button-label {
-        display: none;
-    }
+    height: calc(100% - var(--dialog-padding-other) - var(--dialog-padding-other));
 }
 
 /* ---- Notifications ---- */

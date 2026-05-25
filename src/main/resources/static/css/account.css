@@ -87,18 +87,41 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     grid-column: 2 / 4;
     grid-row: 1 / 2;
 
-    display: flex;
-    justify-content: space-between;
+    container-type: inline-size;
+    container-name: email-controls;
+
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: var(--gap-m);
-    min-height: 2rem;
+    min-height: var(--header-button-min-height);
     padding: var(--gap-m) var(--gap-l);
     border: var(--standard-border);
     background-color: var(--highlighted-bgcolor);
 }
-/* This trick makes the last element in the flex container be right aligned as its left margin will expand to take up available space */
-#emailcontrols #email-paging-controls {
-    margin-left: auto;
+
+#emailcontrols:not(:has(#email-toolbar-actions)) #email-paging-controls {
+    grid-column: 1 / -1;
+    justify-self: end;
+}
+
+#email-toolbar-actions {
+    grid-column: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--gap-m);
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+}
+
+#email-paging-controls {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    gap: var(--gap-m);
+    flex-shrink: 0;
 }
 
 /*  Tri-State icon swapping for select all emails control.
@@ -131,8 +154,51 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
 
 #selected-email-actions {
     display: flex;
+    flex-wrap: nowrap;
     gap: var(--gap-m);
     align-items: center;
+    min-width: 0;
+}
+
+#emailcontrols .emailaction .button-label {
+    white-space: nowrap;
+}
+
+#emailcontrols .emailaction {
+    flex-shrink: 0;
+}
+
+@container email-controls (max-width: 58rem) {
+    #emailcontrols .emailaction .button-label {
+        display: none;
+    }
+
+    #emailcontrols .emailaction {
+        min-height: var(--header-button-min-height);
+        min-width: var(--header-button-min-height);
+        justify-content: center;
+        padding: var(--gap-s);
+        gap: 0;
+    }
+}
+
+@container email-controls (max-width: 40rem) {
+    #pagination-status {
+        display: none;
+    }
+}
+
+@container email-controls (max-width: 36rem) {
+    #emailcontrols {
+        gap: var(--gap-s);
+        padding: var(--gap-m);
+    }
+
+    #email-toolbar-actions,
+    #selected-email-actions,
+    #email-paging-controls {
+        gap: var(--gap-s);
+    }
 }
 
 #move-emails-dialog {
@@ -154,21 +220,30 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     gap: var(--gap-m);
 }
 
-#email-paging-controls {
-    display: inline-block;
-}
-
 #pagination-status {
-    display: inline-block;
+    line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 #pagination-status[title]:not([title=""]) {
     cursor: help;
-    border-bottom: 1px dotted var(--muted-text-color);
+    text-decoration: underline dotted var(--muted-text-color);
+    text-underline-offset: 0.2em;
 }
 
 #emailpagination {
-    display: inline-block;
+    display: flex;
+    align-items: center;
+}
+
+#emailpagination ul {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-s);
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
 
 /* account folders ------- */
@@ -661,12 +736,56 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
 }
 
 @media screen and (max-width: 900px) {
-    #emailcontrols .emailaction .button-label {
-        display: none;
+    body.accountpage main {
+        position: relative;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    body.accountpage main:has(#emailcontrols) {
+        grid-template-rows: min-content minmax(0, 1fr);
+    }
+
+    body.accountpage main:has(#toggle-folderlist-button[aria-pressed="true"])::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        z-index: 25;
+        pointer-events: none;
+    }
+
+    #folderlist {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(13rem, 72vw);
+        z-index: 30;
+        resize: none;
+        border-top: none;
+        border-right: var(--standard-border);
+        background-color: var(--muted-bgcolor);
+        box-shadow: var(--shadow-elevation-medium);
+    }
+
+    #emailcontrols {
+        grid-column: 1 / -1;
+        grid-row: 1 / 2;
+    }
+
+    #messagelist {
+        grid-column: 1 / -1;
+        grid-row: 1 / -1;
+        min-width: 0;
+        border-right: var(--standard-border);
+    }
+
+    body.accountpage main:has(#emailcontrols) #messagelist {
+        grid-row: 2 / -1;
     }
 
     main:has(#messagepreview[open]) {
-        grid-template-columns: min-content minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) minmax(16rem, 45%);
     }
 
@@ -674,16 +793,13 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
         grid-template-rows: min-content minmax(0, 1fr) minmax(16rem, 45%);
     }
 
-    main:has(#messagepreview[open]) #folderlist {
-        grid-row: 1 / -1;
-    }
-
     main:has(#messagepreview[open]) #emailcontrols {
-        grid-column: 2 / 3;
+        grid-column: 1 / -1;
         grid-row: 1 / 2;
     }
 
     main:has(#messagepreview[open]) #messagelist {
+        grid-column: 1 / -1;
         grid-row: 1 / 2;
         min-width: 0;
     }
@@ -693,7 +809,7 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     }
 
     main:has(#messagepreview[open]) #messagepreview {
-        grid-column: 2 / 3;
+        grid-column: 1 / -1;
         grid-row: 2 / 3;
         width: auto;
         min-width: 0;

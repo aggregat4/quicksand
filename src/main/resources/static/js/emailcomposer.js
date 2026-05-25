@@ -75,6 +75,11 @@ function initEmailComposer() {
         }
         recipientsExtra.hidden = !expanded
         toggleCcBccButton.setAttribute('aria-expanded', expanded ? 'true' : 'false')
+        toggleCcBccButton.setAttribute('aria-pressed', expanded ? 'true' : 'false')
+    }
+
+    window.closeComposer = function closeComposer() {
+        window.parent.postMessage({ type: 'close-email-composer' }, '*')
     }
 
     function updateComposerTitle() {

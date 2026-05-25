@@ -10,8 +10,11 @@
 </head>
 <body class="email-composer" data-draft-id="{{ draft.id() }}">
     <header id="composer-chrome">
-        <h1 id="composer-title">New message</h1>
-        <p id="composer-save-status" aria-live="polite"></p>
+        <div class="composer-chrome-main">
+            <h1 id="composer-title">New message</h1>
+            <p id="composer-save-status" aria-live="polite"></p>
+        </div>
+        {{ submitButton(false, 'close', false, 'close-composer', 'Close composer', clickHandler = 'closeComposer()', type = 'button', classes = 'composer-close-button iconbutton') }}
     </header>
     <main>
         <form id="save-email-form" method="POST" enctype="multipart/form-data" action="/emails/{{ draft.id() }}">
@@ -19,10 +22,9 @@
             <div id="validation-errors"  class="validation-errors">{% if validationErrors != null %}{{ validationErrors }}{% endif %}</div>
 
             <label for="email-to">To:</label>
-            <div class="composer-to-row">
-                <input id="email-to" type="text" name="email-to" value="{{ draft.to() }}">
-                <button type="button" id="toggle-cc-bcc" class="composer-field-toggle" aria-expanded="false" aria-controls="composer-recipients-extra">CC/BCC</button>
-            </div>
+            <input id="email-to" type="text" name="email-to" value="{{ draft.to() }}">
+
+            <button type="button" id="toggle-cc-bcc" class="composer-recipients-toggle" aria-pressed="false" aria-controls="composer-recipients-extra" aria-expanded="false" title="Show CC and BCC fields">CC/BCC</button>
 
             <div id="composer-recipients-extra" hidden>
                 <label for="email-cc">CC:</label>

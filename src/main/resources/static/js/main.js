@@ -197,6 +197,8 @@ window.addEventListener("message", async function (event) {
         await createEmailAndShowComposer(`replyEmail=${event.data.emailId}`);
     } else if (event.data.type === "forward-email") {
         await createEmailAndShowComposer(`forwardEmail=${event.data.emailId}`);
+    } else if (event.data.type === "close-email-composer") {
+        await closeEmailComposerDialog();
     }
 });
 
