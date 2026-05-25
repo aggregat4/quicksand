@@ -59,7 +59,10 @@
             <ul>
                 {% if accounts != null %}
                     <li class="has-submenu">
-                        <a href="#flyoutnavkbfixed" aria-expanded="false">Accounts</a>
+                        <a href="#flyoutnavkbfixed" aria-expanded="false" aria-label="Accounts" title="Accounts">
+                            {{ svgIcon('accounts') | raw }}
+                            <span class="nav-link-label">Accounts</span>
+                        </a>
                         <ul hidden>
                             {% for account in accounts %}
                                 <li><a href="/accounts/{{ account.id }}">{{ account.name }}</a></li>

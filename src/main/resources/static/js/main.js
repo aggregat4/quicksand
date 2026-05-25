@@ -22,19 +22,26 @@ function init() {
             }
         })
     }
-    // open submenus on hover and close automatically after a timeout (instead of immediately disappearing with css hover)
+    // Open submenus on hover for pointer devices; click toggles for keyboard and touch.
     const menuItems = document.querySelectorAll('li.has-submenu')
     let menuTimer = null
+    const hoverCapable = window.matchMedia('(hover: hover) and (pointer: fine)').matches
     Array.prototype.forEach.call(menuItems, function(el){
-        el.addEventListener('mouseover', function(){
-            this.classList.add('open')
-            clearTimeout(menuTimer)
-        });
-        el.addEventListener('mouseout', function(){
-            menuTimer = setTimeout(function(){
-                document.querySelector('.has-submenu.open').className = 'has-submenu'
-            }, 1000)
-        });
+        if (hoverCapable) {
+            el.addEventListener('mouseover', function(){
+                this.classList.add('open')
+                clearTimeout(menuTimer)
+            })
+            el.addEventListener('mouseout', function(){
+                menuTimer = setTimeout(function(){
+                    const openMenu = document.querySelector('.has-submenu.open')
+                    if (openMenu) {
+                        openMenu.classList.remove('open')
+                        openMenu.querySelector('a')?.setAttribute('aria-expanded', 'false')
+                    }
+                }, 1000)
+            })
+        }
         // activate the submenus on activation (click, keyboard activation, etc) for non sighted users
         el.querySelector('a').addEventListener('click',  function(event){
             if (!this.parentNode.classList.contains('open')) {
@@ -46,8 +53,8 @@ function init() {
             }
             event.preventDefault()
             return false
-        });
-    });
+        })
+    })
     initSelectedDraftComposer()
     initSelectedEmailActions()
 }

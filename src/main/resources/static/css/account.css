@@ -390,6 +390,15 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     margin-bottom: var(--gap-l);
 }
 
+.settings-backlink a {
+    padding: var(--gap-s) var(--gap-m);
+    border-radius: 3px;
+}
+
+.settings-backlink a:hover {
+    background-color: var(--link-hover-bgcolor);
+}
+
 .settings-index-nav {
     display: grid;
     gap: var(--gap-l);
@@ -401,17 +410,19 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     padding: var(--gap-l);
     border: var(--standard-border);
     background: var(--highlighted-bgcolor);
-    color: inherit;
+    color: var(--text-color);
     text-decoration: none;
 }
 
 .settings-index-link:hover {
-    border-color: var(--accent-color, #4a6fa5);
+    border-color: var(--link-color);
+    background-color: var(--link-hover-bgcolor);
 }
 
 .settings-index-title {
     font-size: 18px;
     font-weight: bold;
+    color: var(--link-color);
 }
 
 .settings-index-description {

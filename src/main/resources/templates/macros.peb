@@ -5,7 +5,7 @@
            aria-disabled="true"
            aria-label="{{ label }}"
            title="{{ label }}">
-            {{ svgIcon(icon) | raw }} {% if showLabel %}{{ label }}{% endif %}
+            {{ svgIcon(icon) | raw }}{% if showLabel %}<span class="nav-link-label">{{ label }}</span>{% endif %}
         </a>
         {% else %}
         <a class="iconlink{{ selected ? ' selected' : '' }}"
@@ -19,7 +19,7 @@
            onclick="{{ onclick }}"
         {% endif %}
         >
-            {{ svgIcon(icon) | raw }} {% if showLabel %}{{ label }}{% endif %}
+            {{ svgIcon(icon) | raw }}{% if showLabel %}<span class="nav-link-label">{{ label }}</span>{% endif %}
         </a>
         {% endif %}
     {% endmacro %}

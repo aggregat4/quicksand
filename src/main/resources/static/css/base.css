@@ -29,7 +29,7 @@ body {
 }
 /*
   6. Improve media defaults
-*/
+ */
 img, picture, video, canvas {
     display: block;
     max-width: 100%;
@@ -117,6 +117,10 @@ p, h1, h2, h3, h4, h5, h6 {
 
     --header-button-min-height: 2rem;
 
+    --link-color: #1a4d8c;
+    --link-hover-color: #123964;
+    --link-hover-bgcolor: rgba(26, 77, 140, 0.1);
+
     --dialog-padding-top: 36px;
     --dialog-padding-other: 24px;
 
@@ -127,6 +131,21 @@ p, h1, h2, h3, h4, h5, h6 {
 body {
     background-color: var(--muted-bgcolor);
     font-family: sans-serif; /* do I even want to force sans-serif on the usr? do I want to get even more opinionated and even includea font? unsure */
+}
+
+a,
+a:visited {
+    color: var(--link-color);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--link-hover-color);
+}
+
+a:focus-visible {
+    outline: 2px solid var(--link-color);
+    outline-offset: 2px;
 }
 
 h1 {
@@ -324,12 +343,12 @@ dialog,
     padding: var(--gap-s) var(--gap-m);
 }
 
-.has-submenu.open ul  {
-    display: block;
-}
-
 .has-submenu.open ul a {
     display: inline-block;
+}
+
+.has-submenu ul a:hover {
+    background-color: var(--link-hover-bgcolor);
 }
 
 /* icon-link component ------ */
@@ -342,6 +361,10 @@ a.iconlink {
     display: flex;
     align-items: center;
     padding: var(--gap-m) var(--gap-m);
+}
+
+a.iconlink:hover:not(.selected):not([aria-disabled="true"]) {
+    background-color: var(--link-hover-bgcolor);
 }
 
 a.iconlink svg {
@@ -445,6 +468,37 @@ li.has-submenu a {
     padding: var(--gap-m) var(--gap-l);
 }
 
+#sitenavigation > ul {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-s);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+#sitenavigation li.has-submenu {
+    position: relative;
+}
+
+#sitenavigation li.has-submenu > ul {
+    display: none;
+}
+
+#sitenavigation li.has-submenu.open > ul {
+    display: block;
+}
+
+#sitenavigation li.has-submenu > a {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-m);
+}
+
+#sitenavigation li.has-submenu > a:hover {
+    background-color: var(--link-hover-bgcolor);
+}
+
 header #apptitle {
     flex: 1 1 auto;
     min-width: 0;
@@ -471,16 +525,24 @@ header #apptitle {
 
 @container app-header (max-width: 44rem) {
     #toggle-folderlist-button .button-label,
-    button[name="create_new_email"] .button-label {
+    button[name="create_new_email"] .button-label,
+    #sitenavigation .nav-link-label {
         display: none;
     }
 
     #toggle-folderlist-button,
-    button[name="create_new_email"] {
+    button[name="create_new_email"],
+    #sitenavigation li.has-submenu > a,
+    #sitenavigation a.iconlink {
         min-height: var(--header-button-min-height);
         min-width: var(--header-button-min-height);
         justify-content: center;
         padding: var(--gap-s);
+    }
+
+    #sitenavigation a.iconlink svg,
+    #sitenavigation li.has-submenu > a svg {
+        margin-right: 0;
     }
 
     #searchemailinput {
@@ -493,10 +555,6 @@ header #apptitle {
     #searchemailinput {
         width: 4.5rem;
         max-width: 6rem;
-    }
-
-    li.has-submenu a {
-        padding: var(--gap-m);
     }
 }
 
