@@ -97,6 +97,30 @@ public class AccountFolderMappingService {
     autoDetectMappings(accountId);
   }
 
+  public void bootstrapRequiredMappings(int accountId) throws MessagingException {
+    Map<FolderSpecialUse, AccountFolderMapping> mappingsByUse =
+        mappingRepository.findByAccountId(accountId).stream()
+            .collect(Collectors.toMap(AccountFolderMapping::specialUse, Function.identity()));
+    for (FolderSpecialUse specialUse : REQUIRED_SPECIAL_USES) {
+      AccountFolderMapping mapping = mappingsByUse.get(specialUse);
+      if (mapping != null && mapping.configured()) {
+        continue;
+      }
+      createRemoteFolderAndMap(accountId, specialUse, defaultRemoteName(specialUse));
+    }
+  }
+
+  private static String defaultRemoteName(FolderSpecialUse specialUse) {
+    return switch (specialUse) {
+      case ARCHIVE -> "Archive";
+      case TRASH -> "Trash";
+      case JUNK -> "Junk";
+      case SENT -> "Sent";
+      case DRAFTS -> "Drafts";
+      case INBOX -> "INBOX";
+    };
+  }
+
   public boolean hasAutoDetectedMappings(int accountId) {
     autoDetectMappings(accountId);
     return mappingRepository.findByAccountId(accountId).stream()

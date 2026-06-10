@@ -188,6 +188,11 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     }
 }
 
+main[data-current-folder-is-outbox="true"] #pagination-status,
+main[data-current-folder-is-drafts="true"] #pagination-status {
+    display: block;
+}
+
 @container email-controls (max-width: 36rem) {
     #emailcontrols {
         gap: var(--gap-s);

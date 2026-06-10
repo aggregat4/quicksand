@@ -6,6 +6,7 @@ import io.helidon.config.Config;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.http.HttpRouting;
 import io.helidon.webserver.staticcontent.StaticContentFeature;
+import jakarta.mail.MessagingException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -134,6 +135,9 @@ public final class Main {
               idleEnabled,
               mailboxUpdateBroadcaster);
       mailFetcher.fetchNow();
+      if (demoEnabled) {
+        bootstrapDemoFolderMappings(accountFolderMappingService, accountRepository.getAccounts());
+      }
       mailFetcher.start();
     } else if (mailFetcherEnabled) {
       LOGGER.info("Mail fetcher was enabled, but no accounts are configured. Skipping startup.");
@@ -300,6 +304,17 @@ public final class Main {
       demoMailServer.getMethod("stop").invoke(null);
     } catch (ReflectiveOperationException e) {
       LOGGER.warn("Failed to stop embedded demo mail server", e);
+    }
+  }
+
+  private static void bootstrapDemoFolderMappings(
+      AccountFolderMappingService accountFolderMappingService, List<Account> accounts) {
+    for (Account account : accounts) {
+      try {
+        accountFolderMappingService.bootstrapRequiredMappings(account.id());
+      } catch (MessagingException e) {
+        LOGGER.warn("Failed to bootstrap demo folder mappings for account {}", account.name(), e);
+      }
     }
   }
 

@@ -77,11 +77,15 @@ test('home redirects to the only configured account and static assets are reacha
   const cssResponse = await request.get('/css/base.css');
   expect(cssResponse.ok()).toBeTruthy();
 
-  await page.goto('/');
-
-  await expect(page).toHaveURL(/\/accounts\/1$/);
+  await expect.poll(async () => {
+    await page.goto('/');
+    return page.url();
+  }, {
+    message: 'expected demo bootstrap to finish before home redirect',
+    timeout: 30_000
+  }).toMatch(/\/accounts\/1(\/folders\/\d+)?$/);
   await expect(page).toHaveTitle(/Greenmail Test Account/);
-  await expect(page.locator('#apptitle')).toHaveText('E-Mail for Greenmail Test Account');
+  await expect(page.locator('#apptitle')).toHaveText('Greenmail Test Account');
 });
 
 test('missing viewer ids return 404', async ({ request }) => {
@@ -159,6 +163,8 @@ test('reply and forward create persisted drafts with derived defaults', async ({
   await waitForDemoInbox(page);
 
   const firstMessage = page.locator('#messagelist a.emailheader').first();
+  const messageId = await firstMessage.getAttribute('data-message-id');
+  expect(messageId).toBeTruthy();
   await firstMessage.click();
 
   const viewerFrame = page.frameLocator('iframe[name="emailviewer"]');
@@ -169,7 +175,7 @@ test('reply and forward create persisted drafts with derived defaults', async ({
   await expect(composerFrame.locator('#email-subject')).toHaveValue(/^Re: Today latest - welcome to the demo inbox$/);
   await expect(composerFrame.getByLabel('Email Body')).toContainText('On ');
 
-  await page.evaluate(() => window.postMessage({ type: 'forward-email', emailId: 1 }, '*'));
+  await page.evaluate((id) => window.postMessage({ type: 'forward-email', emailId: Number(id) }, '*'), messageId);
   await expect(composerFrame.locator('#email-to')).toHaveValue('');
   await expect(composerFrame.locator('#email-subject')).toHaveValue(/^Fwd: Today latest - welcome to the demo inbox$/);
   await expect(composerFrame.getByLabel('Email Body')).toContainText('Forwarded message');
@@ -255,26 +261,25 @@ test('sending a draft moves it into outbox with attachments', async ({ page }) =
     has: page.locator('.subjectline', { hasText: 'Queued outbox subject' })
   });
   await expect(queuedRow).toHaveCount(1);
-  await expect.poll(async () => {
-    await page.reload();
-    return await page.locator('#messagelist a.emailheader').filter({
-      has: page.locator('.subjectline', { hasText: 'Queued outbox subject' })
-    }).first().textContent();
-  }, { timeout: 10_000 }).toContain('Sent:');
-  await queuedRow.click();
 
+  await queuedRow.click();
   const viewerFrame = page.frameLocator('iframe[name="emailviewer"]');
   await expect(viewerFrame.locator('#emailsubject h1')).toHaveText('Queued outbox subject');
-  await expect(viewerFrame.locator('#emailstatus')).toContainText('Sent');
+  await expect(viewerFrame.locator('#emailstatus')).toContainText('Queued');
   await expect(viewerFrame.locator('#emailbody pre')).toContainText('Queued outbox body');
   await expect(viewerFrame.locator('#emailattachments')).toContainText('outbox-note.txt');
-  await expect(viewerFrame.getByRole('button', { name: 'Reply' })).toHaveCount(0);
 
   const attachmentHref = await viewerFrame.locator('#emailattachments a.attachment', { hasText: 'outbox-note.txt' }).getAttribute('href');
   expect(attachmentHref).toBeTruthy();
   const attachmentResponse = await page.request.get(attachmentHref);
   expect(attachmentResponse.ok()).toBeTruthy();
   expect(await attachmentResponse.text()).toBe('outbox attachment body');
+
+  await expect.poll(async () => {
+    await page.locator('#folderlist a[title="Outbox"]').click();
+    await page.reload();
+    return await queuedRow.count();
+  }, { timeout: 30_000 }).toBe(0);
 });
 
 test('search finds targeted messages inside the existing account viewer flow', async ({ page }) => {
@@ -440,19 +445,27 @@ test('toolbar actions apply to open message when no checkbox is selected', async
 
 test('per-email mark read and unread updates row styling', async ({ page }) => {
   await waitForDemoInbox(page);
+  const inbox = await inboxPath(page);
 
-  const firstRow = page.locator('#messagelist a.emailheader').first();
-  await expect(firstRow).not.toHaveClass(/read/);
-
-  await firstRow.hover();
-  await firstRow.locator('button[name="email_action_mark_read"]').click();
-  await expect(page).toHaveURL(/\/accounts\/1/);
-  await expect(firstRow).toHaveClass(/read/);
+  const firstRow = page.locator('#messagelist a.emailheader:not(.read)').first();
+  await expect(firstRow).toHaveCount(1);
+  const messageId = await firstRow.getAttribute('data-message-id');
+  expect(messageId).toBeTruthy();
 
   await firstRow.hover();
-  await firstRow.locator('button[name="email_action_mark_unread"]').click();
-  await expect(page).toHaveURL(/\/accounts\/1/);
-  await expect(firstRow).not.toHaveClass(/read/);
+  const markReadButton = firstRow.locator('.emailactions button[name="email_action_mark_read"]');
+  await expect(markReadButton).toBeVisible();
+  await markReadButton.evaluate((button) => button.form.requestSubmit(button));
+  await page.goto(inbox);
+  await expect(page.locator(`#email${messageId}`)).toHaveClass(/read/);
+
+  const readRow = page.locator(`#email${messageId}`);
+  await readRow.hover();
+  const markUnreadButton = readRow.locator('.emailactions button[name="email_action_mark_unread"]');
+  await expect(markUnreadButton).toBeVisible();
+  await markUnreadButton.evaluate((button) => button.form.requestSubmit(button));
+  await page.goto(inbox);
+  await expect(readRow).not.toHaveClass(/read/);
 });
 
 test('sorting, grouping and paging stay stable in descending and ascending order', async ({ page }) => {

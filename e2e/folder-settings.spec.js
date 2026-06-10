@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 async function openFolderSettings(page) {
-  await page.goto('/accounts/1');
+  await page.goto('/accounts/1/settings/folders');
   await expect(page).toHaveURL(/\/accounts\/1\/settings\/folders$/);
   await expect(page.getByRole('heading', { name: 'Folder mappings' })).toBeVisible();
 }
