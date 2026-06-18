@@ -3,7 +3,7 @@
 {% block pageTitle %} {{ currentFolder.name }} of {{ currentAccount.name }} {% endblock %}
 
 {% block additionalHeader %}
-<link rel="stylesheet" href="/css/account.css">
+<link rel="stylesheet" href="{{ asset('/css/account.css') }}">
 {% endblock %}
 
 {% block notificationStrip %}
@@ -168,5 +168,5 @@
 {% endblock %}
 
 {% block additionalScripts %}
-<script src="/js/notifications.js" async></script>
+<script src="{{ asset('/js/notifications.js') }}" async></script>
 {% endblock %}

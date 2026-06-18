@@ -10,6 +10,7 @@ public class PebbleExtension extends AbstractExtension {
   public Map<String, Function> getFunctions() {
     return Map.of(
         "svgIcon", new SvgIconFunction(),
-        "highlightText", new HighlightTextFunction());
+        "highlightText", new HighlightTextFunction(),
+        "asset", new AssetUrlFunction());
   }
 }

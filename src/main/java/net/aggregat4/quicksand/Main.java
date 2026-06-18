@@ -5,7 +5,6 @@ import com.zaxxer.hikari.HikariDataSource;
 import io.helidon.config.Config;
 import io.helidon.webserver.WebServer;
 import io.helidon.webserver.http.HttpRouting;
-import io.helidon.webserver.staticcontent.StaticContentFeature;
 import jakarta.mail.MessagingException;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,6 +51,8 @@ import net.aggregat4.quicksand.webservice.AttachmentWebService;
 import net.aggregat4.quicksand.webservice.EmailWebService;
 import net.aggregat4.quicksand.webservice.HomeWebService;
 import net.aggregat4.quicksand.webservice.OutboxWebService;
+import net.aggregat4.quicksand.webservice.StaticAssetRegistry;
+import net.aggregat4.quicksand.webservice.StaticAssetWebService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.sqlite.SQLiteConfig;
@@ -208,6 +209,8 @@ public final class Main {
     NotificationService notificationService =
         new NotificationService(folderRepository, messageRepository, clock);
 
+    StaticAssetRegistry staticAssets = StaticAssetRegistry.get();
+
     HttpRouting.Builder routing =
         HttpRouting.builder()
             .register(
@@ -233,21 +236,12 @@ public final class Main {
                     accountFolderMappingService))
             .register("/outbox", new OutboxWebService(outboundMessageService))
             .register("/attachments", new AttachmentWebService(attachmentService))
+            .register("/css", new StaticAssetWebService("/css", staticAssets))
+            .register("/js", new StaticAssetWebService("/js", staticAssets))
+            .register("/images", new StaticAssetWebService("/images", staticAssets))
             .register("/", new HomeWebService(accountService));
 
-    WebServer server =
-        WebServer.builder()
-            .config(config.get("server"))
-            .routing(routing)
-            .addFeature(
-                StaticContentFeature.create(
-                    feature ->
-                        feature
-                            .name("static-assets")
-                            .addClasspath(cp -> cp.location("/static/css").context("/css"))
-                            .addClasspath(cp -> cp.location("/static/js").context("/js"))
-                            .addClasspath(cp -> cp.location("/static/images").context("/images"))))
-            .build();
+    WebServer server = WebServer.builder().config(config.get("server")).routing(routing).build();
 
     WebServer webServer = server.start();
     LOGGER.info(

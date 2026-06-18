@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>E-Mail Composer - Quicksand</title>
-    <link rel="stylesheet" href="/css/base.css">
-    <link rel="stylesheet" href="/css/emailcomposer.css">
+    <link rel="stylesheet" href="{{ asset('/css/base.css') }}">
+    <link rel="stylesheet" href="{{ asset('/css/emailcomposer.css') }}">
 </head>
 <body class="email-composer" data-draft-id="{{ draft.id() }}">
     <header id="composer-chrome">
@@ -95,6 +95,6 @@
             <input id="attachment-upload-input" type="file" name="uploaded-file" multiple hidden>
         </form>
     </main>
-    <script src="/js/emailcomposer.js"></script>
+    <script src="{{ asset('/js/emailcomposer.js') }}"></script>
 </body>
 </html>

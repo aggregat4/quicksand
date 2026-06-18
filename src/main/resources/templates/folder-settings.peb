@@ -3,7 +3,7 @@
 {% block pageTitle %} Folder Settings for {{ currentAccount.name }} {% endblock %}
 
 {% block additionalHeader %}
-<link rel="stylesheet" href="/css/account.css">
+<link rel="stylesheet" href="{{ asset('/css/account.css') }}">
 {% endblock %}
 
 {% block content %}

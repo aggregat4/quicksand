@@ -3,7 +3,7 @@
 {% block pageTitle %} Settings for {{ currentAccount.name }} {% endblock %}
 
 {% block additionalHeader %}
-<link rel="stylesheet" href="/css/account.css">
+<link rel="stylesheet" href="{{ asset('/css/account.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -55,5 +55,5 @@
 {% endblock %}
 
 {% block additionalScripts %}
-<script src="/js/settings-notifications.js" async></script>
+<script src="{{ asset('/js/settings-notifications.js') }}" async></script>
 {% endblock %}
