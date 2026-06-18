@@ -246,7 +246,7 @@ class EmailWebServiceActionTest {
 
   @Test
   @Order(2)
-  void viewerMarksUnreadMessageAsRead() throws IOException, InterruptedException {
+  void viewerDoesNotMarkUnreadMessageAsRead() throws IOException, InterruptedException {
     emailRepository.updateRead(firstMessageId, false);
     assertFalse(emailRepository.findById(firstMessageId).orElseThrow().header().read());
 
@@ -258,7 +258,57 @@ class EmailWebServiceActionTest {
     HttpResponse<String> response = httpClient.send(viewer, HttpResponse.BodyHandlers.ofString());
 
     assertEquals(200, response.statusCode());
+    assertFalse(emailRepository.findById(firstMessageId).orElseThrow().header().read());
+  }
+
+  @Test
+  @Order(3)
+  void markReadEndpointMarksUnreadMessageAsRead() throws IOException, InterruptedException {
+    emailRepository.updateRead(firstMessageId, false);
+    assertFalse(emailRepository.findById(firstMessageId).orElseThrow().header().read());
+
+    HttpRequest markRead =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/" + firstMessageId + "/read"))
+            .POST(HttpRequest.BodyPublishers.noBody())
+            .build();
+    HttpResponse<String> response = httpClient.send(markRead, HttpResponse.BodyHandlers.ofString());
+
+    assertEquals(204, response.statusCode());
     assertTrue(emailRepository.findById(firstMessageId).orElseThrow().header().read());
+  }
+
+  @Test
+  @Order(10)
+  void markUnreadRedirectAddsMarkedUnreadQueryParam() throws IOException, InterruptedException {
+    emailRepository.updateRead(firstMessageId, true);
+
+    HttpRequest markUnread =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header(
+                "Referer",
+                baseUrl
+                    + "/accounts/1/folders/"
+                    + inboxFolderId
+                    + "?selectedEmailId="
+                    + firstMessageId)
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    "email_select=" + firstMessageId + "&email_action_mark_unread=Mark+Unread"))
+            .build();
+    HttpResponse<String> response =
+        httpClient.send(markUnread, HttpResponse.BodyHandlers.ofString());
+
+    assertEquals(303, response.statusCode());
+    assertEquals(
+        baseUrl
+            + "/accounts/1/folders/"
+            + inboxFolderId
+            + "?selectedEmailId="
+            + firstMessageId
+            + "&markedUnread=1",
+        response.headers().firstValue("location").orElseThrow());
+    assertFalse(emailRepository.findById(firstMessageId).orElseThrow().header().read());
   }
 
   @Test

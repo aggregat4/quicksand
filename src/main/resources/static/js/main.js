@@ -24,6 +24,7 @@ function init() {
     }
     initSelectedDraftComposer()
     initSelectedEmailActions()
+    initOpenMessageReadState()
     initBackForwardCacheRecovery()
 }
 
@@ -119,12 +120,14 @@ function changeSelectionOfEmails(selectAll) {
 function onEmailHeaderClick(event) {
     event.preventDefault()
     const header = event.currentTarget
+    const emailId = getEmailIdFromNode(header)
     document.getElementById('messagepreview').show()
     markAllEmailHeadersInactive()
     header.classList.add('active')
     markEmailHeaderReadLocally(header)
+    markReadOnServer(emailId)
     updateActionButtons(hasSelectedEmailActionTarget())
-    updateSelectedEmailId(getEmailIdFromNode(header))
+    updateSelectedEmailId(emailId)
 
     const viewer = document.querySelector('iframe[name="emailviewer"]')
     if (viewer) {
@@ -195,6 +198,39 @@ async function createEmailAndShowComposer(urlParams) {
 
 function onDraftHeaderClick(event) {
     openSelectedDraftComposer(getEmailIdFromNode(event.currentTarget))
+}
+
+function initOpenMessageReadState() {
+    if (isDraftsPage() || isOutboxPage()) {
+        return
+    }
+    const accountMain = document.querySelector('body.accountpage main[data-selected-email-id]')
+    if (!accountMain) {
+        return
+    }
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('markedUnread') === '1') {
+        url.searchParams.delete('markedUnread')
+        history.replaceState(null, '', url.toString())
+        return
+    }
+    const preview = document.getElementById('messagepreview')
+    if (!preview?.open) {
+        return
+    }
+    const emailId = accountMain.getAttribute('data-selected-email-id')
+    if (emailId) {
+        markReadOnServer(emailId)
+    }
+}
+
+function markReadOnServer(emailId) {
+    fetch(`/emails/${emailId}/read`, { method: 'POST', credentials: 'same-origin' })
+        .catch(() => {})
+}
+
+function isOutboxPage() {
+    return document.querySelector('body.accountpage main')?.getAttribute('data-current-folder-is-outbox') === 'true'
 }
 
 function initSelectedDraftComposer() {

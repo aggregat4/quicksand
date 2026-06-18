@@ -12,6 +12,19 @@ async function waitForDemoInbox(page) {
     .toBeGreaterThan(1);
 }
 
+async function serverReadState(page, messageId) {
+  const folderId = await page.locator('main[data-current-named-folder-id]').getAttribute('data-current-named-folder-id');
+  const response = await page.request.get(
+    `/accounts/1/notifications?folderId=${encodeURIComponent(folderId)}&visibleMessageIds=${encodeURIComponent(messageId)}`
+  );
+  expect(response.ok()).toBeTruthy();
+  const html = await response.text();
+  const match = html.match(
+    new RegExp(`class="read-state-update" data-message-id="${messageId}" data-read="(true|false)"`)
+  );
+  return match?.[1] === 'true';
+}
+
 test('message viewer updates when selecting different headers', async ({ page }) => {
   await waitForDemoInbox(page);
 
@@ -54,6 +67,34 @@ test('message viewer updates when preview opens from selectedEmailId URL', async
 
   await headers.nth(1).click();
   await expect(viewerSubject).toHaveText(secondSubject);
+});
+
+test('toolbar mark unread keeps message unread while preview is open', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  const firstRow = page.locator('#messagelist a.emailheader').first();
+  const messageId = await firstRow.getAttribute('data-message-id');
+  expect(messageId).toBeTruthy();
+
+  await firstRow.click();
+  await expect(page.locator('#messagepreview')).toBeVisible();
+  await expect(firstRow).toHaveClass(/read/);
+
+  const viewerReload = page.waitForResponse(
+    (response) => response.url().includes('/viewer') && response.status() === 200
+  );
+  await page.locator('#selected-email-actions button[name="email_action_mark_unread"]').click();
+  await expect(page).toHaveURL(/selectedEmailId=/);
+  await viewerReload;
+  await expect(firstRow).not.toHaveClass(/read/);
+
+  // Preview reload must not mark the message read again in the database.
+  await expect
+    .poll(async () => serverReadState(page, messageId), {
+      message: 'message should stay unread in the database while preview remains open',
+      timeout: 5000
+    })
+    .toBe(false);
 });
 
 test('sent folder navigation completes within a reasonable time', async ({ page }) => {

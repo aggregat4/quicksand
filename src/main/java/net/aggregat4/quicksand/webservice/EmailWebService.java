@@ -96,6 +96,7 @@ public class EmailWebService implements HttpService {
     // be something like an accept header but I couldn't be bothered
     rules.get("/{emailId}/viewer", this::emailHandler);
     rules.get("/{emailId}/viewer/body", this::htmlEmailBodyHandler);
+    rules.post("/{emailId}/read", this::markReadHandler);
     rules.post("/selection", this::emailActionHandler);
     rules.get("/{emailId}/composer", this::emailComposerHandler);
     rules.post("/{emailId}/draft", this::draftSaveHandler);
@@ -114,14 +115,6 @@ public class EmailWebService implements HttpService {
       response.status(404);
       response.send();
       return;
-    }
-    if (!email.get().header().read()) {
-      try {
-        emailService.updateRead(emailId, true);
-        email = emailService.getMessage(emailId);
-      } catch (RuntimeException e) {
-        LOGGER.warn("Failed to mark email {} read while opening viewer", emailId, e);
-      }
     }
     Map<String, Object> context = new HashMap<>();
     context.put("showImages", showImages);
@@ -216,7 +209,31 @@ public class EmailWebService implements HttpService {
             || "email_action_mark_spam".equals(action)
             || "email_action_move".equals(action);
     URI location = (actionLeavesFolder && fromViewer) ? URI.create("/") : referer;
+    if ("email_action_mark_unread".equals(action)) {
+      location = withQueryParam(location, "markedUnread", "1");
+    }
     ResponseUtils.redirectAfterPost(response, location);
+  }
+
+  private void markReadHandler(ServerRequest request, ServerResponse response) {
+    int emailId = RequestUtils.intPathParam(request, "emailId");
+    if (emailService.getMessage(emailId).isEmpty()) {
+      response.status(404);
+      response.send();
+      return;
+    }
+    emailService.updateRead(emailId, true);
+    response.status(204);
+    response.send();
+  }
+
+  private static URI withQueryParam(URI uri, String name, String value) {
+    String encodedValue = URLEncoder.encode(value, StandardCharsets.UTF_8);
+    String param = name + "=" + encodedValue;
+    String query = uri.getQuery();
+    String newQuery = query == null || query.isBlank() ? param : query + "&" + param;
+    return URI.create(
+        uri.getScheme() + "://" + uri.getAuthority() + uri.getPath() + "?" + newQuery);
   }
 
   private Optional<URI> missingMappingRedirect(String action, List<Integer> emailIds) {
