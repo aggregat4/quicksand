@@ -218,6 +218,7 @@ public class AccountWebService implements HttpService {
     context.put("syncStatus", syncStatus);
     context.put("syncNeedsAttention", syncStatus.needsAttention());
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(PebbleRenderer.renderTemplate(context, settingsTemplate));
   }
 
@@ -236,6 +237,7 @@ public class AccountWebService implements HttpService {
     context.put("saved", request.query().first("saved").isPresent());
     context.put("error", request.query().first("error"));
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(PebbleRenderer.renderTemplate(context, folderSettingsTemplate));
   }
 
@@ -252,6 +254,7 @@ public class AccountWebService implements HttpService {
     context.put("saved", request.query().first("saved").isPresent());
     context.put("error", request.query().first("error").orElse(null));
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(PebbleRenderer.renderTemplate(context, syncStatusTemplate));
   }
 

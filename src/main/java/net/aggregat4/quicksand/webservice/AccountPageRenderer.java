@@ -127,6 +127,7 @@ final class AccountPageRenderer {
     }
     context.put("currentQuery", query);
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(PebbleRenderer.renderTemplate(context, accountTemplate));
   }
 
@@ -235,6 +236,7 @@ final class AccountPageRenderer {
               }
             });
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(PebbleRenderer.renderTemplate(context, notificationsTemplate));
   }
 

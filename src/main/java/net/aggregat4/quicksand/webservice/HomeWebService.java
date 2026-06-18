@@ -45,6 +45,7 @@ public class HomeWebService implements HttpService {
     context.put("bodyclass", "homepage");
     context.put("accounts", accounts);
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(PebbleRenderer.renderTemplate(context, homeTemplate));
   }
 }

@@ -76,6 +76,11 @@ public class ResponseUtils {
     response.headers().add(HeaderNames.CACHE_CONTROL, "max-age=365000000, immutable");
   }
 
+  /** Prevent browsers from reusing SSR mailbox HTML after restarts or database switches. */
+  static void setDynamicDocumentCacheControl(ServerResponse response) {
+    response.headers().set(HeaderNames.CACHE_CONTROL, "no-store");
+  }
+
   static Consumer<Throwable> asyncExceptionConsumer(ServerResponse response) {
     return throwable -> {
       if (throwable instanceof CompletionException completionException

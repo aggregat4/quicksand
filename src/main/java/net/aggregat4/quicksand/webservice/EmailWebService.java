@@ -128,6 +128,7 @@ public class EmailWebService implements HttpService {
     // TODO: we should if-last modified here so we can instruct the browser to use the cached
     // version as long we did not restart the program
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(PebbleRenderer.renderTemplate(context, emailViewerTemplate));
   }
 
@@ -258,6 +259,7 @@ public class EmailWebService implements HttpService {
       context.put("validationErrors", validationErrors.get());
     }
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(PebbleRenderer.renderTemplate(context, emailComposerTemplate));
   }
 
@@ -308,6 +310,7 @@ public class EmailWebService implements HttpService {
       return;
     }
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send("<!DOCTYPE html><html><body data-save-status=\"ok\"></body></html>");
   }
 
@@ -408,6 +411,7 @@ public class EmailWebService implements HttpService {
                     })
             .orElse("Email was queued for delivery.");
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(
         PebbleRenderer.renderTemplate(
             Map.of("notificationText", notificationText), emailQueuedTemplate));

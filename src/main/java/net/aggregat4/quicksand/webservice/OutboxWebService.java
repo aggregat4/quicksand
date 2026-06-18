@@ -37,6 +37,7 @@ public class OutboxWebService implements HttpService {
       return;
     }
     response.headers().contentType(TEXT_HTML);
+    ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(
         PebbleRenderer.renderTemplate(
             Map.of(
