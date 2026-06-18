@@ -369,4 +369,49 @@ public class DbEmailRepositoryTest {
     assertEquals("sync-note.txt", downloaded.name());
     assertEquals(attachmentBody, new String(downloaded.content().bytes(), StandardCharsets.UTF_8));
   }
+
+  @Test
+  public void addMessagePersistsBodyContentHash() throws SQLException, IOException {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Hash", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    NamedFolder inbox =
+        folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+    String body = "<html><body><p>Cached HTML body</p></body></html>";
+    ZonedDateTime now =
+        ZonedDateTime.ofInstant(Instant.parse("2026-03-25T09:15:00Z"), ZoneId.of("UTC"));
+    int messageId =
+        emailRepository.addMessage(
+            inbox.id(),
+            new Email(
+                new EmailHeader(
+                    -1,
+                    1L,
+                    List.of(
+                        new Actor(
+                            ActorType.SENDER, "sender@example.com", java.util.Optional.empty())),
+                    "Hash subject",
+                    now,
+                    now.toEpochSecond(),
+                    now,
+                    now.toEpochSecond(),
+                    "Excerpt",
+                    false,
+                    false,
+                    false),
+                false,
+                body,
+                Collections.emptyList()));
+
+    Email loaded = emailRepository.findById(messageId).orElseThrow();
+    assertEquals(
+        net.aggregat4.quicksand.util.ContentHasher.messageBodyContentHash(body),
+        loaded.bodyContentHash());
+  }
 }

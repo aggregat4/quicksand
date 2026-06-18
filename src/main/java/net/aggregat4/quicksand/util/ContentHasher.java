@@ -1,13 +1,13 @@
-package net.aggregat4.quicksand.webservice;
+package net.aggregat4.quicksand.util;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-final class ContentHasher {
+public final class ContentHasher {
   private ContentHasher() {}
 
-  static String sha256Hex(byte[] content) {
+  public static String sha256Hex(byte[] content) {
     try {
       MessageDigest digest = MessageDigest.getInstance("SHA-256");
       byte[] hash = digest.digest(content);
@@ -21,7 +21,23 @@ final class ContentHasher {
     }
   }
 
-  static String sha256Hex(String content) {
+  public static String sha256Hex(String content) {
     return sha256Hex(content.getBytes(StandardCharsets.UTF_8));
+  }
+
+  /** Short stable fingerprint used in ETags and static asset query params. */
+  public static String shortHash(String content) {
+    return sha256Hex(content).substring(0, 16);
+  }
+
+  public static String shortHash(byte[] content) {
+    return sha256Hex(content).substring(0, 16);
+  }
+
+  public static String messageBodyContentHash(String body) {
+    if (body == null || body.isBlank()) {
+      return "";
+    }
+    return shortHash(body);
   }
 }

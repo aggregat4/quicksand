@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import net.aggregat4.quicksand.util.ContentHasher;
 
 public final class StaticAssetRegistry {
   private static volatile StaticAssetRegistry instance;
@@ -71,7 +72,7 @@ public final class StaticAssetRegistry {
       String classpathPath = classpathDirectory + "/" + relativePath;
       byte[] content = readClasspathBytes(classpathPath);
       String publicPath = publicPrefix + "/" + relativePath;
-      String contentHash = ContentHasher.sha256Hex(content).substring(0, 16);
+      String contentHash = ContentHasher.shortHash(content);
       assets.put(
           publicPath,
           new StaticAsset(

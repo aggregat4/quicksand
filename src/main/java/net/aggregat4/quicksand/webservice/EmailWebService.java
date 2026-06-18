@@ -32,6 +32,7 @@ import net.aggregat4.quicksand.service.AttachmentService;
 import net.aggregat4.quicksand.service.DraftService;
 import net.aggregat4.quicksand.service.EmailService;
 import net.aggregat4.quicksand.service.OutboundMessageService;
+import net.aggregat4.quicksand.util.ContentHasher;
 import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.PolicyFactory;
 import org.slf4j.Logger;
@@ -144,16 +145,20 @@ public class EmailWebService implements HttpService {
       response.send();
       return;
     }
-    String html =
-        HtmlSearchHighlighter.sanitizeAndHighlight(
-            email.get().body(), showImages ? IMAGES_POLICY : NO_IMAGES_POLICY, query.orElse(""));
-    String etag = ResponseUtils.strongEtag(ContentHasher.sha256Hex(html).substring(0, 16));
+    String bodyContentHash = email.get().bodyContentHash();
+    if (bodyContentHash == null || bodyContentHash.isBlank()) {
+      bodyContentHash = ContentHasher.messageBodyContentHash(email.get().body());
+    }
+    String etag = ViewerBodyEtag.fromPersistedHash(bodyContentHash, showImages, query.orElse(""));
     String ifNoneMatch = request.headers().first(HeaderNames.IF_NONE_MATCH).orElse("");
     if (ResponseUtils.ifNoneMatchMatches(ifNoneMatch, etag)) {
       response.headers().contentType(TEXT_HTML);
       ResponseUtils.sendNotModified(response, etag);
       return;
     }
+    String html =
+        HtmlSearchHighlighter.sanitizeAndHighlight(
+            email.get().body(), showImages ? IMAGES_POLICY : NO_IMAGES_POLICY, query.orElse(""));
     response.headers().contentType(TEXT_HTML);
     ResponseUtils.sendPrivateCacheableHtml(response, etag, html);
   }

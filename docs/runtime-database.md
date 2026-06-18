@@ -32,7 +32,7 @@ Do not set the pool to `1` with the current repository layer — some code paths
 - **Messages:** `folder_id` and `imap_uid` are `NOT NULL`; unique on `(folder_id, imap_uid)` enforces per-folder IMAP identity.
 - **Actors:** `message_id` is `NOT NULL` with `ON DELETE CASCADE`.
 
-Schema version is tracked in `schema_version` (currently `2`). Existing databases with an older version must be wiped before starting the server.
+Schema version is tracked in `schema_version` (currently `3`). Existing databases with an older version must be wiped before starting the server.
 
 ## Operations
 

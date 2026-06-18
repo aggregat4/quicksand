@@ -26,6 +26,7 @@ import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.PageParams;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.search.SearchQueryUtils;
+import net.aggregat4.quicksand.util.ContentHasher;
 
 public class DbEmailRepository implements EmailRepository {
   private static final int IN_BATCH_SIZE = 100;
@@ -38,7 +39,7 @@ public class DbEmailRepository implements EmailRepository {
             m.id, m.imap_uid, m.subject, m.sent_date, m.sent_date_epoch_s, m.received_date, m.received_date_epoch_s, m.body_excerpt, m.starred, m.read
             """;
   private static final String MESSAGE_VIEWER_COLUMNS =
-      MESSAGE_HEADER_COLUMNS + ", body, plain_text";
+      MESSAGE_HEADER_COLUMNS + ", body, plain_text, body_content_hash";
   private final DataSource ds;
   private final AttachmentRepository attachmentRepository;
   private final DbMailboxActionRepository mailboxActions;
@@ -179,7 +180,9 @@ public class DbEmailRepository implements EmailRepository {
         convertRowToHeader(rs, actors, !attachments.isEmpty()),
         rs.getInt(12) == 1,
         rs.getString(11),
-        attachments);
+        attachments,
+        List.of(),
+        rs.getString(13));
   }
 
   private List<Actor> getActors(Connection con, int messageId) throws SQLException {
@@ -437,8 +440,8 @@ public class DbEmailRepository implements EmailRepository {
     try (PreparedStatement stmt =
         con.prepareStatement(
             """
-                INSERT INTO messages (folder_id, imap_uid, subject, sent_date, sent_date_epoch_s, received_date, received_date_epoch_s, body_excerpt, starred, read, body, plain_text)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO messages (folder_id, imap_uid, subject, sent_date, sent_date_epoch_s, received_date, received_date_epoch_s, body_excerpt, starred, read, body, plain_text, body_content_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
             Statement.RETURN_GENERATED_KEYS)) {
       stmt.setInt(1, folderId);
@@ -453,6 +456,7 @@ public class DbEmailRepository implements EmailRepository {
       stmt.setInt(10, email.header().read() ? 1 : 0);
       stmt.setString(11, email.body());
       stmt.setInt(12, email.plainText() ? 1 : 0);
+      stmt.setString(13, ContentHasher.messageBodyContentHash(email.body()));
       stmt.executeUpdate();
       try (ResultSet keyRs = stmt.getGeneratedKeys()) {
         if (!keyRs.next()) {

@@ -4,9 +4,13 @@ import static net.aggregat4.dblib.DbUtil.executeQuery;
 import static net.aggregat4.dblib.DbUtil.executeUpdate;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.function.Function;
 import net.aggregat4.dblib.Migrations;
+import net.aggregat4.quicksand.util.ContentHasher;
 
 public class QuicksandMigrations implements Migrations {
 
@@ -243,13 +247,40 @@ public class QuicksandMigrations implements Migrations {
         return 2;
       };
 
+  private static final Function<Connection, Integer> bodyContentHashMigration =
+      con -> {
+        executeUpdate(con, "ALTER TABLE messages ADD COLUMN body_content_hash TEXT");
+        try {
+          backfillBodyContentHashes(con);
+        } catch (SQLException e) {
+          throw new RuntimeException("Failed to backfill message body content hashes", e);
+        }
+        return 3;
+      };
+
+  private static void backfillBodyContentHashes(Connection con) throws SQLException {
+    try (PreparedStatement select =
+            con.prepareStatement("SELECT id, body FROM messages WHERE body IS NOT NULL");
+        ResultSet rs = select.executeQuery();
+        PreparedStatement update =
+            con.prepareStatement("UPDATE messages SET body_content_hash = ? WHERE id = ?")) {
+      while (rs.next()) {
+        int id = rs.getInt(1);
+        String body = rs.getString(2);
+        update.setString(1, ContentHasher.messageBodyContentHash(body));
+        update.setInt(2, id);
+        update.executeUpdate();
+      }
+    }
+  }
+
   @Override
   public Map<Integer, Function<Connection, Integer>> getMigrations() {
-    return Map.of(2, schemaMigration);
+    return Map.of(2, schemaMigration, 3, bodyContentHashMigration);
   }
 
   @Override
   public int getCurrentVersion() {
-    return 2;
+    return 3;
   }
 }

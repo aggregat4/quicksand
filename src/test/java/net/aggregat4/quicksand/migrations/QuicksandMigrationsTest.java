@@ -72,7 +72,7 @@ class QuicksandMigrationsTest {
     migrateDb(ds);
 
     try (Connection con = ds.getConnection()) {
-      assertEquals(2, schemaVersion(con));
+      assertEquals(3, schemaVersion(con));
       assertEquals(EXPECTED_TABLES, applicationTableNames(con));
       assertFalse(
           applicationTableNames(con).stream().anyMatch(name -> name.contains("hardened")),
@@ -91,7 +91,8 @@ class QuicksandMigrationsTest {
       assertTrue(
           columns(con, "drafts").containsAll(Set.of("remote_imap_uid", "remote_uidvalidity")));
       assertTrue(
-          columns(con, "messages").containsAll(Set.of("folder_id", "imap_uid", "plain_text")));
+          columns(con, "messages")
+              .containsAll(Set.of("folder_id", "imap_uid", "plain_text", "body_content_hash")));
       assertTrue(columns(con, "actors").containsAll(Set.of("message_id", "email_address")));
       assertTrue(
           columns(con, "attachments")
