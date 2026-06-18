@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ asset('/css/base.css') }}">
     <link rel="stylesheet" href="{{ asset('/css/emailviewer.css') }}">
 </head>
-<body class="emailviewer">
+<body class="emailviewer" data-email-id="{{ email.header.id }}">
     {% import "templates/macros.peb" %}
     <main>
         <div id="emailsubject">
@@ -48,8 +48,8 @@
         <div id="emailactions">
             {% if readOnly != true %}
             <div id="emailreplyforward">
-                    {{ submitButton(true, 'reply', false, 'reply_email', 'Reply', clickHandler = 'replyToEmail(' + email.header.id + ')') }}
-                    {{ submitButton(true, 'reply', false, 'forward_email', 'Forward', clickHandler = 'forwardEmail(' + email.header.id + ')') }}
+                    {{ submitButton(true, 'reply', false, 'reply_email', 'Reply') }}
+                    {{ submitButton(true, 'reply', false, 'forward_email', 'Forward') }}
             </div>
             {% endif %}
         </div>

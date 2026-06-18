@@ -130,7 +130,7 @@
                                                 <input type="hidden" name="actionId" value="{{ action.id() }}">
                                                 <div class="sync-confirm-actions">
                                                     <button type="submit" class="primary">Abandon action</button>
-                                                    <button type="button" class="dialogcloser-button" onclick="this.closest('dialog').close()">Cancel</button>
+                                                    <button type="button" class="dialogcloser-button">Cancel</button>
                                                 </div>
                                             </form>
                                         </dialog>
@@ -143,7 +143,7 @@
                                                 <input type="hidden" name="actionId" value="{{ action.id() }}">
                                                 <div class="sync-confirm-actions">
                                                     <button type="submit" class="primary">Rollback local move</button>
-                                                    <button type="button" class="dialogcloser-button" onclick="this.closest('dialog').close()">Cancel</button>
+                                                    <button type="button" class="dialogcloser-button">Cancel</button>
                                                 </div>
                                             </form>
                                         </dialog>
@@ -172,18 +172,15 @@
                     </p>
                     <div class="sync-confirm-actions">
                         <button type="submit" class="primary">Reset local mirror</button>
-                        <button type="button" class="dialogcloser-button" onclick="this.closest('dialog').close()">Cancel</button>
+                        <button type="button" class="dialogcloser-button">Cancel</button>
                     </div>
                 </form>
             </dialog>
         </section>
     </section>
 </main>
-<script>
-document.querySelectorAll('.sync-confirm-trigger').forEach((button) => {
-    button.addEventListener('click', () => {
-        document.getElementById(button.dataset.dialog).showModal();
-    });
-});
-</script>
+{% endblock %}
+
+{% block additionalScripts %}
+<script src="{{ asset('/js/sync-status.js') }}" defer></script>
 {% endblock %}

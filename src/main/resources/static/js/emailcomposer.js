@@ -19,8 +19,23 @@ function initEmailComposer() {
     const bccField = document.getElementById('email-bcc')
     const ccLabel = document.querySelector('label[for="email-cc"]')
     const bccLabel = document.querySelector('label[for="email-bcc"]')
+    const closeComposerButton = document.querySelector('button[name="close-composer"]')
+    const growTextarea = document.getElementById('email-body')
+    const growWrap = document.getElementById('email-body-grow-wrap')
     if (!visibleForm || !autosaveForm || !autosaveFrame || !attachmentUploadForm || !attachmentUploadInput || !addAttachmentButton) {
         return
+    }
+
+    closeComposerButton?.addEventListener('click', (event) => {
+        event.preventDefault()
+        window.parent.postMessage({ type: 'close-email-composer' }, '*')
+    })
+
+    if (growTextarea && growWrap) {
+        growWrap.dataset.replicatedValue = growTextarea.value
+        growTextarea.addEventListener('input', () => {
+            growWrap.dataset.replicatedValue = growTextarea.value
+        })
     }
 
     const draftFieldNames = ['email-to', 'email-cc', 'email-bcc', 'email-subject', 'email-body']
@@ -81,10 +96,6 @@ function initEmailComposer() {
         }
         toggleCcBccButton.setAttribute('aria-expanded', expanded ? 'true' : 'false')
         toggleCcBccButton.setAttribute('aria-pressed', expanded ? 'true' : 'false')
-    }
-
-    window.closeComposer = function closeComposer() {
-        window.parent.postMessage({ type: 'close-email-composer' }, '*')
     }
 
     function updateComposerTitle() {

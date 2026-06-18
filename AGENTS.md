@@ -38,6 +38,43 @@ Browser primitives are a deliberate part of the design:
 - `postMessage`, `history.pushState`, and small DOM controllers are acceptable when they enhance an SSR flow
 - JavaScript should assume the DOM already exists and enhance it narrowly
 
+### JavaScript Policy
+
+Pebble templates must stay declarative. Do not add inline JavaScript or inline event handler attributes.
+
+**Forbidden in templates**
+
+- `<script>` blocks with application logic (external `<script src="...">` tags are fine)
+- `onclick`, `onchange`, `oninput`, and other `on*` attributes
+- macro parameters whose sole purpose is injecting handler strings (for example `clickHandler = 'foo()'`)
+
+**Required pattern**
+
+- put behavior in files under `src/main/resources/static/js/`
+- load scripts with `<script src="{{ asset('/js/...') }}" defer>` (or `async` when order does not matter)
+- wire behavior in small `init…()` functions registered on `DOMContentLoaded`
+- pass configuration through stable DOM hooks: element `id`s, button `name`s, and `data-*` attributes on existing nodes
+- prefer event delegation from a page container (`#messagelist`, `document`) when many similar nodes need the same behavior
+
+**Page-specific scripts**
+
+| Page / iframe | Script |
+|---------------|--------|
+| `base.peb` / account views | `main.js` |
+| sync status settings | `sync-status.js` via `additionalScripts` |
+| message viewer iframe | `messageviewer.js` |
+| composer iframe | `emailcomposer.js` |
+| queued-send confirmation iframe | `email-queued.js` |
+| notification settings | `settings-notifications.js` |
+| account notification polling | `notifications.js` |
+
+When adding a new flow, extend an existing controller if the page already loads it; otherwise add a focused script and include it from the template block rather than inlining code.
+
+**Exceptions**
+
+- sanitized HTML e-mail bodies may contain their own scripts until the sanitizer removes them; do not treat message HTML as a place to add Quicksand application logic
+- third-party content inside iframes follows the same isolation rules as mail HTML
+
 ## Data And Interaction Conventions
 
 - mailbox browsing should read from the local SQLite mirror
@@ -54,7 +91,7 @@ When making changes:
 - do not introduce client-side state as the source of truth for mailbox views
 - prefer links, forms, redirects, and server-rendered HTML over JSON-driven browser rendering
 - keep JavaScript focused on UI enhancement such as dialogs, iframe orchestration, selection state, history updates, and sizing
-- prefer small controllers in `src/main/resources/static/js`; keep Pebble templates declarative and pass behavior hooks through forms, ids, and `data-*` attributes
+- prefer small controllers in `src/main/resources/static/js`; keep Pebble templates declarative and pass behavior hooks through forms, ids, and `data-*` attributes (see **JavaScript Policy** above)
 - when enhancing forms, prefer layered behavior that still submits real forms and preserves post/redirect semantics over ad hoc client-side request construction unless there is a clear need
 - preserve existing route structure unless a route change is required by the feature
 - prefer isolated changes that fit the existing SSR + local-cache model

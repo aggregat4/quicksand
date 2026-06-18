@@ -10,8 +10,6 @@
     <main>
         <p class="info-notification">{{ notificationText }}</p>
     </main>
-    <script>
-        window.parent.postMessage({type: "email-queued"}, "*")
-    </script>
+    <script src="{{ asset('/js/email-queued.js') }}"></script>
 </body>
 </html>

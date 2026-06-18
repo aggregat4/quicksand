@@ -1,4 +1,4 @@
-    {% macro iconlink(link, label, icon, disabled, selected, target = null, onclick = null, showLabel = true) %}
+    {% macro iconlink(link, label, icon, disabled, selected, target = null, showLabel = true) %}
         {% if disabled %}
         <a class="iconlink{{ selected ? ' selected' : '' }}"
            href="{{ link }}"
@@ -15,16 +15,13 @@
         {% if target != null %}
            target="{{ target }}"
         {% endif %}
-        {% if onclick != null %}
-           onclick="{{ onclick }}"
-        {% endif %}
         >
             {{ svgIcon(icon) | raw }}{% if showLabel %}<span class="nav-link-label">{{ label }}</span>{% endif %}
         </a>
         {% endif %}
     {% endmacro %}
 
-    {% macro submitButton(showText, icon, disabled, name, label, clickHandler = null, type = 'submit', classes = '', form = null, primary = false) %}
+    {% macro submitButton(showText, icon, disabled, name, label, type = 'submit', classes = '', form = null, primary = false) %}
         <button
             {{ disabled ? 'disabled' : '' }}
             class="{{ showText ? '' : 'iconbutton' }}{{ classes == '' ? '' : ' ' + classes }}{{ primary ? ' primary' : '' }}"
@@ -32,7 +29,6 @@
             name="{{ name }}"
             title="{{ label }}"
             aria-label="{{ label }}"
-            {% if clickHandler != null %}onclick="{{ clickHandler }}"{% endif %}
             {% if form != null %}form="{{ form }}"{% endif %}>
             {% if icon != null %}{{ svgIcon(icon) | raw }}{% endif %}{% if showText %}<span class="button-label">{{ label }}</span>{% endif %}
         </button>

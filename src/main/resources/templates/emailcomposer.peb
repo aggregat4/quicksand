@@ -14,7 +14,7 @@
             <h1 id="composer-title">New message</h1>
             <p id="composer-save-status" aria-live="polite"></p>
         </div>
-        {{ submitButton(false, 'close', false, 'close-composer', 'Close composer', clickHandler = 'closeComposer()', type = 'button', classes = 'composer-close-button iconbutton') }}
+        {{ submitButton(false, 'close', false, 'close-composer', 'Close composer', type = 'button', classes = 'composer-close-button iconbutton') }}
     </header>
     <main>
         <form id="save-email-form" method="POST" enctype="multipart/form-data" action="/emails/{{ draft.id() }}">
@@ -54,8 +54,7 @@
                     <textarea
                             id="email-body"
                             name="email-body"
-                            aria-label="Email Body"
-                            onInput="this.parentNode.dataset.replicatedValue = this.value">{{ draft.body() }}</textarea>
+                            aria-label="Email Body">{{ draft.body() }}</textarea>
                 </div>
                 <div id="attachments">
                     {% if attachments.isEmpty() %}
