@@ -15,11 +15,12 @@ public class DbTestUtils {
     tempfile.toFile().deleteOnExit();
     SQLiteConfig sqliteConfig = new SQLiteConfig();
     sqliteConfig.setJournalMode(SQLiteConfig.JournalMode.WAL);
+    sqliteConfig.setBusyTimeout(30_000);
     sqliteConfig.enforceForeignKeys(true);
     HikariConfig hkConfig = new HikariConfig();
     hkConfig.setJdbcUrl("jdbc:sqlite:%s".formatted(tempfile));
     hkConfig.setDataSourceProperties(sqliteConfig.toProperties());
-    hkConfig.setMaximumPoolSize(2);
+    hkConfig.setMaximumPoolSize(3);
     return new HikariDataSource(hkConfig);
   }
 }

@@ -33,11 +33,12 @@ public class DbUtil {
   }
 
   public static void withConConsumer(DataSource ds, SQLConsumer<Connection> conConsumer) {
-    try (var con = ds.getConnection()) {
-      conConsumer.apply(con);
-    } catch (SQLException e) {
-      throw new RuntimeSQLException(e);
-    }
+    withConFunction(
+        ds,
+        con -> {
+          conConsumer.apply(con);
+          return null;
+        });
   }
 
   public static <T> T withConFunction(DataSource ds, SQLFunction<Connection, T> conFunction) {

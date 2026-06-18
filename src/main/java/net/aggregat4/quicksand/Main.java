@@ -368,6 +368,7 @@ public final class Main {
     // need to test this further and then document it
     SQLiteConfig sqliteConfig = new SQLiteConfig();
     sqliteConfig.setJournalMode(SQLiteConfig.JournalMode.WAL);
+    sqliteConfig.setBusyTimeout(30_000);
     sqliteConfig.setOpenMode(SQLiteOpenMode.READWRITE);
     sqliteConfig.setOpenMode(SQLiteOpenMode.CREATE);
     sqliteConfig.setOpenMode(SQLiteOpenMode.NOMUTEX);
@@ -402,11 +403,11 @@ public final class Main {
       Files.createFile(dbPath);
     }
 
-    hkConfig.setJdbcUrl("jdbc:sqlite:%s".formatted(dbPath.toString()));
+    hkConfig.setJdbcUrl("jdbc:sqlite:%s?busy_timeout=30000".formatted(dbPath.toString()));
     hkConfig.setDataSourceProperties(sqliteConfig.toProperties());
     // SQLite serializes writers, but repository code may open nested connections (e.g. load
     // actors while iterating messages). Keep the pool tiny, not single-connection.
-    hkConfig.setMaximumPoolSize(2);
+    hkConfig.setMaximumPoolSize(3);
     hkConfig.setMinimumIdle(1);
     return new HikariDataSource(hkConfig);
   }

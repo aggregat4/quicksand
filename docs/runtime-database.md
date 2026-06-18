@@ -9,6 +9,7 @@ Configured in `Main.createDataSource()`:
 | Setting | Value | Why |
 |---------|-------|-----|
 | Journal mode | WAL | Concurrent readers while the writer syncs |
+| Busy timeout | 30s | Wait on `SQLITE_BUSY` instead of failing viewer/list requests during background sync |
 | Foreign keys | `ON` (`enforceForeignKeys`) | Schema uses `ON DELETE CASCADE` on mirrored mail tables |
 | Open mode | `READWRITE`, `CREATE`, `NOMUTEX` | Single-process JVM; driver handles locking |
 
@@ -18,7 +19,7 @@ Deleting a folder cascades to its mirrored messages and actors. Deleting an acco
 
 | Setting | Value | Why |
 |---------|-------|-----|
-| `maximumPoolSize` | `2` | SQLite serializes writers; the pool stays tiny but allows one unavoidable nested checkout |
+| `maximumPoolSize` | `3` | SQLite serializes writers; allow HTTP requests while background sync jobs are active |
 | `minimumIdle` | `1` | Keep one warm connection for the long-lived server process |
 
 Repository code that loads related rows (actors, attachments) should reuse the caller's `Connection` instead of opening another pool checkout. Message load and list paths follow that rule; without it a single viewer request could need three connections and exhaust a pool of two under concurrent load.
