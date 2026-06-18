@@ -148,6 +148,11 @@ public class InMemoryEmailRepository implements EmailRepository {
   }
 
   @Override
+  public boolean needsMailboxSyncAttention(int accountId) {
+    return false;
+  }
+
+  @Override
   public List<MailboxActionQueueRow> claimDueMailboxActions(
       java.time.ZonedDateTime now, int limit) {
     return List.of();

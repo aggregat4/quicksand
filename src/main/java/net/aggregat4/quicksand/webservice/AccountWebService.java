@@ -124,7 +124,6 @@ public class AccountWebService implements HttpService {
     }
     if (!folders.isEmpty()) {
       NamedFolder firstFolder = folders.getFirst();
-      notificationService.markFolderViewed(firstFolder.id());
       AccountMessagePagination.MessageListResult messageList =
           AccountMessagePagination.loadFirstFolderPage(emailService, accountId, firstFolder.id());
       pageRenderer.renderAccount(
@@ -150,7 +149,6 @@ public class AccountWebService implements HttpService {
         AccountMessagePagination.PageRequest.from(request);
     Optional<Integer> selectedEmailId = AccountMessagePagination.selectedEmailId(request);
     NamedFolder folder = findFolder(folderId);
-    notificationService.markFolderViewed(folderId);
     AccountMessagePagination.MessageListResult messageList =
         AccountMessagePagination.loadFolderPage(emailService, accountId, folder.id(), pageRequest);
     pageRenderer.renderAccount(
@@ -216,7 +214,9 @@ public class AccountWebService implements HttpService {
     context.put("bodyclass", "accountpage settings-page");
     context.put("currentAccount", accountService.getAccount(accountId));
     context.put("accounts", accountService.getAccounts());
-    context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
+    var syncStatus = emailService.getMailboxSyncStatus(accountId);
+    context.put("syncStatus", syncStatus);
+    context.put("syncNeedsAttention", syncStatus.needsAttention());
     response.headers().contentType(TEXT_HTML);
     response.send(PebbleRenderer.renderTemplate(context, settingsTemplate));
   }
@@ -229,7 +229,9 @@ public class AccountWebService implements HttpService {
     context.put("accounts", accountService.getAccounts());
     context.put("mappingRows", accountFolderMappingService.getSetupRows(accountId));
     context.put("showConfirmAll", accountFolderMappingService.hasAutoDetectedMappings(accountId));
-    context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
+    var syncStatus = emailService.getMailboxSyncStatus(accountId);
+    context.put("syncStatus", syncStatus);
+    context.put("syncNeedsAttention", syncStatus.needsAttention());
     context.put("required", request.query().first("required"));
     context.put("saved", request.query().first("saved").isPresent());
     context.put("error", request.query().first("error"));
@@ -243,7 +245,9 @@ public class AccountWebService implements HttpService {
     context.put("bodyclass", "accountpage sync-status-page");
     context.put("currentAccount", accountService.getAccount(accountId));
     context.put("accounts", accountService.getAccounts());
-    context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
+    var syncStatus = emailService.getMailboxSyncStatus(accountId);
+    context.put("syncStatus", syncStatus);
+    context.put("syncNeedsAttention", syncStatus.needsAttention());
     context.put("mappingRows", accountFolderMappingService.getSetupRows(accountId));
     context.put("saved", request.query().first("saved").isPresent());
     context.put("error", request.query().first("error").orElse(null));

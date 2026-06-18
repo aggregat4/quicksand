@@ -28,7 +28,7 @@
             <a class="settings-index-link" href="/accounts/{{ currentAccount.id }}/sync">
                 <span class="settings-index-title">
                     Sync status
-                    {% if syncStatus != null and syncStatus.needsAttention() %}
+                    {% if syncNeedsAttention %}
                         <span class="settings-index-badge">Needs attention</span>
                     {% endif %}
                 </span>

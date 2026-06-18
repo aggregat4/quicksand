@@ -18,6 +18,8 @@ public interface MailboxActionRepository {
 
   MailboxSyncStatus getMailboxSyncStatus(int accountId);
 
+  boolean needsMailboxSyncAttention(int accountId);
+
   List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit);
 
   List<MailboxActionQueueRow> claimDueReadStateActions(ZonedDateTime now, int limit);

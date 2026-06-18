@@ -121,6 +121,13 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
   }
 
   @Override
+  public boolean needsMailboxSyncAttention(int accountId) {
+    return DbUtil.withConFunction(
+        ds,
+        con -> MailboxActionDbSupport.getMailboxSyncStatusCounts(con, accountId).needsAttention());
+  }
+
+  @Override
   public List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit) {
     return claimActions(con -> MailboxActionDbSupport.findDueMailboxActions(con, now, limit), now);
   }

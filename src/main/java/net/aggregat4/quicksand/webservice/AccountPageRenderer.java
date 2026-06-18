@@ -99,7 +99,7 @@ final class AccountPageRenderer {
     context.put("notificationSummary", notificationSummary);
     putInboxNotificationContext(context, notificationSummary, folder, folders);
     context.put("emailGroupPage", emailGroupPage);
-    context.put("syncStatus", emailService.getMailboxSyncStatus(accountId));
+    context.put("syncNeedsAttention", emailService.needsMailboxSyncAttention(accountId));
     context.put("currentFolder", folder);
     context.put("currentFolderIsDrafts", folder instanceof DraftsFolder);
     context.put("currentFolderIsOutbox", folder instanceof OutboxFolder);
@@ -185,6 +185,7 @@ final class AccountPageRenderer {
   void renderNotifications(ServerRequest request, ServerResponse response, int accountId) {
     Optional<Integer> currentFolderId =
         request.query().first("folderId").flatMap(AccountPageRenderer::parseOptionalInt);
+    currentFolderId.ifPresent(notificationService::markFolderViewed);
     List<NamedFolder> folders = folderService.getFolders(accountId);
     AccountNotificationSummary notificationSummary =
         notificationService.getAccountSummary(accountId);

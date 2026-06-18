@@ -115,19 +115,54 @@ public class DbEmailRepository implements EmailRepository {
 
   private static EmailHeader convertRowToHeader(
       ResultSet rs, List<Actor> actors, boolean hasAttachment) throws SQLException {
-    return new EmailHeader(
-        rs.getInt(1),
-        rs.getLong(2),
-        actors,
-        rs.getString(3),
-        fromISOString(rs.getString(4)),
-        rs.getLong(5),
-        fromISOString(rs.getString(6)),
-        rs.getLong(7),
-        rs.getString(8),
-        rs.getInt(9) == 1,
-        hasAttachment,
-        rs.getInt(10) == 1);
+    return CapturedMessageHeader.fromResultSet(rs).toHeader(actors, hasAttachment);
+  }
+
+  private record CapturedMessageHeader(
+      int id,
+      long imapUid,
+      String subject,
+      java.time.ZonedDateTime sentDate,
+      long sentDateEpochSeconds,
+      java.time.ZonedDateTime receivedDate,
+      long receivedDateEpochSeconds,
+      String bodyExcerpt,
+      boolean starred,
+      boolean read) {
+
+    static CapturedMessageHeader fromResultSet(ResultSet rs) throws SQLException {
+      return new CapturedMessageHeader(
+          rs.getInt(1),
+          rs.getLong(2),
+          rs.getString(3),
+          fromISOString(rs.getString(4)),
+          rs.getLong(5),
+          fromISOString(rs.getString(6)),
+          rs.getLong(7),
+          rs.getString(8),
+          rs.getInt(9) == 1,
+          rs.getInt(10) == 1);
+    }
+
+    EmailHeader toHeader(List<Actor> actors, boolean hasAttachment) {
+      return new EmailHeader(
+          id,
+          imapUid,
+          actors,
+          subject,
+          sentDate,
+          sentDateEpochSeconds,
+          receivedDate,
+          receivedDateEpochSeconds,
+          bodyExcerpt,
+          starred,
+          hasAttachment,
+          read);
+    }
+
+    Email toListEmail(List<Actor> actors, boolean hasAttachment) {
+      return new Email(toHeader(actors, hasAttachment), false, null, List.of());
+    }
   }
 
   private Email convertRowToListEmail(
@@ -147,26 +182,113 @@ public class DbEmailRepository implements EmailRepository {
         attachments);
   }
 
-  private List<Actor> getActors(Connection con, int messageId) {
-    return DbUtil.withPreparedStmtFunction(
-        con,
-        "SELECT type, name, email_address FROM actors WHERE message_id = ?",
-        stmt -> {
-          stmt.setInt(1, messageId);
-          return DbUtil.withResultSetFunction(
-              stmt,
-              rs -> {
-                List<Actor> actors = new ArrayList<>();
-                while (rs.next()) {
-                  actors.add(
-                      new Actor(
-                          ActorType.fromValue(rs.getInt(1)),
-                          rs.getString(3),
-                          Optional.ofNullable(rs.getString(2))));
-                }
-                return actors;
-              });
-        });
+  private List<Actor> getActors(Connection con, int messageId) throws SQLException {
+    return getActorsByMessageIds(con, List.of(messageId)).getOrDefault(messageId, List.of());
+  }
+
+  private Map<Integer, List<Actor>> getActorsByMessageIds(Connection con, List<Integer> messageIds)
+      throws SQLException {
+    if (messageIds.isEmpty()) {
+      return Map.of();
+    }
+    Map<Integer, List<Actor>> actorsByMessageId = new HashMap<>();
+    for (int offset = 0; offset < messageIds.size(); offset += IN_BATCH_SIZE) {
+      List<Integer> batch =
+          messageIds.subList(offset, Math.min(offset + IN_BATCH_SIZE, messageIds.size()));
+      String placeholders = batch.stream().map(ignored -> "?").collect(Collectors.joining(","));
+      DbUtil.withPreparedStmtConsumer(
+          con,
+          """
+              SELECT type, name, email_address, message_id
+              FROM actors
+              WHERE message_id IN (%s)"""
+              .formatted(placeholders),
+          stmt -> {
+            for (int i = 0; i < batch.size(); i++) {
+              stmt.setInt(i + 1, batch.get(i));
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+              while (rs.next()) {
+                int messageId = rs.getInt(4);
+                actorsByMessageId
+                    .computeIfAbsent(messageId, ignored -> new ArrayList<>())
+                    .add(
+                        new Actor(
+                            ActorType.fromValue(rs.getInt(1)),
+                            rs.getString(3),
+                            Optional.ofNullable(rs.getString(2))));
+              }
+            }
+          });
+    }
+    return actorsByMessageId;
+  }
+
+  private Set<Integer> getMessageIdsWithAttachments(Connection con, List<Integer> messageIds)
+      throws SQLException {
+    if (messageIds.isEmpty()) {
+      return Set.of();
+    }
+    Set<Integer> messageIdsWithAttachments = new HashSet<>();
+    for (int offset = 0; offset < messageIds.size(); offset += IN_BATCH_SIZE) {
+      List<Integer> batch =
+          messageIds.subList(offset, Math.min(offset + IN_BATCH_SIZE, messageIds.size()));
+      String placeholders = batch.stream().map(ignored -> "?").collect(Collectors.joining(","));
+      DbUtil.withPreparedStmtConsumer(
+          con,
+          """
+              SELECT DISTINCT message_id
+              FROM attachments
+              WHERE message_id IN (%s)"""
+              .formatted(placeholders),
+          stmt -> {
+            for (int i = 0; i < batch.size(); i++) {
+              stmt.setInt(i + 1, batch.get(i));
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+              while (rs.next()) {
+                messageIdsWithAttachments.add(rs.getInt(1));
+              }
+            }
+          });
+    }
+    return messageIdsWithAttachments;
+  }
+
+  private List<Email> toListEmails(Connection con, List<CapturedMessageHeader> rows)
+      throws SQLException {
+    if (rows.isEmpty()) {
+      return new ArrayList<>();
+    }
+    List<Integer> messageIds = rows.stream().map(CapturedMessageHeader::id).toList();
+    Map<Integer, List<Actor>> actorsByMessageId = getActorsByMessageIds(con, messageIds);
+    Set<Integer> messageIdsWithAttachments = getMessageIdsWithAttachments(con, messageIds);
+    List<Email> emails = new ArrayList<>(rows.size());
+    for (CapturedMessageHeader row : rows) {
+      emails.add(
+          row.toListEmail(
+              actorsByMessageId.getOrDefault(row.id(), List.of()),
+              messageIdsWithAttachments.contains(row.id())));
+    }
+    return emails;
+  }
+
+  private List<EmailHeader> toListHeaders(Connection con, List<CapturedMessageHeader> rows)
+      throws SQLException {
+    if (rows.isEmpty()) {
+      return new ArrayList<>();
+    }
+    List<Integer> messageIds = rows.stream().map(CapturedMessageHeader::id).toList();
+    Map<Integer, List<Actor>> actorsByMessageId = getActorsByMessageIds(con, messageIds);
+    Set<Integer> messageIdsWithAttachments = getMessageIdsWithAttachments(con, messageIds);
+    List<EmailHeader> headers = new ArrayList<>(rows.size());
+    for (CapturedMessageHeader row : rows) {
+      headers.add(
+          row.toHeader(
+              actorsByMessageId.getOrDefault(row.id(), List.of()),
+              messageIdsWithAttachments.contains(row.id())));
+    }
+    return headers;
   }
 
   @Override
@@ -403,14 +525,11 @@ public class DbEmailRepository implements EmailRepository {
                   return DbUtil.withResultSetFunction(
                       stmt,
                       rs -> {
-                        List<Email> messages = new ArrayList<>();
+                        List<CapturedMessageHeader> rows = new ArrayList<>();
                         while (rs.next()) {
-                          int messageId = rs.getInt(1);
-                          // TODO: profile this and potentially optimise by directly joining? Or by
-                          // gathering message ids and getting all actors in batch
-                          List<Actor> actors = getActors(con, messageId);
-                          messages.add(convertRowToListEmail(con, rs, actors, messageId));
+                          rows.add(CapturedMessageHeader.fromResultSet(rs));
                         }
+                        List<Email> messages = toListEmails(con, rows);
                         boolean hasMoreResults = messages.size() > pageSize;
                         if (hasMoreResults) {
                           messages.remove(messages.size() - 1);
@@ -558,15 +677,11 @@ public class DbEmailRepository implements EmailRepository {
                   return DbUtil.withResultSetFunction(
                       stmt,
                       rs -> {
-                        List<EmailHeader> headers = new ArrayList<>();
+                        List<CapturedMessageHeader> rows = new ArrayList<>();
                         while (rs.next()) {
-                          int messageId = rs.getInt(1);
-                          List<Actor> actors = getActors(con, messageId);
-                          boolean hasAttachment =
-                              !attachmentRepository.findByMessageId(con, messageId).isEmpty();
-                          headers.add(convertRowToHeader(rs, actors, hasAttachment));
+                          rows.add(CapturedMessageHeader.fromResultSet(rs));
                         }
-                        return headers;
+                        return toListHeaders(con, rows);
                       });
                 }));
   }
@@ -655,12 +770,11 @@ public class DbEmailRepository implements EmailRepository {
                   return DbUtil.withResultSetFunction(
                       stmt,
                       rs -> {
-                        List<Email> messages = new ArrayList<>();
+                        List<CapturedMessageHeader> rows = new ArrayList<>();
                         while (rs.next()) {
-                          int messageId = rs.getInt(1);
-                          List<Actor> actors = getActors(con, messageId);
-                          messages.add(convertRowToListEmail(con, rs, actors, messageId));
+                          rows.add(CapturedMessageHeader.fromResultSet(rs));
                         }
+                        List<Email> messages = toListEmails(con, rows);
                         boolean hasMoreResults = messages.size() > pageSize;
                         if (hasMoreResults) {
                           messages.removeLast();
@@ -961,6 +1075,11 @@ public class DbEmailRepository implements EmailRepository {
   @Override
   public MailboxSyncStatus getMailboxSyncStatus(int accountId) {
     return mailboxActions.getMailboxSyncStatus(accountId);
+  }
+
+  @Override
+  public boolean needsMailboxSyncAttention(int accountId) {
+    return mailboxActions.needsMailboxSyncAttention(accountId);
   }
 
   @Override

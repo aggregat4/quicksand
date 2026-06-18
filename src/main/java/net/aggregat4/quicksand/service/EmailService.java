@@ -74,6 +74,10 @@ public class EmailService {
     return emailRepository.getMailboxSyncStatus(accountId);
   }
 
+  public boolean needsMailboxSyncAttention(int accountId) {
+    return emailRepository.needsMailboxSyncAttention(accountId);
+  }
+
   public void updateRead(int id, boolean read) {
     emailRepository.updateRead(id, read);
   }

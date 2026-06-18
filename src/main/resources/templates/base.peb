@@ -33,7 +33,7 @@
             <h1 id="apptitle">Quicksand E-Mail Home</h1>
         {% else %}
             <h1 id="apptitle">{{ currentAccount.name }}</h1>
-            {% if syncStatus != null and syncStatus.needsAttention() %}
+            {% if syncNeedsAttention %}
                 <a class="sync-attention-link" href="/accounts/{{ currentAccount.id }}/sync">Sync needs attention</a>
             {% endif %}
             {% block notificationStrip %}{% endblock %}
