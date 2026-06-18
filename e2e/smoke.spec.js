@@ -420,6 +420,40 @@ test('bulk mark read and unread updates row styling', async ({ page }) => {
   await expect(firstRow).not.toHaveClass(/read/);
 });
 
+test('message list scroll position survives email action reload', async ({ page }) => {
+  await waitForDemoInbox(page);
+  await page.goto(await inboxPath(page));
+
+  const messagelist = page.locator('#messagelist');
+  const rows = page.locator('#messagelist a.emailheader');
+  const rowCount = await rows.count();
+  expect(rowCount).toBeGreaterThan(8);
+
+  const targetRow = rows.last();
+  await messagelist.evaluate((list) => {
+    list.scrollTop = list.scrollHeight;
+  });
+  await expect
+    .poll(async () => messagelist.evaluate((list) => list.scrollTop))
+    .toBeGreaterThan(50);
+  await expect(targetRow).toBeInViewport();
+
+  const isRead = await targetRow.evaluate((row) => row.classList.contains('read'));
+  const actionName = isRead ? 'email_action_mark_unread' : 'email_action_mark_read';
+  const actionButton = targetRow.locator(`button[name="${actionName}"]`);
+  await targetRow.hover();
+  await actionButton.evaluate((button) => button.form.requestSubmit(button));
+  await expect(page).toHaveURL(/\/accounts\/1\/folders\/\d+/);
+
+  await expect
+    .poll(async () => messagelist.evaluate((list) => list.scrollTop), {
+      message: 'message list scroll position should be restored after reload',
+      timeout: 5000
+    })
+    .toBeGreaterThan(50);
+  await expect(targetRow).toBeInViewport();
+});
+
 test('toolbar actions apply to open message when no checkbox is selected', async ({ page }) => {
   await waitForDemoInbox(page);
 

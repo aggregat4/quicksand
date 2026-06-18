@@ -1,11 +1,8 @@
-// if we are already loaded then DOMContentLoaded will not fire again, just init
-if (document.readyState !== 'loading') {
-    init()
-} else {
-    document.addEventListener('DOMContentLoaded', init)
-}
-
 function init() {
+    initQuicksandRuntime()
+    initMessageListScrollPersistence()
+    initHeaderActions()
+    initAccountPage()
     const toggleFolderListButton = document.getElementById('toggle-folderlist-button')
     if (toggleFolderListButton) {
         toggleFolderListButton.addEventListener('click', () => {
@@ -34,6 +31,188 @@ function initBackForwardCacheRecovery() {
             location.reload()
         }
     })
+}
+
+function initQuicksandRuntime() {
+    window.quicksand = window.quicksand || {}
+    const accountId = document.body.dataset.accountId
+    if (accountId) {
+        window.quicksand.currentAccountId = Number.parseInt(accountId, 10)
+    }
+}
+
+function initHeaderActions() {
+    document.querySelector('button[name="create_new_email"]')
+        ?.addEventListener('click', () => {
+            void createEmailAndShowComposer()
+        })
+    document.querySelector('button[name="closeMessageComposer"]')
+        ?.addEventListener('click', (event) => {
+            void onCloseEmailComposerDialog(event)
+        })
+}
+
+function initAccountPage() {
+    if (!document.body.classList.contains('accountpage')) {
+        return
+    }
+    document.getElementById('select-all-mail-checkbox')
+        ?.addEventListener('click', onClickSelectAllEmails)
+    document.getElementById('select-all-mail-checkbox')
+        ?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onClickSelectAllEmails()
+            }
+        })
+    document.querySelector('button[name="email_action_open_move_dialog"]')
+        ?.addEventListener('click', () => {
+            document.getElementById('move-emails-dialog')?.showModal()
+        })
+    document.querySelectorAll('button[name="closeMessageViewer"]').forEach((button) => {
+        button.addEventListener('click', onCloseMessagePreview)
+    })
+    document.getElementById('messagelist')?.addEventListener('click', (event) => {
+        if (event.target.closest('.emailactions') || event.target.closest('.emailselection')) {
+            return
+        }
+        const header = event.target.closest('a.emailheader')
+        if (!header) {
+            return
+        }
+        if (isDraftsPage()) {
+            onDraftHeaderClick(event, header)
+        } else {
+            onEmailHeaderClick(event, header)
+        }
+    }, true)
+    document.getElementById('messagelist')?.addEventListener('change', (event) => {
+        if (event.target.matches('.emailselection input[type="checkbox"]')) {
+            onChangeEmailSelection()
+        }
+    })
+}
+
+const MESSAGE_LIST_SCROLL_STORAGE_PREFIX = 'quicksand.messagelistScroll:'
+
+function messageListScrollKey() {
+    const main = document.querySelector('body.accountpage main')
+    const folderId = main?.getAttribute('data-current-named-folder-id') ?? ''
+    const url = new URL(window.location.href)
+    const stableParams = new URLSearchParams()
+    for (const param of [
+        'pageDirection',
+        'sortOrder',
+        'offsetReceivedTimestamp',
+        'offsetMessageId',
+        'pagePosition',
+        'query'
+    ]) {
+        const value = url.searchParams.get(param)
+        if (value != null && value !== '') {
+            stableParams.set(param, value)
+        }
+    }
+    return `${MESSAGE_LIST_SCROLL_STORAGE_PREFIX}${folderId}:${stableParams.toString()}`
+}
+
+function saveMessageListScroll() {
+    const list = document.getElementById('messagelist')
+    if (!list) {
+        return
+    }
+    const listTop = list.getBoundingClientRect().top
+    let anchorId = ''
+    let anchorOffset = 0
+    for (const header of list.querySelectorAll('.emailheader')) {
+        const rect = header.getBoundingClientRect()
+        if (rect.bottom > listTop + 1) {
+            anchorId = header.dataset.messageId || ''
+            anchorOffset = rect.top - listTop
+            break
+        }
+    }
+    sessionStorage.setItem(
+        messageListScrollKey(),
+        JSON.stringify({ scrollTop: list.scrollTop, anchorId, anchorOffset })
+    )
+}
+
+function restoreMessageListScroll() {
+    const list = document.getElementById('messagelist')
+    if (!list) {
+        return
+    }
+    const key = messageListScrollKey()
+    const saved = sessionStorage.getItem(key)
+    if (saved == null) {
+        return
+    }
+    sessionStorage.removeItem(key)
+    let payload
+    try {
+        payload = JSON.parse(saved)
+    } catch (error) {
+        payload = { scrollTop: Number.parseInt(saved, 10) }
+    }
+    if (Number.isFinite(payload.scrollTop) && payload.scrollTop >= 0) {
+        list.scrollTop = payload.scrollTop
+    }
+    if (payload.anchorId) {
+        const row = document.getElementById(`email${payload.anchorId}`)
+        if (row && Number.isFinite(payload.anchorOffset)) {
+            const delta = row.getBoundingClientRect().top
+                - list.getBoundingClientRect().top
+                - payload.anchorOffset
+            list.scrollTop += delta
+        }
+    }
+}
+
+function abortPendingMarkRead() {
+    if (markReadAbortController) {
+        markReadAbortController.abort()
+        markReadAbortController = null
+    }
+}
+
+const markReadInFlight = new Set()
+const markReadCompleted = new Set()
+let markReadAbortController = null
+
+function isEmailSelectionForm(form) {
+    if (!(form instanceof HTMLFormElement)) {
+        return false
+    }
+    if (form.id === 'selected-email-actions') {
+        return true
+    }
+    const action = form.getAttribute('action') || ''
+    return action === '/emails/selection' || action.endsWith('/emails/selection')
+}
+
+function initMessageListScrollPersistence() {
+    if (!document.getElementById('messagelist')) {
+        return
+    }
+    if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual'
+    }
+    restoreMessageListScroll()
+    document.addEventListener('submit', (event) => {
+        if (isEmailSelectionForm(event.target)) {
+            abortPendingMarkRead()
+            saveMessageListScroll()
+        }
+    }, true)
+    document.addEventListener('mousedown', (event) => {
+        const button = event.target.closest('button[name^="email_action_"]')
+        if (!button?.form || !isEmailSelectionForm(button.form)) {
+            return
+        }
+        abortPendingMarkRead()
+        saveMessageListScroll()
+    }, true)
 }
 
 /*
@@ -74,6 +253,8 @@ function initSelectedEmailActions() {
 }
 
 function prepareSelectedEmailActionSubmit() {
+    abortPendingMarkRead()
+    saveMessageListScroll()
     const fallbackSelection = document.getElementById('current-email-action-selection')
     if (!fallbackSelection) {
         return
@@ -117,15 +298,14 @@ function changeSelectionOfEmails(selectAll) {
         .forEach(node => node.checked = !!selectAll)
 }
 
-function onEmailHeaderClick(event) {
+function onEmailHeaderClick(event, header = event.currentTarget) {
     event.preventDefault()
-    const header = event.currentTarget
     const emailId = getEmailIdFromNode(header)
     document.getElementById('messagepreview').show()
     markAllEmailHeadersInactive()
     header.classList.add('active')
     markEmailHeaderReadLocally(header)
-    markReadOnServer(emailId)
+    markReadOnServer(emailId, { force: true })
     updateActionButtons(hasSelectedEmailActionTarget())
     updateSelectedEmailId(emailId)
 
@@ -196,8 +376,9 @@ async function createEmailAndShowComposer(urlParams) {
     openComposerDialog(await response.text())
 }
 
-function onDraftHeaderClick(event) {
-    openSelectedDraftComposer(getEmailIdFromNode(event.currentTarget))
+function onDraftHeaderClick(event, header = event.currentTarget) {
+    event.preventDefault()
+    openSelectedDraftComposer(getEmailIdFromNode(header))
 }
 
 function initOpenMessageReadState() {
@@ -224,9 +405,40 @@ function initOpenMessageReadState() {
     }
 }
 
-function markReadOnServer(emailId) {
-    fetch(`/emails/${emailId}/read`, { method: 'POST', credentials: 'same-origin' })
+function markReadOnServer(emailId, { force = false } = {}) {
+    if (!emailId) {
+        return
+    }
+    if (!force) {
+        const header = document.getElementById(`email${emailId}`)
+        if (header?.classList.contains('read') || markReadCompleted.has(emailId)) {
+            return
+        }
+    }
+    if (markReadInFlight.has(emailId)) {
+        return
+    }
+    markReadAbortController?.abort()
+    const abortController = new AbortController()
+    markReadAbortController = abortController
+    markReadInFlight.add(emailId)
+    fetch(`/emails/${emailId}/read`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        signal: abortController.signal
+    })
+        .then((response) => {
+            if (response.ok) {
+                markReadCompleted.add(emailId)
+            }
+        })
         .catch(() => {})
+        .finally(() => {
+            markReadInFlight.delete(emailId)
+            if (markReadAbortController === abortController) {
+                markReadAbortController = null
+            }
+        })
 }
 
 function isOutboxPage() {
@@ -330,4 +542,10 @@ function requestComposerDraftSave() {
         window.addEventListener('message', onMessage)
         composerFrame.contentWindow.postMessage({ type: 'save-draft' }, '*')
     })
+}
+
+if (document.readyState !== 'loading') {
+    init()
+} else {
+    document.addEventListener('DOMContentLoaded', init)
 }

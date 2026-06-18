@@ -47,7 +47,7 @@
                 {% if not currentFolderIsDrafts and not currentFolderIsOutbox %}
                     <div id="email-toolbar-actions">
                         {#  as per https://www.barrierefreies-webdesign.de/knowhow/checkbox/ #}
-                        <div id="select-all-mail-checkbox" role="checkbox" aria-checked="false" tabindex="0" title="Select All E-Mails" onclick="onClickSelectAllEmails()">
+                        <div id="select-all-mail-checkbox" role="checkbox" aria-checked="false" tabindex="0" title="Select All E-Mails">
                             {{ svgIcon('noneselected') | raw }}
                             {{ svgIcon('someselected') | raw }}
                             {{ svgIcon('allselected')  | raw }}
@@ -60,11 +60,11 @@
                             {{ submitButton(true, 'markread',   true, 'email_action_mark_read', 'Mark Read', classes = 'emailaction') }}
                             {{ submitButton(true, 'markunread', true, 'email_action_mark_unread', 'Mark Unread', classes = 'emailaction') }}
                         </form>
-                        {{ submitButton(true, 'move',       true, '', 'Move', 'document.getElementById("move-emails-dialog").showModal()', 'button', classes = 'emailaction') }}
+                        {{ submitButton(true, 'move', true, 'email_action_open_move_dialog', 'Move', type = 'button', classes = 'emailaction') }}
                     </div>
                     <dialog id="move-emails-dialog">
                         <form class="dialogcloser" method="dialog">
-                                {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
+                                {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer') }}
                         </form>
                         <fieldset id="movefolders">
                             <legend>Select folder</legend>
@@ -154,7 +154,7 @@
         {% if not currentFolderIsDrafts %}
             <dialog id="messagepreview" {{ emailActive ? 'open' : '' }}>
                 <form class="dialogcloser" method="dialog">
-                        {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer', 'onCloseMessagePreview()') }}
+                        {{ submitButton(false, 'close', false, 'closeMessageViewer', 'Close Message Viewer') }}
                 </form>
                 <iframe name="emailviewer"
                 {% if emailActive %}
