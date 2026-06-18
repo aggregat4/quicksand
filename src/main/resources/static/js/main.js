@@ -108,19 +108,19 @@ function changeSelectionOfEmails(selectAll) {
 }
 
 function onEmailHeaderClick(event) {
+    event.preventDefault()
+    const header = event.currentTarget
     document.getElementById('messagepreview').show()
     markAllEmailHeadersInactive()
-    event.currentTarget.classList.add('active')
-    markEmailHeaderReadLocally(event.currentTarget)
-    // modify URL to reflect selected email
-    const emailIdAttribute = event.currentTarget.getAttribute('id')
-    const prefixLength = 'email'.length
-    const emailId = emailIdAttribute.substring(prefixLength)
+    header.classList.add('active')
+    markEmailHeaderReadLocally(header)
     updateActionButtons(hasSelectedEmailActionTarget())
-    const url = new URL(window.location.href)
-    url.searchParams.delete('selectedEmailId')
-    url.searchParams.append('selectedEmailId', emailId)
-    history.pushState(null, '', url.toString())
+    updateSelectedEmailId(getEmailIdFromNode(header))
+
+    const viewer = document.querySelector('iframe[name="emailviewer"]')
+    if (viewer) {
+        viewer.src = header.href
+    }
 }
 
 function markAllEmailHeadersInactive() {
