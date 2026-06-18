@@ -1,6 +1,7 @@
 package net.aggregat4.quicksand.webservice;
 
 import io.helidon.http.BadRequestException;
+import io.helidon.http.HeaderNames;
 import io.helidon.http.HttpMediaType;
 import io.helidon.http.media.multipart.MultiPart;
 import io.helidon.http.media.multipart.ReadablePart;
@@ -146,9 +147,15 @@ public class EmailWebService implements HttpService {
     String html =
         HtmlSearchHighlighter.sanitizeAndHighlight(
             email.get().body(), showImages ? IMAGES_POLICY : NO_IMAGES_POLICY, query.orElse(""));
+    String etag = ResponseUtils.strongEtag(ContentHasher.sha256Hex(html).substring(0, 16));
+    String ifNoneMatch = request.headers().first(HeaderNames.IF_NONE_MATCH).orElse("");
+    if (ResponseUtils.ifNoneMatchMatches(ifNoneMatch, etag)) {
+      response.headers().contentType(TEXT_HTML);
+      ResponseUtils.sendNotModified(response, etag);
+      return;
+    }
     response.headers().contentType(TEXT_HTML);
-    ResponseUtils.setCacheControlImmutable(response);
-    response.send(html);
+    ResponseUtils.sendPrivateCacheableHtml(response, etag, html);
   }
 
   private static boolean getShowImagesParam(ServerRequest request) {
