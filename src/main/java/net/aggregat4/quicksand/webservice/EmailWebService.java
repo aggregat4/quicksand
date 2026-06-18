@@ -114,8 +114,12 @@ public class EmailWebService implements HttpService {
       return;
     }
     if (!email.get().header().read()) {
-      emailService.updateRead(emailId, true);
-      email = emailService.getMessage(emailId);
+      try {
+        emailService.updateRead(emailId, true);
+        email = emailService.getMessage(emailId);
+      } catch (RuntimeException e) {
+        LOGGER.warn("Failed to mark email {} read while opening viewer", emailId, e);
+      }
     }
     Map<String, Object> context = new HashMap<>();
     context.put("showImages", showImages);
