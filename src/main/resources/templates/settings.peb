@@ -37,6 +37,23 @@
                 </span>
             </a>
         </nav>
+
+        <section class="settings-preferences" aria-labelledby="settings-notifications-heading">
+            <header class="settings-header">
+                <h2 id="settings-notifications-heading">Notifications</h2>
+            </header>
+            <div class="settings-preference">
+                <label class="settings-preference-label" for="desktop-notifications-enabled">
+                    <input type="checkbox" id="desktop-notifications-enabled" name="desktop-notifications-enabled">
+                    Desktop notifications
+                </label>
+                <p id="desktop-notifications-status" class="settings-index-description" role="status"></p>
+            </div>
+        </section>
     </section>
 </main>
+{% endblock %}
+
+{% block additionalScripts %}
+<script src="/js/settings-notifications.js" async></script>
 {% endblock %}

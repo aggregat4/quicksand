@@ -413,6 +413,25 @@ main[data-current-folder-is-drafts="true"] #pagination-status {
     gap: var(--gap-l);
 }
 
+.settings-preferences {
+    margin-top: var(--gap-xl);
+    padding-top: var(--gap-l);
+    border-top: var(--standard-border);
+}
+
+.settings-preference {
+    display: grid;
+    gap: var(--gap-s);
+}
+
+.settings-preference-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gap-m);
+    font-weight: 600;
+    color: var(--text-color);
+}
+
 .settings-index-link {
     display: grid;
     gap: var(--gap-s);
