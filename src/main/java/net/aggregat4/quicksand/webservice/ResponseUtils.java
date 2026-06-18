@@ -73,12 +73,42 @@ public class ResponseUtils {
   }
 
   static void setCacheControlImmutable(ServerResponse response) {
-    response.headers().add(HeaderNames.CACHE_CONTROL, "max-age=365000000, immutable");
+    response.headers().set(HeaderNames.CACHE_CONTROL, "public, max-age=31536000, immutable");
   }
 
   /** Prevent browsers from reusing SSR mailbox HTML after restarts or database switches. */
   static void setDynamicDocumentCacheControl(ServerResponse response) {
     response.headers().set(HeaderNames.CACHE_CONTROL, "no-store");
+  }
+
+  static String strongEtag(String contentHash) {
+    return "\"" + contentHash + "\"";
+  }
+
+  static boolean ifNoneMatchMatches(String ifNoneMatchHeader, String etag) {
+    if (ifNoneMatchHeader == null || ifNoneMatchHeader.isBlank()) {
+      return false;
+    }
+    for (String candidate : ifNoneMatchHeader.split(",")) {
+      String trimmed = candidate.trim();
+      if ("*".equals(trimmed) || trimmed.equals(etag)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static void sendNotModified(ServerResponse response, String etag) {
+    response.status(Status.NOT_MODIFIED_304);
+    response.headers().set(HeaderNames.ETAG, etag);
+    response.headers().set(HeaderNames.CACHE_CONTROL, "private, max-age=31536000, must-revalidate");
+    response.send();
+  }
+
+  static void sendPrivateCacheableHtml(ServerResponse response, String etag, String html) {
+    response.headers().set(HeaderNames.ETAG, etag);
+    response.headers().set(HeaderNames.CACHE_CONTROL, "private, max-age=31536000, must-revalidate");
+    response.send(html);
   }
 
   static Consumer<Throwable> asyncExceptionConsumer(ServerResponse response) {
