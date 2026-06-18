@@ -217,7 +217,8 @@ public class EmailWebService implements HttpService {
 
   private void markReadHandler(ServerRequest request, ServerResponse response) {
     int emailId = RequestUtils.intPathParam(request, "emailId");
-    if (emailService.getMessage(emailId).isEmpty()) {
+    Optional<Email> email = emailService.getMessage(emailId);
+    if (email.isEmpty()) {
       response.status(404);
       response.send();
       return;

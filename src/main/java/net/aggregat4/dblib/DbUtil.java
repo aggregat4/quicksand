@@ -42,9 +42,45 @@ public class DbUtil {
   }
 
   public static <T> T withConFunction(DataSource ds, SQLFunction<Connection, T> conFunction) {
-    try (var con = ds.getConnection()) {
-      return conFunction.apply(con);
-    } catch (SQLException e) {
+    int maxAttempts = 8;
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try (var con = ds.getConnection()) {
+        return conFunction.apply(con);
+      } catch (RuntimeSQLException e) {
+        if (isSqliteBusy(e) && attempt < maxAttempts) {
+          sleepQuietly(backoffMillis(attempt));
+          continue;
+        }
+        throw e;
+      } catch (SQLException e) {
+        if (isSqliteBusy(e) && attempt < maxAttempts) {
+          sleepQuietly(backoffMillis(attempt));
+          continue;
+        }
+        throw new RuntimeSQLException(e);
+      }
+    }
+    throw new IllegalStateException("Unreachable");
+  }
+
+  private static boolean isSqliteBusy(Throwable e) {
+    for (Throwable current = e; current != null; current = current.getCause()) {
+      if (current.getMessage() != null && current.getMessage().contains("SQLITE_BUSY")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static long backoffMillis(int attempt) {
+    return Math.min(50L * (1L << (attempt - 1)), 500L);
+  }
+
+  private static void sleepQuietly(long millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new RuntimeSQLException(e);
     }
   }

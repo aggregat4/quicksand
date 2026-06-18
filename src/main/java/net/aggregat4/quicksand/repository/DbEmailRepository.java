@@ -321,6 +321,10 @@ public class DbEmailRepository implements EmailRepository {
               con.rollback();
               return;
             }
+            if (context.get().read() == messageRead) {
+              con.rollback();
+              return;
+            }
             DbUtil.withPreparedStmtConsumer(
                 con,
                 "UPDATE messages SET read = ? WHERE id = ?",

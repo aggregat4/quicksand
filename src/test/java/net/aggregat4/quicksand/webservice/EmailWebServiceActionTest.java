@@ -21,6 +21,10 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.IntStream;
 import javax.sql.DataSource;
 import net.aggregat4.quicksand.DbTestUtils;
 import net.aggregat4.quicksand.domain.Account;
@@ -274,6 +278,64 @@ class EmailWebServiceActionTest {
     HttpResponse<String> response = httpClient.send(markRead, HttpResponse.BodyHandlers.ofString());
 
     assertEquals(204, response.statusCode());
+    assertTrue(emailRepository.findById(firstMessageId).orElseThrow().header().read());
+  }
+
+  @Test
+  @Order(3)
+  void markReadEndpointIsNoOpWhenMessageAlreadyRead() throws IOException, InterruptedException {
+    emailRepository.updateRead(firstMessageId, true);
+    assertTrue(emailRepository.findById(firstMessageId).orElseThrow().header().read());
+
+    HttpRequest markRead =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/" + firstMessageId + "/read"))
+            .POST(HttpRequest.BodyPublishers.noBody())
+            .build();
+    HttpResponse<String> response = httpClient.send(markRead, HttpResponse.BodyHandlers.ofString());
+
+    assertEquals(204, response.statusCode());
+    assertTrue(emailRepository.findById(firstMessageId).orElseThrow().header().read());
+  }
+
+  @Test
+  @Order(3)
+  void concurrentMarkReadRequestsDoNotFail() throws Exception {
+    emailRepository.updateRead(firstMessageId, false);
+    assertFalse(emailRepository.findById(firstMessageId).orElseThrow().header().read());
+
+    HttpRequest markRead =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/" + firstMessageId + "/read"))
+            .POST(HttpRequest.BodyPublishers.noBody())
+            .build();
+    HttpRequest selectionMarkRead =
+        HttpRequest.newBuilder(URI.create(baseUrl + "/emails/selection"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Referer", baseUrl + "/accounts/1")
+            .POST(
+                HttpRequest.BodyPublishers.ofString(
+                    "email_select=" + firstMessageId + "&email_action_mark_read=Mark+Read"))
+            .build();
+
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      List<Future<HttpResponse<String>>> futures =
+          IntStream.range(0, 8)
+              .mapToObj(
+                  i ->
+                      executor.submit(
+                          () ->
+                              httpClient.send(
+                                  i % 2 == 0 ? markRead : selectionMarkRead,
+                                  HttpResponse.BodyHandlers.ofString())))
+              .toList();
+      for (Future<HttpResponse<String>> future : futures) {
+        HttpResponse<String> response = future.get();
+        assertTrue(
+            response.statusCode() == 204 || response.statusCode() == 303,
+            () -> "unexpected status " + response.statusCode() + ": " + response.body());
+        assertFalse(response.body().contains("SQLITE_BUSY"), response.body());
+      }
+    }
+
     assertTrue(emailRepository.findById(firstMessageId).orElseThrow().header().read());
   }
 

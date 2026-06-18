@@ -56,7 +56,7 @@ final class MailboxActionDbSupport {
     try (PreparedStatement stmt =
         con.prepareStatement(
             """
-                SELECT f.account_id, m.folder_id, f.remote_name, f.uidvalidity, m.imap_uid
+                SELECT f.account_id, m.folder_id, f.remote_name, f.uidvalidity, m.imap_uid, m.read
                 FROM messages m
                 JOIN folders f ON m.folder_id = f.id
                 WHERE m.id = ?""")) {
@@ -72,7 +72,8 @@ final class MailboxActionDbSupport {
                 rs.getInt(2),
                 rs.getString(3),
                 getNullableLong(rs, 4),
-                rs.getLong(5)));
+                rs.getLong(5),
+                rs.getInt(6) == 1));
       }
     }
   }
@@ -730,7 +731,8 @@ final class MailboxActionDbSupport {
       int sourceFolderId,
       String sourceRemoteName,
       Long sourceUidValidity,
-      long sourceUid) {}
+      long sourceUid,
+      boolean read) {}
 
   record TargetFolderContext(int folderId, String remoteName, FolderSpecialUse specialUse) {}
 

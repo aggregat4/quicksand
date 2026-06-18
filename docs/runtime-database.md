@@ -10,6 +10,7 @@ Configured in `Main.createDataSource()`:
 |---------|-------|-----|
 | Journal mode | WAL | Concurrent readers while the writer syncs |
 | Busy timeout | 30s | Wait on `SQLITE_BUSY` instead of failing viewer/list requests during background sync |
+| Write retries | 8 attempts, exponential backoff | `DbUtil.withConFunction` retries transient `SQLITE_BUSY` when concurrent HTTP requests and sync jobs overlap |
 | Foreign keys | `ON` (`enforceForeignKeys`) | Schema uses `ON DELETE CASCADE` on mirrored mail tables |
 | Open mode | `READWRITE`, `CREATE`, `NOMUTEX` | Single-process JVM; driver handles locking |
 
