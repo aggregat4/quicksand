@@ -24,6 +24,15 @@ function init() {
     }
     initSelectedDraftComposer()
     initSelectedEmailActions()
+    initBackForwardCacheRecovery()
+}
+
+function initBackForwardCacheRecovery() {
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) {
+            location.reload()
+        }
+    })
 }
 
 /*
