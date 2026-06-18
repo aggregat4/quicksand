@@ -21,8 +21,8 @@ Unit/integration coverage already exists for batched mark-read outbound sync, in
 
 Spec: [`specs/new-mail-notifications.md`](specs/new-mail-notifications.md)
 
-- Playwright coverage for SSE wake-up
-- Desktop notification opt-in UI
+- [x] Playwright coverage for SSE wake-up (`e2e/notifications.spec.js`)
+- [x] Desktop notification opt-in UI (`/accounts/{id}/settings`)
 
 ---
 
