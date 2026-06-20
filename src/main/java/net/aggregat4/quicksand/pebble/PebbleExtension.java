@@ -11,6 +11,7 @@ public class PebbleExtension extends AbstractExtension {
     return Map.of(
         "svgIcon", new SvgIconFunction(),
         "highlightText", new HighlightTextFunction(),
-        "asset", new AssetUrlFunction());
+        "asset", new AssetUrlFunction(),
+        "importMap", new ImportMapFunction());
   }
 }

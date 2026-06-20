@@ -50,6 +50,14 @@ public final class StaticAssetRegistry {
     return Optional.ofNullable(assetsByPublicPath.get(normalizePublicPath(publicPath)));
   }
 
+  List<String> publicPathsWithPrefix(String prefix) {
+    String normalizedPrefix = normalizePublicPath(prefix);
+    return assetsByPublicPath.keySet().stream()
+        .filter(path -> path.startsWith(normalizedPrefix))
+        .sorted()
+        .toList();
+  }
+
   private static String normalizePublicPath(String publicPath) {
     if (!publicPath.startsWith("/")) {
       return "/" + publicPath;

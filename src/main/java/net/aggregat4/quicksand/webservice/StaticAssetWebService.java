@@ -18,11 +18,11 @@ public final class StaticAssetWebService implements HttpService {
 
   @Override
   public void routing(HttpRules rules) {
-    rules.get("/{fileName}", this::serveAsset);
+    rules.get("/{+path}", this::serveAsset);
   }
 
   private void serveAsset(ServerRequest request, ServerResponse response) {
-    String relativePath = request.path().path();
+    String relativePath = request.path().pathParameters().first("path").orElse("");
     if (relativePath == null || relativePath.isBlank()) {
       response.status(Status.NOT_FOUND_404);
       response.send();

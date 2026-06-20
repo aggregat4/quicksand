@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Test;
 class StaticAssetRegistryTest {
 
   @Test
-  void loadsMainJsFromClasspath() {
+  void loadsShellAppFromClasspath() {
     StaticAssetRegistry registry = StaticAssetRegistry.get();
-    assertTrue(registry.find("/js/main.js").isPresent());
-    assertTrue(registry.url("/js/main.js").contains("main.js?v="));
+    assertTrue(registry.find("/js/shell/app.js").isPresent());
+    assertTrue(registry.url("/js/shell/app.js").contains("app.js?v="));
   }
 }

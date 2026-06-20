@@ -17,7 +17,7 @@ class StaticAssetCacheControlTest {
   @Test
   void servesHashedStaticAssetsWithImmutableCacheAndEtagRevalidation() throws Exception {
     StaticAssetRegistry registry = StaticAssetRegistry.get();
-    String assetUrl = registry.url("/js/main.js");
+    String assetUrl = registry.url("/js/shell/app.js");
     assertTrue(assetUrl.contains("?v="));
 
     WebServer webServer =
@@ -53,7 +53,7 @@ class StaticAssetCacheControlTest {
 
       HttpResponse<byte[]> staleHashResponse =
           client.send(
-              HttpRequest.newBuilder(URI.create(baseUrl + "/js/main.js?v=deadbeefdeadbeef"))
+              HttpRequest.newBuilder(URI.create(baseUrl + "/js/shell/app.js?v=deadbeefdeadbeef"))
                   .GET()
                   .build(),
               HttpResponse.BodyHandlers.ofByteArray());
