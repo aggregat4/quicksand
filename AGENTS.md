@@ -59,14 +59,15 @@ Pebble templates must stay declarative. Do not add inline JavaScript or inline e
 - pass configuration through stable DOM hooks: element `id`s, button `name`s, and `data-*` attributes on existing nodes
 - prefer event delegation from a page container (`#messagelist`, `document`) when many similar nodes need the same behavior
 - lazy-load mailbox-only code: `shell/app.js` dynamically imports `account/*` and `notifications/*` only when `#messagelist` is present
+- lazy-load composer dialog code: `shell/header.js` and `shell/post-message.js` dynamically import `shell/composer-dialog.js` when opening or closing the composer
 
 **Module layout**
 
 ```
 static/js/
   lib/           shared helpers (dom-ready, account-context, page-context)
-  shell/         app entry, header, bfcache, postMessage hub
-  account/       message list, preview, mark-read, composer host, scroll persistence
+  shell/         app entry, header, bfcache, postMessage hub, composer-dialog (lazy)
+  account/       message list, preview, mark-read, scroll persistence, selection toolbar, drafts composer wiring
   notifications/ SSE + poll strip and folder badge updates (no live list surgery)
   iframe/        viewer, composer, queued confirmation
   settings/      sync-status, notifications preference
@@ -82,8 +83,8 @@ Primary axis — who loads this, and when?
 
 | Directory | Loaded when | Owns |
 |-----------|-------------|------|
-| `shell/` | Every `base.peb` page via `shell/app.js` | Global chrome, bfcache recovery, iframe `postMessage` hub |
-| `account/` | Dynamic import when `#messagelist` exists | Message list, preview, mark-read, scroll persistence, selection toolbar, composer dialog host |
+| `shell/` | Every `base.peb` page via `shell/app.js` | Global chrome, bfcache recovery, iframe `postMessage` hub, composer dialog host (lazy) |
+| `account/` | Dynamic import when `#messagelist` exists | Message list, preview, mark-read, scroll persistence, selection toolbar, drafts composer wiring |
 | `notifications/` | Same gate as `account/` | SSE + poll; strip and folder badge updates only |
 | `iframe/` | Standalone iframe templates | Composer, viewer, queued confirmation documents |
 | `settings/` | `additionalScripts` on that settings page | Page-specific behavior beyond the shell |
@@ -112,9 +113,7 @@ When to split vs merge:
 - **Merge** when two modules always load together, share state, and never form a useful import boundary — optional for tiny helpers under `lib/`.
 - **Lazy-load** when behavior depends on a DOM region not present on every page (mailbox code behind `#messagelist`).
 
-Not optimization targets: matching the old monolith line count, one file per page, or minimizing file count. Settings pages still load `shell/` because they share account header and composer chrome.
-
-Known load-boundary leak: `shell/header.js` statically imports `account/composer-host.js` for “New Mail”, which transitively pulls preview/mark-read code on non-mailbox pages. Prefer `import()` on button click or a thinner composer entry if tightening settings-page weight.
+Not optimization targets: matching the old monolith line count, one file per page, or minimizing file count. Settings pages still load `shell/` because they share account header and composer chrome; composer dialog code loads on first “New Mail” (or reply/forward) via dynamic import of `shell/composer-dialog.js`.
 
 **Notifications model**
 

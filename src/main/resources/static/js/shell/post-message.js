@@ -1,8 +1,8 @@
 import { isDraftsPage } from 'quicksand/lib/page-context.js'
-import {
-    closeEmailComposerDialog,
-    createEmailAndShowComposer
-} from 'quicksand/account/composer-host.js'
+
+function loadComposerDialog() {
+    return import('quicksand/shell/composer-dialog.js')
+}
 
 export function initPostMessageHub() {
     window.addEventListener('message', async (event) => {
@@ -19,11 +19,14 @@ export function initPostMessageHub() {
                 }, 7000)
             }
         } else if (event.data.type === 'reply-to-email') {
-            await createEmailAndShowComposer(`replyEmail=${event.data.emailId}`)
+            const composer = await loadComposerDialog()
+            await composer.createEmailAndShowComposer(`replyEmail=${event.data.emailId}`)
         } else if (event.data.type === 'forward-email') {
-            await createEmailAndShowComposer(`forwardEmail=${event.data.emailId}`)
+            const composer = await loadComposerDialog()
+            await composer.createEmailAndShowComposer(`forwardEmail=${event.data.emailId}`)
         } else if (event.data.type === 'close-email-composer') {
-            await closeEmailComposerDialog()
+            const composer = await loadComposerDialog()
+            await composer.closeEmailComposerDialog()
         }
     })
 }

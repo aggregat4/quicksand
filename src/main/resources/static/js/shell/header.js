@@ -1,16 +1,15 @@
-import {
-    createEmailAndShowComposer,
-    onCloseEmailComposerDialog
-} from 'quicksand/account/composer-host.js'
+function loadComposerDialog() {
+    return import('quicksand/shell/composer-dialog.js')
+}
 
 export function initHeader() {
     document.querySelector('button[name="create_new_email"]')
         ?.addEventListener('click', () => {
-            void createEmailAndShowComposer()
+            void loadComposerDialog().then((module) => module.createEmailAndShowComposer())
         })
     document.querySelector('button[name="closeMessageComposer"]')
         ?.addEventListener('click', (event) => {
-            void onCloseEmailComposerDialog(event)
+            void loadComposerDialog().then((module) => module.onCloseEmailComposerDialog(event))
         })
 
     const toggleFolderListButton = document.getElementById('toggle-folderlist-button')
