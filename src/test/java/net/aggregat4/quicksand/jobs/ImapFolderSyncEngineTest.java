@@ -75,6 +75,73 @@ class ImapFolderSyncEngineTest {
   }
 
   @Test
+  void fullSyncDoesNotDeletePendingMoveLikeTargetMessagesFromEmptyRemoteFolder() throws Exception {
+    Account account = new Account(1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p");
+    InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
+    TrackingEmailRepository emailRepository = new TrackingEmailRepository();
+    NamedFolder archive =
+        folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 42L);
+    emailRepository.seedExisting(5L, archive.id(), false, false);
+    emailRepository.addPendingMoveLikeTargetUid(archive.id(), 5L);
+
+    FakeImapFolderAccess access = new FakeImapFolderAccess();
+    access.fullName = "Archive";
+    access.allMessages = List.of();
+
+    ImapFolderSyncEngine.syncFolder(
+        account.id(), archive, access, false, false, folderRepository, emailRepository);
+
+    assertFalse(emailRepository.removedUids.contains(5L));
+    assertEquals(1, emailRepository.getAllMessageIds(archive.id()).size());
+  }
+
+  @Test
+  void qresyncDoesNotDeletePendingMoveLikeTargetMessages() throws Exception {
+    Account account = new Account(1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p");
+    InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
+    TrackingEmailRepository emailRepository = new TrackingEmailRepository();
+    NamedFolder archive =
+        folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 42L);
+    long lastFullSync = Instant.now().getEpochSecond() - 60;
+    archive = folderRepository.updateSyncCheckpoint(archive, 100L, lastFullSync);
+    emailRepository.seedExisting(5L, archive.id(), false, false);
+    emailRepository.addPendingMoveLikeTargetUid(archive.id(), 5L);
+
+    FakeImapFolderAccess access = new FakeImapFolderAccess();
+    access.fullName = "Archive";
+    access.serverHighestModSeq = 150L;
+    access.vanishedUids = new long[] {5L};
+
+    ImapFolderSyncEngine.syncFolder(
+        account.id(), archive, access, true, true, folderRepository, emailRepository);
+
+    assertFalse(emailRepository.removedUids.contains(5L));
+    assertEquals(1, emailRepository.getAllMessageIds(archive.id()).size());
+  }
+
+  @Test
+  void uidValidityChangeProtectsPendingMoveLikeTargetMessages() throws Exception {
+    Account account = new Account(1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p");
+    InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
+    TrackingEmailRepository emailRepository = new TrackingEmailRepository();
+    NamedFolder archive =
+        folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 42L);
+    emailRepository.seedExisting(5L, archive.id(), false, false);
+    emailRepository.addPendingMoveLikeTargetUid(archive.id(), 5L);
+
+    FakeImapFolderAccess access = new FakeImapFolderAccess();
+    access.fullName = "Archive";
+    access.uidValidity = 99L;
+    access.allMessages = List.of();
+
+    ImapFolderSyncEngine.syncFolder(
+        account.id(), archive, access, false, false, folderRepository, emailRepository);
+
+    assertFalse(emailRepository.removedUids.contains(5L));
+    assertEquals(1, emailRepository.getAllMessageIds(archive.id()).size());
+  }
+
+  @Test
   void qresyncVanishedUidsRemoveLocalMessagesWithoutFullUidScan() throws Exception {
     Account account = new Account(1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p");
     InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
@@ -106,6 +173,7 @@ class ImapFolderSyncEngineTest {
   private static final class FakeImapFolderAccess implements ImapFolderAccess {
     long uidValidity = 42L;
     long serverHighestModSeq = 200L;
+    String fullName = "INBOX";
     List<FakeMessage> changedMessages = List.of();
     List<FakeMessage> allMessages = List.of();
     int changedSinceCalls;
@@ -174,7 +242,7 @@ class ImapFolderSyncEngineTest {
 
     @Override
     public String getFullName() {
-      return "INBOX";
+      return fullName;
     }
 
     @Override

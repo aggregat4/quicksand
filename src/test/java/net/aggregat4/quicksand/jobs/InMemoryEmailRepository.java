@@ -22,6 +22,7 @@ public class InMemoryEmailRepository implements EmailRepository {
 
   private final Map<Integer, List<Email>> messages = new HashMap<>();
   private final Set<Long> pendingMoveLikeActionSourceUids = new HashSet<>();
+  private final Map<Integer, Set<Long>> pendingMoveLikeTargetUids = new HashMap<>();
 
   @Override
   public Optional<Email> findById(int id) {
@@ -130,6 +131,38 @@ public class InMemoryEmailRepository implements EmailRepository {
   public Set<Long> getPendingMoveLikeActionSourceUids(
       int accountId, String sourceRemoteName, Long sourceUidValidity) {
     return new HashSet<>(pendingMoveLikeActionSourceUids);
+  }
+
+  @Override
+  public Set<Long> getPendingMoveLikeTargetUids(int targetFolderId) {
+    return new HashSet<>(pendingMoveLikeTargetUids.getOrDefault(targetFolderId, Set.of()));
+  }
+
+  @Override
+  public Set<Long> getMoveLikeProtectedUidsInFolder(int folderId) {
+    HashSet<Long> protectedUids = new HashSet<>(getPendingMoveLikeTargetUids(folderId));
+    for (Email email : messages.getOrDefault(folderId, List.of())) {
+      long uid = email.header().imapUid();
+      if (pendingMoveLikeActionSourceUids.contains(uid)) {
+        protectedUids.add(uid);
+      }
+    }
+    return protectedUids;
+  }
+
+  @Override
+  public void resolveMoveLikeSourceUidsAbsentFromRemote(
+      int accountId,
+      String sourceRemoteName,
+      Long sourceUidValidity,
+      Set<Long> remoteUidsPresent) {}
+
+  @Override
+  public void markMoveLikeActionsConflictForUidValidityChange(
+      int accountId, int folderId, long newUidValidity, java.time.ZonedDateTime now) {}
+
+  public void addPendingMoveLikeTargetUid(int targetFolderId, long uid) {
+    pendingMoveLikeTargetUids.computeIfAbsent(targetFolderId, ignored -> new HashSet<>()).add(uid);
   }
 
   @Override

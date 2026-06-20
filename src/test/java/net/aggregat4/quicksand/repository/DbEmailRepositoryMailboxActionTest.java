@@ -23,6 +23,7 @@ import net.aggregat4.quicksand.domain.FolderMappingStatus;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.MailboxActionExecutionState;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
+import net.aggregat4.quicksand.domain.MailboxActionResolutionType;
 import net.aggregat4.quicksand.domain.MailboxActionStatus;
 import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.NamedFolder;
@@ -40,6 +41,7 @@ class DbEmailRepositoryMailboxActionTest {
   private Account account;
   private NamedFolder inbox;
   private NamedFolder trash;
+  private NamedFolder archive;
   private int messageId;
   private long messageUid;
 
@@ -57,11 +59,20 @@ class DbEmailRepositoryMailboxActionTest {
 
     inbox = folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
     trash = folderRepository.createFolder(account, "Trash", "Trash", FolderSpecialUse.TRASH, 200L);
+    archive =
+        folderRepository.createFolder(
+            account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 300L);
     mappingRepository.save(
         account.id(),
         FolderSpecialUse.TRASH,
         trash.id(),
         trash.remoteName(),
+        FolderMappingStatus.USER_CONFIRMED);
+    mappingRepository.save(
+        account.id(),
+        FolderSpecialUse.ARCHIVE,
+        archive.id(),
+        archive.remoteName(),
         FolderMappingStatus.USER_CONFIRMED);
 
     ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 9, 15, 0, 0, ZoneId.of("UTC"));
@@ -106,6 +117,58 @@ class DbEmailRepositoryMailboxActionTest {
         assertEquals(0, rs.getInt(1));
       }
     }
+  }
+
+  @Test
+  void succeededMoveLikeActionSuppressesSourceReimportUntilRemoteUidGone() throws Exception {
+    emailRepository.deleteById(messageId);
+    MailboxActionQueueRow row =
+        emailRepository
+            .claimDueMailboxActions(ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC")), 1)
+            .getFirst();
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    emailRepository.markMailboxActionSucceeded(row.id(), now);
+
+    Set<Long> suppressed =
+        emailRepository.getPendingMoveLikeActionSourceUids(
+            account.id(), inbox.remoteName(), inbox.uidValidity());
+    assertEquals(Set.of(messageUid), suppressed);
+
+    emailRepository.resolveMoveLikeSourceUidsAbsentFromRemote(
+        account.id(), inbox.remoteName(), inbox.uidValidity(), Set.of());
+    assertTrue(
+        emailRepository
+            .getPendingMoveLikeActionSourceUids(
+                account.id(), inbox.remoteName(), inbox.uidValidity())
+            .isEmpty());
+    assertEquals(
+        MailboxActionResolutionType.RESOLVED_REMOTE_MATCHED.name(), resolutionType(row.id()));
+  }
+
+  @Test
+  void uidValidityChangeMarksPendingMoveLikeActionsConflict() throws Exception {
+    emailRepository.archiveById(messageId);
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC"));
+    emailRepository.markMoveLikeActionsConflictForUidValidityChange(
+        account.id(), inbox.id(), 999L, now);
+
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement("SELECT status FROM mailbox_action_queue WHERE message_id = ?")) {
+      stmt.setInt(1, messageId);
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(MailboxActionStatus.CONFLICT.name(), rs.getString(1));
+      }
+    }
+  }
+
+  @Test
+  void archiveByIdEnqueuesPendingTargetUidForArchiveFolder() throws Exception {
+    emailRepository.archiveById(messageId);
+
+    assertEquals(Set.of(messageUid), emailRepository.getPendingMoveLikeTargetUids(archive.id()));
+    assertEquals(archive.id(), messageFolderId(messageId));
   }
 
   @Test
@@ -361,6 +424,43 @@ class DbEmailRepositoryMailboxActionTest {
   }
 
   @Test
+  void archiveByIdDeduplicatesWhenTargetAlreadyContainsSameImapUid() throws Exception {
+    emailRepository.archiveById(messageId);
+    int duplicateInboxId = insertInboxDuplicate(messageUid);
+
+    emailRepository.archiveById(duplicateInboxId);
+
+    assertEquals(archive.id(), messageFolderId(messageId));
+    assertTrue(emailRepository.findById(duplicateInboxId).isEmpty());
+    assertEquals(1, countMessagesInFolder(archive.id()));
+    assertEquals(1, countMailboxActionQueueRows());
+  }
+
+  @Test
+  void deleteByIdDeduplicatesWhenTrashAlreadyContainsSameImapUid() throws Exception {
+    emailRepository.deleteById(messageId);
+    int duplicateInboxId = insertInboxDuplicate(messageUid);
+
+    emailRepository.deleteById(duplicateInboxId);
+
+    assertEquals(trash.id(), messageFolderId(messageId));
+    assertTrue(emailRepository.findById(duplicateInboxId).isEmpty());
+    assertEquals(1, countMessagesInFolder(trash.id()));
+    assertEquals(1, countMailboxActionQueueRows());
+  }
+
+  @Test
+  void archiveByIdRemovesStaleTargetDuplicateBeforeMove() throws Exception {
+    int staleArchiveId = insertArchiveDuplicate(messageUid);
+    emailRepository.archiveById(messageId);
+
+    assertEquals(archive.id(), messageFolderId(messageId));
+    assertTrue(emailRepository.findById(staleArchiveId).isEmpty());
+    assertEquals(1, countMessagesInFolder(archive.id()));
+    assertEquals(1, countMailboxActionQueueRows());
+  }
+
+  @Test
   void purgeStaleMailboxActionRowsRemovesOldSucceededRows() throws Exception {
     emailRepository.deleteById(messageId);
     MailboxActionQueueRow row =
@@ -372,6 +472,75 @@ class DbEmailRepositoryMailboxActionTest {
     setSucceededAt(row.id(), now.minusDays(31));
 
     assertEquals(1, emailRepository.purgeStaleMailboxActionRows(now));
+  }
+
+  private int insertInboxDuplicate(long imapUid) {
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 9, 15, 0, 0, ZoneId.of("UTC"));
+    return emailRepository.addMessage(
+        inbox.id(),
+        new Email(
+            new EmailHeader(
+                -1,
+                imapUid,
+                java.util.List.of(
+                    new Actor(ActorType.SENDER, "a@b.com", java.util.Optional.empty())),
+                "Duplicate subject",
+                now,
+                now.toEpochSecond(),
+                now,
+                now.toEpochSecond(),
+                "excerpt",
+                false,
+                false,
+                false),
+            true,
+            "body",
+            java.util.List.of()));
+  }
+
+  private int insertArchiveDuplicate(long imapUid) {
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 9, 15, 0, 0, ZoneId.of("UTC"));
+    return emailRepository.addMessage(
+        archive.id(),
+        new Email(
+            new EmailHeader(
+                -1,
+                imapUid,
+                java.util.List.of(
+                    new Actor(ActorType.SENDER, "a@b.com", java.util.Optional.empty())),
+                "Stale archive duplicate",
+                now,
+                now.toEpochSecond(),
+                now,
+                now.toEpochSecond(),
+                "excerpt",
+                false,
+                false,
+                false),
+            true,
+            "body",
+            java.util.List.of()));
+  }
+
+  private int countMessagesInFolder(int folderId) throws Exception {
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement("SELECT COUNT(*) FROM messages WHERE folder_id = ?")) {
+      stmt.setInt(1, folderId);
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        return rs.getInt(1);
+      }
+    }
+  }
+
+  private int countMailboxActionQueueRows() throws Exception {
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt = con.prepareStatement("SELECT COUNT(*) FROM mailbox_action_queue");
+        var rs = stmt.executeQuery()) {
+      assertTrue(rs.next());
+      return rs.getInt(1);
+    }
   }
 
   private void setExecutionState(int queueId, MailboxActionExecutionState executionState)
@@ -394,6 +563,18 @@ class DbEmailRepositoryMailboxActionTest {
           1, succeededAt.format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME));
       stmt.setInt(2, queueId);
       stmt.executeUpdate();
+    }
+  }
+
+  private String resolutionType(int queueId) throws Exception {
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement("SELECT resolution_type FROM mailbox_action_queue WHERE id = ?")) {
+      stmt.setInt(1, queueId);
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        return rs.getString(1);
+      }
     }
   }
 

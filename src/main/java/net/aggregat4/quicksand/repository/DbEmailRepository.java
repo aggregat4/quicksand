@@ -967,9 +967,13 @@ public class DbEmailRepository implements EmailRepository {
               return;
             }
 
-            MailboxActionDbSupport.moveMessageToFolder(con, id, targetFolderId);
-            MailboxActionDbSupport.enqueueAction(
-                con, context.get(), MailboxActionType.MOVE, target.get(), null, null);
+            MailboxActionDbSupport.MoveToFolderOutcome outcome =
+                MailboxActionDbSupport.moveMessageToFolderResolvingDuplicates(
+                    con, id, targetFolderId);
+            if (outcome == MailboxActionDbSupport.MoveToFolderOutcome.MOVED) {
+              MailboxActionDbSupport.enqueueAction(
+                  con, context.get(), MailboxActionType.MOVE, target.get(), null, null);
+            }
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -1001,9 +1005,13 @@ public class DbEmailRepository implements EmailRepository {
               con.rollback();
               return;
             }
-            MailboxActionDbSupport.moveMessageToFolder(con, id, target.get().folderId());
-            MailboxActionDbSupport.enqueueAction(
-                con, context.get(), actionType, target.get(), specialUse, null);
+            MailboxActionDbSupport.MoveToFolderOutcome outcome =
+                MailboxActionDbSupport.moveMessageToFolderResolvingDuplicates(
+                    con, id, target.get().folderId());
+            if (outcome == MailboxActionDbSupport.MoveToFolderOutcome.MOVED) {
+              MailboxActionDbSupport.enqueueAction(
+                  con, context.get(), actionType, target.get(), specialUse, null);
+            }
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -1071,6 +1079,30 @@ public class DbEmailRepository implements EmailRepository {
       int accountId, String sourceRemoteName, Long sourceUidValidity) {
     return mailboxActions.getPendingMoveLikeActionSourceUids(
         accountId, sourceRemoteName, sourceUidValidity);
+  }
+
+  @Override
+  public Set<Long> getPendingMoveLikeTargetUids(int targetFolderId) {
+    return mailboxActions.getPendingMoveLikeTargetUids(targetFolderId);
+  }
+
+  @Override
+  public Set<Long> getMoveLikeProtectedUidsInFolder(int folderId) {
+    return mailboxActions.getMoveLikeProtectedUidsInFolder(folderId);
+  }
+
+  @Override
+  public void resolveMoveLikeSourceUidsAbsentFromRemote(
+      int accountId, String sourceRemoteName, Long sourceUidValidity, Set<Long> remoteUidsPresent) {
+    mailboxActions.resolveMoveLikeSourceUidsAbsentFromRemote(
+        accountId, sourceRemoteName, sourceUidValidity, remoteUidsPresent);
+  }
+
+  @Override
+  public void markMoveLikeActionsConflictForUidValidityChange(
+      int accountId, int folderId, long newUidValidity, ZonedDateTime now) {
+    mailboxActions.markMoveLikeActionsConflictForUidValidityChange(
+        accountId, folderId, newUidValidity, now);
   }
 
   @Override

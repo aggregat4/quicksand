@@ -7,6 +7,8 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.Store;
 import jakarta.mail.UIDFolder;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -90,8 +92,12 @@ final class ImapFolderSyncEngine {
           access.getFullName(),
           localFolder.uidValidity(),
           remoteUidValidity);
-      messageRepository.removeAllByUid(
-          localFolder.id(), messageRepository.getAllMessageIds(localFolder.id()));
+      ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+      messageRepository.markMoveLikeActionsConflictForUidValidityChange(
+          accountId, localFolder.id(), remoteUidValidity, now);
+      Set<Long> localUids = new HashSet<>(messageRepository.getAllMessageIds(localFolder.id()));
+      localUids.removeAll(messageRepository.getMoveLikeProtectedUidsInFolder(localFolder.id()));
+      messageRepository.removeAllByUid(localFolder.id(), localUids);
       localFolder = folderRepository.updateSyncCheckpoint(localFolder, null, null);
     }
 
@@ -123,6 +129,15 @@ final class ImapFolderSyncEngine {
     LOGGER.debug("Running full folder sync for folder {}", access.getFullName());
     naiveFolderSync(accountId, localFolder, access, messageRepository);
     return folderRepository.updateSyncCheckpoint(localFolder, checkpointModSeq, nowEpochS);
+  }
+
+  private static void resolveSucceededMoveLikeSourcesAbsentFromRemote(
+      int accountId,
+      NamedFolder localFolder,
+      EmailRepository messageRepository,
+      Set<Long> remoteUidsPresent) {
+    messageRepository.resolveMoveLikeSourceUidsAbsentFromRemote(
+        accountId, localFolder.remoteName(), localFolder.uidValidity(), remoteUidsPresent);
   }
 
   private static void condstoreIncrementalSync(
@@ -171,6 +186,8 @@ final class ImapFolderSyncEngine {
     } else {
       collectRemoteUids(access, remoteUids);
       deleteExpungedMessages(localFolder, messageRepository, remoteUids);
+      resolveSucceededMoveLikeSourcesAbsentFromRemote(
+          accountId, localFolder, messageRepository, remoteUids);
     }
     downloadNewMessages(localFolder, access, messageRepository, messagesToDownload);
   }
@@ -184,6 +201,7 @@ final class ImapFolderSyncEngine {
     for (long uid : vanishedUids) {
       uids.add(uid);
     }
+    uids.removeAll(messageRepository.getMoveLikeProtectedUidsInFolder(folderId));
     messageRepository.removeAllByUid(folderId, uids);
   }
 
@@ -208,6 +226,8 @@ final class ImapFolderSyncEngine {
             pendingMoveLikeSourceUids,
             pendingReadStateSourceUids);
     deleteExpungedMessages(localFolder, messageRepository, remoteUids);
+    resolveSucceededMoveLikeSourcesAbsentFromRemote(
+        accountId, localFolder, messageRepository, remoteUids);
     downloadNewMessages(localFolder, access, messageRepository, messagesToDownload);
   }
 
@@ -275,6 +295,7 @@ final class ImapFolderSyncEngine {
       NamedFolder localFolder, EmailRepository emailRepository, Set<Long> remoteUids) {
     Set<Long> localUids = new HashSet<>(emailRepository.getAllMessageIds(localFolder.id()));
     localUids.removeAll(remoteUids);
+    localUids.removeAll(emailRepository.getMoveLikeProtectedUidsInFolder(localFolder.id()));
     emailRepository.removeAllByUid(localFolder.id(), localUids);
   }
 

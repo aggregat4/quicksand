@@ -13,6 +13,16 @@ public interface MailboxActionRepository {
   Set<Long> getPendingMoveLikeActionSourceUids(
       int accountId, String sourceRemoteName, Long sourceUidValidity);
 
+  Set<Long> getPendingMoveLikeTargetUids(int targetFolderId);
+
+  Set<Long> getMoveLikeProtectedUidsInFolder(int folderId);
+
+  void resolveMoveLikeSourceUidsAbsentFromRemote(
+      int accountId, String sourceRemoteName, Long sourceUidValidity, Set<Long> remoteUidsPresent);
+
+  void markMoveLikeActionsConflictForUidValidityChange(
+      int accountId, int folderId, long newUidValidity, ZonedDateTime now);
+
   Set<Long> getPendingReadStateActionSourceUids(
       int accountId, String sourceRemoteName, Long sourceUidValidity);
 

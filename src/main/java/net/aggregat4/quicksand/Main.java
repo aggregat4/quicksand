@@ -122,10 +122,38 @@ public final class Main {
             accountFolderMappingRepository, folderRepository, accountRepository);
     MailboxUpdateBroadcaster mailboxUpdateBroadcaster = new MailboxUpdateBroadcaster();
 
+    boolean mailboxActionSyncEnabled =
+        config.get("mailbox_action_sync.enabled").asBoolean().orElse(demoEnabled);
+    if (mailboxActionSyncEnabled && !accounts.isEmpty()) {
+      long syncPeriodInSeconds =
+          config.get("mailbox_action_sync.period_seconds").asLong().orElse(15L);
+      long retryDelaySeconds =
+          config.get("mailbox_action_sync.retry_delay_seconds").asLong().orElse(60L);
+      mailboxActionSync =
+          new MailboxActionSync(
+              accountRepository,
+              messageRepository,
+              outboundMessageRepository,
+              attachmentRepository,
+              draftRepository,
+              folderRepository,
+              clock,
+              syncPeriodInSeconds,
+              retryDelaySeconds);
+    } else if (mailboxActionSyncEnabled) {
+      LOGGER.info(
+          "Mailbox action sync was enabled, but no accounts are configured. Skipping startup.");
+    } else {
+      LOGGER.info(
+          "Mailbox action sync is disabled; queued mailbox actions will remain pending until it"
+              + " is enabled.");
+    }
+
     boolean mailFetcherEnabled = config.get("mail_fetcher.enabled").asBoolean().orElse(demoEnabled);
     if (mailFetcherEnabled && !accounts.isEmpty()) {
       long fetchPeriodInSeconds = config.get("mail_fetcher.period_seconds").asLong().orElse(15L);
       boolean idleEnabled = config.get("mail_fetcher.idle_enabled").asBoolean().orElse(false);
+      Runnable preFetchActionSync = mailboxActionSync != null ? mailboxActionSync::syncNow : null;
       mailFetcher =
           new MailFetcher(
               accountRepository,
@@ -134,7 +162,8 @@ public final class Main {
               messageRepository,
               accountFolderMappingService,
               idleEnabled,
-              mailboxUpdateBroadcaster);
+              mailboxUpdateBroadcaster,
+              preFetchActionSync);
       mailFetcher.fetchNow();
       if (demoEnabled) {
         bootstrapDemoFolderMappings(accountFolderMappingService, accountRepository.getAccounts());
@@ -142,6 +171,13 @@ public final class Main {
       mailFetcher.start();
     } else if (mailFetcherEnabled) {
       LOGGER.info("Mail fetcher was enabled, but no accounts are configured. Skipping startup.");
+    }
+
+    if (mailboxActionSync != null) {
+      if (mailFetcher == null) {
+        mailboxActionSync.syncNow();
+      }
+      mailboxActionSync.start();
     }
 
     boolean mailSenderEnabled = config.get("mail_sender.enabled").asBoolean().orElse(demoEnabled);
@@ -164,42 +200,12 @@ public final class Main {
       LOGGER.info("Mail sender was enabled, but no accounts are configured. Skipping startup.");
     }
 
-    boolean mailboxActionSyncEnabled =
-        config.get("mailbox_action_sync.enabled").asBoolean().orElse(demoEnabled);
-    if (mailboxActionSyncEnabled && !accounts.isEmpty()) {
-      long syncPeriodInSeconds =
-          config.get("mailbox_action_sync.period_seconds").asLong().orElse(15L);
-      long retryDelaySeconds =
-          config.get("mailbox_action_sync.retry_delay_seconds").asLong().orElse(60L);
-      mailboxActionSync =
-          new MailboxActionSync(
-              accountRepository,
-              messageRepository,
-              outboundMessageRepository,
-              attachmentRepository,
-              draftRepository,
-              folderRepository,
-              clock,
-              syncPeriodInSeconds,
-              retryDelaySeconds);
-      mailboxActionSync.syncNow();
-      mailboxActionSync.start();
-    } else if (mailboxActionSyncEnabled) {
-      LOGGER.info(
-          "Mailbox action sync was enabled, but no accounts are configured. Skipping startup.");
-    } else {
-      LOGGER.info(
-          "Mailbox action sync is disabled; queued mailbox actions will remain pending until it"
-              + " is enabled.");
-    }
-
     FolderService folderService = new FolderService(folderRepository);
     Runnable backgroundSyncTrigger =
         () -> {
           if (mailFetcher != null) {
             mailFetcher.fetchNow();
-          }
-          if (mailboxActionSync != null) {
+          } else if (mailboxActionSync != null) {
             mailboxActionSync.syncNow();
           }
         };

@@ -354,6 +354,111 @@ final class MailboxActionDbSupport {
     }
   }
 
+  enum MoveToFolderOutcome {
+    MOVED,
+    DEDUPLICATED_ALREADY_IN_TARGET
+  }
+
+  static MoveToFolderOutcome moveMessageToFolderResolvingDuplicates(
+      Connection con, int messageId, int targetFolderId) throws SQLException {
+    Optional<MessageActionContext> context = findMessageActionContext(con, messageId);
+    if (context.isEmpty()) {
+      return MoveToFolderOutcome.MOVED;
+    }
+    if (context.get().sourceFolderId() == targetFolderId) {
+      return MoveToFolderOutcome.MOVED;
+    }
+
+    Optional<Integer> existingInTarget =
+        findMessageIdByFolderAndUid(con, targetFolderId, context.get().sourceUid());
+    if (existingInTarget.isPresent() && existingInTarget.get() != messageId) {
+      int existingId = existingInTarget.get();
+      if (hasActiveMoveLikeQueueForTarget(con, existingId, targetFolderId)) {
+        deleteMessageById(con, messageId);
+        return MoveToFolderOutcome.DEDUPLICATED_ALREADY_IN_TARGET;
+      }
+      deleteMessageById(con, existingId);
+    }
+
+    moveMessageToFolder(con, messageId, targetFolderId);
+    return MoveToFolderOutcome.MOVED;
+  }
+
+  static Optional<Integer> findMessageIdByFolderAndUid(Connection con, int folderId, long imapUid)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            "SELECT id FROM messages WHERE folder_id = ? AND imap_uid = ? LIMIT 1")) {
+      stmt.setInt(1, folderId);
+      stmt.setLong(2, imapUid);
+      try (ResultSet rs = stmt.executeQuery()) {
+        if (!rs.next()) {
+          return Optional.empty();
+        }
+        return Optional.of(rs.getInt(1));
+      }
+    }
+  }
+
+  static boolean hasActiveMoveLikeQueueForTarget(Connection con, int messageId, int targetFolderId)
+      throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                SELECT 1
+                FROM mailbox_action_queue
+                WHERE message_id = ?
+                  AND target_folder_id = ?
+                  AND action_type IN (%s)
+                  AND (
+                    status IN (%s)
+                    OR (status = ? AND resolution_type IS NULL)
+                  )
+                LIMIT 1"""
+                .formatted(
+                    EnumSql.inClause(MailboxActionType.MOVE_LIKE),
+                    EnumSql.inClause(
+                        MailboxActionStatus.PENDING,
+                        MailboxActionStatus.APPLYING,
+                        MailboxActionStatus.FAILED_RETRYABLE)))) {
+      stmt.setInt(1, messageId);
+      stmt.setInt(2, targetFolderId);
+      stmt.setString(3, MailboxActionStatus.SUCCEEDED.name());
+      try (ResultSet rs = stmt.executeQuery()) {
+        return rs.next();
+      }
+    }
+  }
+
+  static void deleteMessageById(Connection con, int messageId) throws SQLException {
+    try (PreparedStatement stmt =
+        con.prepareStatement("DELETE FROM mailbox_action_queue WHERE message_id = ?")) {
+      stmt.setInt(1, messageId);
+      stmt.executeUpdate();
+    }
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            "UPDATE drafts SET source_message_id = NULL WHERE source_message_id = ?")) {
+      stmt.setInt(1, messageId);
+      stmt.executeUpdate();
+    }
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            "UPDATE outbound_messages SET source_message_id = NULL WHERE source_message_id = ?")) {
+      stmt.setInt(1, messageId);
+      stmt.executeUpdate();
+    }
+    try (PreparedStatement stmt =
+        con.prepareStatement("DELETE FROM message_search WHERE rowid = ?")) {
+      stmt.setInt(1, messageId);
+      stmt.executeUpdate();
+    }
+    try (PreparedStatement stmt = con.prepareStatement("DELETE FROM messages WHERE id = ?")) {
+      stmt.setInt(1, messageId);
+      stmt.executeUpdate();
+    }
+  }
+
   static Long getNullableLong(ResultSet rs, int columnIndex) throws SQLException {
     long value = rs.getLong(columnIndex);
     return rs.wasNull() ? null : value;

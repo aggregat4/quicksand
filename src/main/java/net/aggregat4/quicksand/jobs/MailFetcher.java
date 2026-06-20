@@ -28,6 +28,7 @@ public class MailFetcher {
   private final EmailRepository messageRepository;
   private final AccountFolderMappingService accountFolderMappingService;
   private final MailboxUpdateBroadcaster mailboxUpdateBroadcaster;
+  private final Runnable preFetch;
 
   private final ConcurrentHashMap<Integer, Store> accountStores = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<Integer, ImapIdleWatcher> idleWatchers =
@@ -41,6 +42,26 @@ public class MailFetcher {
       AccountFolderMappingService accountFolderMappingService,
       boolean idleEnabled,
       MailboxUpdateBroadcaster mailboxUpdateBroadcaster) {
+    this(
+        accountRepository,
+        fetchPeriodInSeconds,
+        folderRepository,
+        emailRepository,
+        accountFolderMappingService,
+        idleEnabled,
+        mailboxUpdateBroadcaster,
+        null);
+  }
+
+  public MailFetcher(
+      AccountRepository accountRepository,
+      long fetchPeriodInSeconds,
+      FolderRepository folderRepository,
+      EmailRepository emailRepository,
+      AccountFolderMappingService accountFolderMappingService,
+      boolean idleEnabled,
+      MailboxUpdateBroadcaster mailboxUpdateBroadcaster,
+      Runnable preFetch) {
     this.accountRepository = accountRepository;
     this.fetchPeriodInSeconds = fetchPeriodInSeconds;
     this.folderRepository = folderRepository;
@@ -48,6 +69,7 @@ public class MailFetcher {
     this.accountFolderMappingService = accountFolderMappingService;
     this.idleEnabled = idleEnabled;
     this.mailboxUpdateBroadcaster = mailboxUpdateBroadcaster;
+    this.preFetch = preFetch;
   }
 
   public void start() {
@@ -90,6 +112,9 @@ public class MailFetcher {
   void fetch() {
     long fetchStarted = System.nanoTime();
     LOGGER.debug("Starting mail fetch for configured accounts");
+    if (preFetch != null) {
+      preFetch.run();
+    }
     checkAndInitializeStores();
     for (Account account : accountRepository.getAccounts()) {
       Store store = accountStores.get(account.id());
