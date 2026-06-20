@@ -94,6 +94,7 @@
             <input id="attachment-upload-input" type="file" name="uploaded-file" multiple hidden>
         </form>
     </main>
-    <script src="{{ asset('/js/emailcomposer.js') }}"></script>
+    <script type="importmap">{{ importMap() | raw }}</script>
+    <script type="module" src="{{ asset('/js/iframe/composer.js') }}"></script>
 </body>
 </html>

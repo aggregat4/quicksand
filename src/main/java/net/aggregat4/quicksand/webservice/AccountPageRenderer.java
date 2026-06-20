@@ -21,7 +21,6 @@ import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.Folder;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
-import net.aggregat4.quicksand.domain.MessageReadState;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.domain.OutboxFolder;
 import net.aggregat4.quicksand.domain.PageDirection;
@@ -109,22 +108,6 @@ final class AccountPageRenderer {
     if (folder instanceof NamedFolder namedFolder) {
       context.put("currentNamedFolderId", namedFolder.id());
     }
-    boolean messageListLiveUpdates =
-        folder instanceof NamedFolder && query.isEmpty() && isAtListHead(pagination);
-    context.put("messageListLiveUpdates", messageListLiveUpdates);
-    if (messageListLiveUpdates) {
-      emailGroupPage
-          .getFirstEmailHeader()
-          .ifPresentOrElse(
-              header -> {
-                context.put("listCursorReceived", header.receivedDateTimeEpochSeconds());
-                context.put("listCursorMessageId", header.id());
-              },
-              () -> {
-                context.put("listCursorReceived", 0L);
-                context.put("listCursorMessageId", 0);
-              });
-    }
     context.put("currentQuery", query);
     response.headers().contentType(TEXT_HTML);
     ResponseUtils.setDynamicDocumentCacheControl(response);
@@ -203,48 +186,9 @@ final class AccountPageRenderer {
             accountId, mailboxNavigationFolders(folders), currentFolder, notificationSummary));
     context.put("notificationSummary", notificationSummary);
     putInboxNotificationContext(context, notificationSummary, currentFolder, folders);
-    Optional<Long> listCursorReceived =
-        request.query().first("listCursorReceived").flatMap(AccountPageRenderer::parseOptionalLong);
-    Optional<Integer> listCursorMessageId =
-        request.query().first("listCursorMessageId").flatMap(AccountPageRenderer::parseOptionalInt);
-    if (currentFolderId.isPresent()
-        && listCursorReceived.isPresent()
-        && listCursorMessageId.isPresent()) {
-      List<EmailHeader> newMessageHeaders =
-          emailService.getMessagesNewerThan(
-              currentFolderId.get(), listCursorReceived.get(), listCursorMessageId.get(), 20);
-      if (!newMessageHeaders.isEmpty()) {
-        context.put(
-            "newMessageGroups",
-            EmailGroup.createEmailGroups(newMessageHeaders, clock, SortOrder.DESCENDING));
-      }
-      context.put("currentFolderIsDrafts", false);
-      context.put("currentFolderIsOutbox", false);
-      context.put("currentQuery", Optional.empty());
-    }
-    request
-        .query()
-        .first("visibleMessageIds")
-        .flatMap(AccountPageRenderer::parseCommaSeparatedInts)
-        .filter(ids -> !ids.isEmpty())
-        .ifPresent(
-            messageIds -> {
-              List<MessageReadState> readStates =
-                  emailService.getReadStatesForMessages(accountId, messageIds);
-              if (!readStates.isEmpty()) {
-                context.put("readStateUpdates", readStates);
-              }
-            });
     response.headers().contentType(TEXT_HTML);
     ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(PebbleRenderer.renderTemplate(context, notificationsTemplate));
-  }
-
-  private static boolean isAtListHead(Pagination pagination) {
-    return pagination.pageParams().sortOrder() == SortOrder.DESCENDING
-        && pagination.pageParams().pageDirection() == PageDirection.RIGHT
-        && pagination.receivedDateOffsetInSeconds().isEmpty()
-        && pagination.messageIdOffset().isEmpty();
   }
 
   private void putInboxNotificationContext(
@@ -310,34 +254,9 @@ final class AccountPageRenderer {
         .toList();
   }
 
-  private static Optional<List<Integer>> parseCommaSeparatedInts(String value) {
-    if (value == null || value.isBlank()) {
-      return Optional.empty();
-    }
-    try {
-      List<Integer> ids = new ArrayList<>();
-      for (String part : value.split(",", -1)) {
-        if (!part.isBlank()) {
-          ids.add(Integer.valueOf(part.trim()));
-        }
-      }
-      return ids.isEmpty() ? Optional.empty() : Optional.of(ids);
-    } catch (NumberFormatException e) {
-      return Optional.empty();
-    }
-  }
-
   private static Optional<Integer> parseOptionalInt(String value) {
     try {
       return Optional.of(Integer.valueOf(value));
-    } catch (NumberFormatException e) {
-      return Optional.empty();
-    }
-  }
-
-  private static Optional<Long> parseOptionalLong(String value) {
-    try {
-      return Optional.of(Long.valueOf(value));
     } catch (NumberFormatException e) {
       return Optional.empty();
     }

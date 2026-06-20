@@ -90,7 +90,8 @@
     </div>
 </header>
     {% block content %}{% endblock %}
-    <script src="{{ asset('/js/main.js') }}" defer></script>
+    <script type="importmap">{{ importMap() | raw }}</script>
+    <script type="module" src="{{ asset('/js/shell/app.js') }}"></script>
     {% block additionalScripts %}{% endblock %}
 </body>
 </html>

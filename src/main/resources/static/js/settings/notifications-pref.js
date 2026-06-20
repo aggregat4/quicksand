@@ -1,6 +1,8 @@
-(function () {
-    const DESKTOP_PREF_KEY = 'quicksand.desktopNotifications'
+import { onceDOMReady } from 'quicksand/lib/dom-ready.js'
 
+const DESKTOP_PREF_KEY = 'quicksand.desktopNotifications'
+
+function initNotificationSettings() {
     const checkbox = document.getElementById('desktop-notifications-enabled')
     const status = document.getElementById('desktop-notifications-status')
     if (!checkbox || !status) {
@@ -51,4 +53,6 @@
     })
 
     syncCheckbox()
-})()
+}
+
+onceDOMReady(initNotificationSettings)

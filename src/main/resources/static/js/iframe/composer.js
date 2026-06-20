@@ -1,8 +1,4 @@
-if (document.readyState !== 'loading') {
-    initEmailComposer()
-} else {
-    document.addEventListener('DOMContentLoaded', initEmailComposer)
-}
+import { onceDOMReady } from 'quicksand/lib/dom-ready.js'
 
 function initEmailComposer() {
     const visibleForm = document.getElementById('save-email-form')
@@ -198,3 +194,5 @@ function initEmailComposer() {
         }, waitMs)
     }
 }
+
+onceDOMReady(initEmailComposer)

@@ -55,5 +55,5 @@
 {% endblock %}
 
 {% block additionalScripts %}
-<script src="{{ asset('/js/settings-notifications.js') }}" async></script>
+<script type="module" src="{{ asset('/js/settings/notifications-pref.js') }}"></script>
 {% endblock %}

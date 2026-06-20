@@ -1,3 +1,5 @@
+import { onceDOMReady } from 'quicksand/lib/dom-ready.js'
+
 function initSyncStatusPage() {
     document.querySelectorAll('.sync-confirm-trigger').forEach((button) => {
         button.addEventListener('click', () => {
@@ -11,8 +13,4 @@ function initSyncStatusPage() {
     })
 }
 
-if (document.readyState !== 'loading') {
-    initSyncStatusPage()
-} else {
-    document.addEventListener('DOMContentLoaded', initSyncStatusPage)
-}
+onceDOMReady(initSyncStatusPage)

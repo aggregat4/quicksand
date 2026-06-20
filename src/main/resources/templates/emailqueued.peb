@@ -10,6 +10,6 @@
     <main>
         <p class="info-notification">{{ notificationText }}</p>
     </main>
-    <script src="{{ asset('/js/email-queued.js') }}"></script>
+    <script type="module" src="{{ asset('/js/iframe/queued.js') }}"></script>
 </body>
 </html>

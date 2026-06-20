@@ -131,7 +131,7 @@ class AccountFolderSettingsWebServiceTest {
           settingsResponse.body().contains("/accounts/" + account.id() + "/settings/folders"));
       assertTrue(settingsResponse.body().contains("/accounts/" + account.id() + "/sync"));
       assertTrue(settingsResponse.body().contains("desktop-notifications-enabled"));
-      assertTrue(settingsResponse.body().contains("settings-notifications.js?v="));
+      assertTrue(settingsResponse.body().contains("settings/notifications-pref.js?v="));
       assertFalse(settingsResponse.body().contains("/about"));
       assertEquals(200, accountResponse.statusCode());
       assertTrue(accountResponse.body().contains("/accounts/" + account.id() + "/settings"));

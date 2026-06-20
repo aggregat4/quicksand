@@ -182,5 +182,5 @@
 {% endblock %}
 
 {% block additionalScripts %}
-<script src="{{ asset('/js/sync-status.js') }}" defer></script>
+<script type="module" src="{{ asset('/js/settings/sync-status.js') }}"></script>
 {% endblock %}

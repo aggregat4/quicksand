@@ -1,3 +1,5 @@
+import { onceDOMReady } from 'quicksand/lib/dom-ready.js'
+
 function initMessageViewer() {
     const emailId = document.body.dataset.emailId
     if (!emailId) {
@@ -22,8 +24,4 @@ function forwardEmail(emailId) {
     window.parent.postMessage({ type: 'forward-email', emailId }, '*')
 }
 
-if (document.readyState !== 'loading') {
-    initMessageViewer()
-} else {
-    document.addEventListener('DOMContentLoaded', initMessageViewer)
-}
+onceDOMReady(initMessageViewer)

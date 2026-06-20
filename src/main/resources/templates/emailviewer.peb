@@ -85,6 +85,7 @@
         </div>
     </main>
 
-    <script src="{{ asset('/js/messageviewer.js') }}"></script>
+    <script type="importmap">{{ importMap() | raw }}</script>
+    <script type="module" src="{{ asset('/js/iframe/viewer.js') }}"></script>
 </body>
 </html>

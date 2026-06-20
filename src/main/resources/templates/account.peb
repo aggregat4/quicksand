@@ -136,7 +136,7 @@
                 </div>
         </div>
         {% endif %}
-        <div id="messagelist"{% if messageListLiveUpdates %} data-live-updates="true" data-list-cursor-id="{{ listCursorMessageId }}" data-list-cursor-received="{{ listCursorReceived }}"{% endif %}>
+        <div id="messagelist">
             <div id="messagelist-body">
             {% for group in emailGroupPage.groups() %}
                 {% if group.name().isPresent() %}
@@ -165,8 +165,4 @@
             </dialog>
         {% endif %}
     </main>
-{% endblock %}
-
-{% block additionalScripts %}
-<script src="{{ asset('/js/notifications.js') }}" async></script>
 {% endblock %}
