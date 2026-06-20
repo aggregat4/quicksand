@@ -234,6 +234,7 @@ test('new drafts persist headers and body and reopen from the drafts folder', as
   await expect(composerFrame.locator('#email-subject')).toHaveValue('');
   await expect(composerFrame.getByLabel('Email Body')).toHaveValue('');
   await expect(composerFrame.locator('#no-draft-attachments')).toContainText('No attachments yet');
+  await composerFrame.locator('.composer-close-button').click();
 });
 
 test('sending a draft moves it into outbox with attachments', async ({ page }) => {
@@ -241,6 +242,7 @@ test('sending a draft moves it into outbox with attachments', async ({ page }) =
 
   await page.getByRole('button', { name: 'New Mail' }).click();
   const composerFrame = page.frameLocator('#newmail-composer-frame');
+  await expect(composerFrame.locator('#composer-title')).toHaveText('New message');
   await composerFrame.locator('#email-to').fill('Alice <alice@example.com>');
   await composerFrame.locator('#email-subject').fill('Queued outbox subject');
   await composerFrame.getByLabel('Email Body').fill('Queued outbox body');
@@ -490,6 +492,7 @@ test('per-email mark read and unread updates row styling', async ({ page }) => {
   const markReadButton = firstRow.locator('.emailactions button[name="email_action_mark_read"]');
   await expect(markReadButton).toBeVisible();
   await markReadButton.evaluate((button) => button.form.requestSubmit(button));
+  await page.waitForResponse((response) => response.url().includes('/emails/selection') && response.request().method() === 'POST');
   await page.goto(inbox);
   await expect(page.locator(`#email${messageId}`)).toHaveClass(/read/);
 
@@ -498,6 +501,7 @@ test('per-email mark read and unread updates row styling', async ({ page }) => {
   const markUnreadButton = readRow.locator('.emailactions button[name="email_action_mark_unread"]');
   await expect(markUnreadButton).toBeVisible();
   await markUnreadButton.evaluate((button) => button.form.requestSubmit(button));
+  await page.waitForResponse((response) => response.url().includes('/emails/selection') && response.request().method() === 'POST');
   await page.goto(inbox);
   await expect(readRow).not.toHaveClass(/read/);
 });

@@ -13,16 +13,13 @@ async function waitForDemoInbox(page) {
 }
 
 async function serverReadState(page, messageId) {
-  const folderId = await page.locator('main[data-current-named-folder-id]').getAttribute('data-current-named-folder-id');
-  const response = await page.request.get(
-    `/accounts/1/notifications?folderId=${encodeURIComponent(folderId)}&visibleMessageIds=${encodeURIComponent(messageId)}`
-  );
+  const response = await page.request.get('/accounts/1');
   expect(response.ok()).toBeTruthy();
   const html = await response.text();
   const match = html.match(
-    new RegExp(`class="read-state-update" data-message-id="${messageId}" data-read="(true|false)"`)
+    new RegExp(`id="email${messageId}"[^>]*class="([^"]*)"`)
   );
-  return match?.[1] === 'true';
+  return match?.[1]?.includes('read') ?? false;
 }
 
 test('message viewer updates when selecting different headers', async ({ page }) => {

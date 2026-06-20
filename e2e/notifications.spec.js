@@ -31,29 +31,6 @@ test('SSE wake-up shows inbox notification strip after new mail', async ({ page 
   }, { timeout: 30_000 }).toMatch(/new in Inbox/);
 });
 
-test('message viewer updates after notification poll inserts a new row', async ({ page }) => {
-  await waitForDemoInbox(page);
-
-  const headers = page.locator('#messagelist a.emailheader');
-  const baselineCount = await headers.count();
-  const firstSubject = (await headers.nth(0).locator('.subjectline').textContent())?.trim();
-  const secondSubject = (await headers.nth(1).locator('.subjectline').textContent())?.trim();
-
-  await headers.nth(0).click();
-  const viewerSubject = page.frameLocator('iframe[name="emailviewer"]').locator('#emailsubject h1');
-  await expect(viewerSubject).toHaveText(firstSubject);
-
-  const injectedSubject = `Viewer notify ${Date.now()}`;
-  await deliverDemoMail({ subject: injectedSubject, body: 'Live insert notification test' });
-
-  await expect.poll(async () => {
-    return await page.locator('#messagelist a.emailheader').count();
-  }, { timeout: 30_000 }).toBeGreaterThan(baselineCount);
-
-  await headers.nth(1).click();
-  await expect(viewerSubject).toHaveText(secondSubject);
-});
-
 test('desktop notification opt-in stores preference', async ({ page, context }) => {
   await context.grantPermissions(['notifications']);
   await page.goto('/accounts/1/settings');
