@@ -12,8 +12,20 @@ export function getActiveEmailId() {
     return activeEmail ? getEmailIdFromNode(activeEmail) : ''
 }
 
+function getFocusedEmailId() {
+    const focusedHeader = document.activeElement
+    if (focusedHeader?.matches?.('a.emailheader')) {
+        return getEmailIdFromNode(focusedHeader)
+    }
+    return ''
+}
+
+export function getActionTargetEmailId() {
+    return getActiveEmailId() || getFocusedEmailId()
+}
+
 export function hasSelectedEmailActionTarget(anyMailsSelected = hasCheckedEmailSelection()) {
-    return anyMailsSelected || !!getActiveEmailId()
+    return anyMailsSelected || !!getActionTargetEmailId()
 }
 
 export function updateActionButtons(anyMailsSelected) {
@@ -38,9 +50,14 @@ export function prepareSelectedEmailActionSubmit() {
         return
     }
     const checkedSelectionPresent = hasCheckedEmailSelection()
-    const selectedEmailId = getActiveEmailId()
-    fallbackSelection.disabled = checkedSelectionPresent || !selectedEmailId
-    fallbackSelection.value = checkedSelectionPresent || !selectedEmailId ? '' : selectedEmailId
+    if (checkedSelectionPresent) {
+        fallbackSelection.disabled = true
+        fallbackSelection.value = ''
+        return
+    }
+    const selectedEmailId = getActionTargetEmailId() || fallbackSelection.value
+    fallbackSelection.disabled = !selectedEmailId
+    fallbackSelection.value = selectedEmailId || ''
 }
 
 export function onChangeEmailSelection() {

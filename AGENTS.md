@@ -131,6 +131,13 @@ Not optimization targets: matching the old monolith line count, one file per pag
 | composer iframe | `iframe/composer.js` |
 | queued-send confirmation iframe | `iframe/queued.js` |
 | notification settings | `settings/notifications-pref.js` |
+| mailbox list (via `account/index.js`) | `account/keyboard-shortcuts.js` and related modules |
+
+**Keyboard shortcuts**
+
+- Default Gmail bindings live in declarative data: `account/keyboard-bindings.js` (see `docs/keyboard-shortcuts-plan.md`).
+- Dispatch reads bindings only; `keyboard-actions.js` maps named intents to existing forms and dialogs.
+- Do not hardcode key checks outside the keyboard modules.
 
 When adding a new flow, extend an existing module if the page already loads it; otherwise add a focused module under the appropriate directory and register it in the import map (automatic for files under `static/js/`).
 

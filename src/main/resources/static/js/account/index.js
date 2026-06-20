@@ -4,6 +4,7 @@ import { initMessagePreview } from 'quicksand/account/message-preview.js'
 import { initSelectedEmailActions } from 'quicksand/account/email-actions.js'
 import { initSelectedDraftComposer } from 'quicksand/account/composer-host.js'
 import { initOpenMessageReadState } from 'quicksand/account/mark-read.js'
+import { initKeyboardShortcuts } from 'quicksand/account/keyboard-shortcuts.js'
 
 export function initAccountPage() {
     initMessageListScrollPersistence()
@@ -12,4 +13,5 @@ export function initAccountPage() {
     initSelectedEmailActions()
     initSelectedDraftComposer()
     initOpenMessageReadState()
+    initKeyboardShortcuts()
 }

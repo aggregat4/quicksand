@@ -232,19 +232,26 @@ final class AccountPageRenderer {
                         currentFolder instanceof NamedFolder namedFolder
                             && namedFolder.id() == folder.id(),
                         notificationSummary.unreadCount(folder.id()),
-                        folder.id()))
+                        folder.id(),
+                        folder.specialUse().name().toLowerCase()))
             .toList();
     List<SidebarFolderLink> links = new ArrayList<>(sidebarFolders);
     links.add(
         new SidebarFolderLink(
             "Outbox",
             "/accounts/%s/outbox".formatted(accountId),
-            currentFolder instanceof OutboxFolder));
+            currentFolder instanceof OutboxFolder,
+            0,
+            -1,
+            "outbox"));
     links.add(
         new SidebarFolderLink(
             "Drafts",
             "/accounts/%s/drafts".formatted(accountId),
-            currentFolder instanceof DraftsFolder));
+            currentFolder instanceof DraftsFolder,
+            0,
+            -1,
+            "drafts"));
     return links;
   }
 

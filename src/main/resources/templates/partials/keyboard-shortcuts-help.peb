@@ -1,0 +1,11 @@
+{% import "templates/macros.peb" %}
+<dialog id="keyboard-shortcuts-help" aria-labelledby="keyboard-shortcuts-help-title">
+    <form class="dialogcloser" method="dialog">
+        {{ submitButton(false, 'close', false, 'closeKeyboardShortcutsHelp', 'Close keyboard shortcuts help') }}
+    </form>
+    <div class="keyboard-shortcuts-help-body">
+        <h1 id="keyboard-shortcuts-help-title">Keyboard shortcuts</h1>
+        <p class="keyboard-shortcuts-help-intro">Gmail-style shortcuts are enabled by default. Press <kbd>?</kbd> anytime to reopen this help.</p>
+        <div id="keyboard-shortcuts-help-content"></div>
+    </div>
+</dialog>

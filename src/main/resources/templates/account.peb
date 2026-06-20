@@ -30,6 +30,7 @@
                 <a class="iconlink folder-sidebar-link{{ folder.selected ? ' selected' : '' }}"
                    href="{{ folder.href }}"
                    {% if folder.folderId >= 0 %}data-folder-id="{{ folder.folderId }}"{% endif %}
+                   {% if folder.folderSpecialUse %}data-folder-special-use="{{ folder.folderSpecialUse }}"{% endif %}
                    aria-label="{{ folder.name }}"
                    title="{{ folder.name }}">
                     {{ svgIcon('folder') | raw }} {{ folder.name }}
@@ -164,5 +165,6 @@
                 </iframe>
             </dialog>
         {% endif %}
+        {% include 'templates/partials/keyboard-shortcuts-help.peb' %}
     </main>
 {% endblock %}

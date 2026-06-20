@@ -309,6 +309,11 @@ main[data-current-folder-is-drafts="true"] #pagination-status {
     color: var(--selected-color);
 }
 
+.emailheader:focus-visible {
+    outline: 2px solid var(--button-primary-border-color);
+    outline-offset: -2px;
+}
+
 .emailheader .iconbutton {
     padding: var(--gap-s);
 }
@@ -933,4 +938,43 @@ body.accountpage:has(#newmail-composer-dialog[open]) #messagepreview {
     overflow-y: scroll;
     width: 100%;
     height: 100%;
+}
+
+#keyboard-shortcuts-help {
+    max-width: 36rem;
+    padding: var(--dialog-padding-top) var(--dialog-padding-other) var(--dialog-padding-other) var(--dialog-padding-other);
+}
+
+.keyboard-shortcuts-help-body {
+    display: grid;
+    gap: var(--gap-l);
+}
+
+.keyboard-shortcuts-help-intro kbd,
+.keyboard-shortcuts-list dt {
+    display: inline-block;
+    min-width: 1.5rem;
+    padding: 0.1rem 0.4rem;
+    border: 1px solid lightgray;
+    border-radius: 3px;
+    background: var(--muted-bgcolor);
+    font-family: inherit;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.keyboard-shortcuts-category h2 {
+    font-size: 1rem;
+    margin-bottom: var(--gap-s);
+}
+
+.keyboard-shortcuts-list {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--gap-s) var(--gap-l);
+    margin: 0 0 var(--gap-l);
+}
+
+.keyboard-shortcuts-list dd {
+    margin: 0;
 }
