@@ -6,7 +6,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
 Start Quicksand against a real IMAP/SMTP account (not demo mode).
 
 Assumes the project is already built:
-  mvn -DskipTests package
+  mvn clean -DskipTests package
 
 Configuration (pick one):
   1. config/application-local.conf (recommended)
@@ -79,7 +79,7 @@ if [[ ! -f "${JAR}" ]]; then
 Error: ${JAR} not found.
 
 Build the project first:
-  mvn -DskipTests package
+  mvn clean -DskipTests package
 EOF
   exit 1
 fi

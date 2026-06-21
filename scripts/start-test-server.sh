@@ -31,7 +31,7 @@ cd "${REPO_ROOT}"
 source "${SCRIPT_DIR}/ensure-credential-key.sh"
 ensure_credential_key "${REPO_ROOT}"
 
-mvn -DskipTests package
+mvn clean -DskipTests package
 
 exec java \
   -Dserver.host="${HOST}" \
