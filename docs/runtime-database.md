@@ -35,6 +35,25 @@ Do not set the pool to `1` with the current repository layer — some code paths
   enforces exact remote identity. The older `imap_uid` column remains for presentation callers; it
   is not a sync identity.
 - **Actors:** `message_id` is `NOT NULL` with `ON DELETE CASCADE`.
+- **Full-text search:** `message_search` is an FTS5 virtual table (`subject`, `body_excerpt`,
+  `body`, `actors`; tokenizer `unicode61 remove_diacritics 2`). The application builds the
+  `MATCH` expression from a parsed query (quoted phrases, exact tokens, and a final-token prefix
+  with a three-character minimum); user input is never passed through as raw FTS syntax. Relevance
+  ordering uses `bm25(message_search, 8.0, 2.0, 1.0, 5.0)` (subject, body excerpt, body, actors)
+  with `received_date_epoch_s DESC, id DESC` tiebreakers; the relevance pagination cursor is
+  `(rank, received_date_epoch_s, id)`. No FTS prefix index is configured yet.
+
+Run the repeatable synthetic search benchmark before adding a prefix index or changing search query
+shape:
+
+```bash
+./scripts/search-benchmark.sh
+./scripts/search-benchmark.sh --sizes 10000,250000 --iterations 20
+```
+
+It reports index construction time plus median and p95 latency for result counting, newest-first
+pages, and BM25 best-match pages. The benchmark is diagnostic and deliberately has no wall-clock
+pass/fail threshold.
 
 Schema version is tracked in `schema_version` (currently `4`). Existing version 3 databases are
 migrated in place; stale development databases may still be wiped when fresh demo data is needed.
