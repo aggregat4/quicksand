@@ -1,283 +1,136 @@
 # AGENTS.md
 
-## Purpose
+## Project constraints
 
-Quicksand is a server-rendered email client prototype built as a classic multi-page application on Java 25.
+Quicksand is a server-rendered email client on Java 25. Preserve these invariants:
 
-Core invariants:
+- The server owns routes, HTML generation, and application state.
+- Browser navigation uses real URLs and full HTML documents.
+- JavaScript enhances existing documents; it is not the rendering, routing, or mailbox-state model.
+- Mailbox views read from the local SQLite mirror, not directly from IMAP.
+- Background jobs reconcile SQLite with IMAP and SMTP.
+- The deployment baseline is standard Java on the JVM.
 
-- the server owns routing, HTML generation, and most application state
-- the browser navigates real URLs and renders full HTML documents
-- JavaScript is used for enhancement, not as the primary rendering or state model
-- mailbox data is mirrored locally and rendered from SQLite rather than queried from IMAP on every request
-- the deployment baseline is standard Java on the JVM
+Do not turn a flow into an SPA, introduce client-side mailbox state as authoritative, or replace
+links/forms/post-redirect behavior with a JSON-driven UI.
 
-## Architecture
+## Code map
 
-The codebase is organized around four layers:
+| Area | Location | Responsibility |
+|------|----------|----------------|
+| Runtime composition | `net.aggregat4.quicksand.Main` | Explicit application wiring and job startup |
+| Sync and delivery | `net.aggregat4.quicksand.jobs` | IMAP mirror, mailbox actions, SMTP delivery |
+| Persistence | `net.aggregat4.quicksand.repository` | SQLite repositories and transaction boundaries |
+| Application services | `net.aggregat4.quicksand.service` | Thin coordination between web and persistence |
+| HTTP layer | `net.aggregat4.quicksand.webservice` | Helidon routes, HTML responses, redirects |
+| HTML | `src/main/resources/templates` | Pebble documents, macros, and fragments |
+| Browser enhancement | `src/main/resources/static/js` | Focused ES modules by load boundary |
 
-1. runtime wiring in the application entrypoint, with explicit composition rather than framework-heavy dependency injection
-2. a local mailbox mirror backed by SQLite and maintained by sync code in `net.aggregat4.quicksand.jobs` and `net.aggregat4.quicksand.repository`
-3. thin application services in `net.aggregat4.quicksand.service`
-4. a Helidon-based, HTML-first web layer in `net.aggregat4.quicksand.webservice`
+New behavior normally flows from repository to service to template-backed route. Before changing a
+flow, inspect its webservice, service/repository calls, Pebble templates, JavaScript, and tests. Do
+not change only one side of a document flow without checking the others.
 
-Keep those boundaries intact. New behavior should normally flow from repository to service to template-backed route.
+## Architecture references
 
-## Web And UI Model
+- [`docs/frontend-architecture.md`](docs/frontend-architecture.md): module loading, import maps, and
+  browser/server boundaries.
+- [`docs/mailbox-sync-architecture.md`](docs/mailbox-sync-architecture.md): IMAP identity, action
+  queue, reconciliation, and recovery.
+- [`docs/notifications.md`](docs/notifications.md): SSE/poll notification refresh behavior.
+- [`docs/runtime-database.md`](docs/runtime-database.md): SQLite, Hikari, schema, and backup rules.
+- [`docs/account-credentials.md`](docs/account-credentials.md): credential-key setup and operations.
 
-Quicksand is not a SPA. Preserve the document-oriented model:
+Keep durable explanations in these documents. Keep this file focused on instructions an agent must
+apply while making changes.
 
-- account, folder, search, viewer, and composer flows should remain URL-addressable
-- primary responses should be HTML documents or redirects after form posts
-- Pebble templates are the primary rendering system
-- reusable UI fragments belong in Pebble macros/includes, not client-side component frameworks
+## Implementation rules
 
-Browser primitives are a deliberate part of the design:
+### Server-rendered flows
 
-- dialogs and iframes are first-class tools, not temporary hacks
-- `postMessage`, `history.pushState`, and small DOM controllers are acceptable when they enhance an SSR flow
-- JavaScript should assume the DOM already exists and enhance it narrowly
+- Keep account, folder, search, viewer, and composer flows URL-addressable.
+- Prefer HTML responses and redirects after form posts.
+- Keep reusable markup in Pebble macros/includes.
+- Dialogs, iframes, `postMessage`, and `history.pushState` are valid progressive-enhancement tools.
+- Preserve existing routes unless the requested behavior requires a route change.
+- Sanitize HTML email bodies server-side and keep them isolated from application UI.
 
-### JavaScript Policy
+### JavaScript and templates
 
-Pebble templates must stay declarative. Do not add inline JavaScript or inline event handler attributes.
+Pebble templates must remain declarative. Do not add application `<script>` blocks, inline `on*`
+handlers, or macro arguments containing handler source.
 
-**Forbidden in templates**
+- Put behavior in ES modules below `src/main/resources/static/js/`.
+- Use `quicksand/...` bare specifiers from the generated import map.
+- Export a focused `init…()` function and bootstrap through `lib/dom-ready.js`.
+- Pass server configuration through stable IDs, names, and `data-*` attributes.
+- Prefer event delegation for repeated message/folder nodes.
+- Respect load boundaries: global code in `shell/`, mailbox-only code in `account/` or
+  `notifications/`, standalone frame code in `iframe/`, and page-specific code in `settings/`.
+- Mailbox modules load only behind `#messagelist`; composer-dialog code remains lazy.
+- Notification refresh may replace only the strip and folder badges. It must not patch message rows
+  or read state.
+- Keyboard bindings belong in `account/keyboard-bindings.js`; key dispatch and DOM actions stay in
+  the keyboard modules.
 
-- `<script>` blocks with application logic (external `<script src="...">` tags are fine)
-- `onclick`, `onchange`, `oninput`, and other `on*` attributes
-- macro parameters whose sole purpose is injecting handler strings (for example `clickHandler = 'foo()'`)
+Files below `static/js/` are registered in the import map automatically.
 
-**Required pattern**
+### Mailbox and database behavior
 
-- put behavior in ES modules under `src/main/resources/static/js/`
-- load the shell entry from `base.peb` with an import map and `type="module"`:
-  - `<script type="importmap">{{ importMap() | raw }}</script>`
-  - `<script type="module" src="{{ asset('/js/shell/app.js') }}"></script>`
-- use bare specifiers mapped by the server-generated import map (for example `quicksand/account/mark-read.js`)
-- export one `init…()` (or `init`) per module; wire bootstrapping through `lib/dom-ready.js` rather than ad hoc `DOMContentLoaded` blocks
-- pass configuration through stable DOM hooks: element `id`s, button `name`s, and `data-*` attributes on existing nodes
-- prefer event delegation from a page container (`#messagelist`, `document`) when many similar nodes need the same behavior
-- lazy-load mailbox-only code: `shell/app.js` dynamically imports `account/*` and `notifications/*` only when `#messagelist` is present
-- lazy-load composer dialog code: `shell/header.js` and `shell/post-message.js` dynamically import `shell/composer-dialog.js` when opening or closing the composer
+- IMAP identity is `(account, remote mailbox, UIDVALIDITY, UID)`, never a bare UID.
+- `messages.folder_id` is desired UI location; `remote_*` columns hold observed server identity.
+- Message-ID is non-unique recovery evidence, not a normal deduplication key.
+- Unresolved mailbox-action rows must survive message and folder mirror eviction.
+- All IMAP work for one account must run through `AccountSyncCoordinator`.
+- HTTP actions update SQLite and enqueue remote intent transactionally; they do not wait for IMAP.
+- Schema changes require a migration, migration tests, and an update to
+  `docs/runtime-database.md` when operational behavior changes.
+- Repository code loading related rows should reuse the caller's `Connection` where possible; do
+  not casually add nested pool checkouts.
 
-**Module layout**
+## Verification
 
-```
-static/js/
-  lib/           shared helpers (dom-ready, account-context, page-context)
-  shell/         app entry, header, bfcache, postMessage hub, composer-dialog (lazy)
-  account/       message list, preview, mark-read, scroll persistence, selection toolbar, drafts composer wiring
-  notifications/ SSE + poll strip and folder badge updates (no live list surgery)
-  iframe/        viewer, composer, queued confirmation
-  settings/      sync-status, notifications preference
-```
-
-The import map is generated by `ImportMapRenderer` from `StaticAssetRegistry` and lists every `.js` file under `static/js/` with hashed `?v=` URLs. Listing every module in the map does not download them; the browser fetches a file only when an entry or static import references it.
-
-**Module design**
-
-Split code by **load boundary** first, then by **behavioral concern**. File size is not a goal; small files are normal when they mark a clear import edge in a no-bundler setup.
-
-Primary axis — who loads this, and when?
-
-| Directory | Loaded when | Owns |
-|-----------|-------------|------|
-| `shell/` | Every `base.peb` page via `shell/app.js` | Global chrome, bfcache recovery, iframe `postMessage` hub, composer dialog host (lazy) |
-| `account/` | Dynamic import when `#messagelist` exists | Message list, preview, mark-read, scroll persistence, selection toolbar, drafts composer wiring |
-| `notifications/` | Same gate as `account/` | SSE + poll; strip and folder badge updates only |
-| `iframe/` | Standalone iframe templates | Composer, viewer, queued confirmation documents |
-| `settings/` | `additionalScripts` on that settings page | Page-specific behavior beyond the shell |
-| `lib/` | Imported by other modules | Shared helpers with no init of their own |
-
-Load graph:
-
-```
-base.peb → shell/app.js (always)
-             ├─ lib/*, shell/*
-             └─ if #messagelist: account/index.js, notifications/index.js
-
-iframe templates → iframe/*.js
-settings templates → settings/*.js (+ shell from base.peb)
-```
-
-Secondary axis — one concern per module:
-
-- export one `init…()` (or a small set of named exports) per file
-- keep configuration in the DOM (`data-*`, ids, button names), not in inline scripts
-- prefer separate files for distinct capabilities (for example `mark-read.js` vs `scroll-persist.js`, or `apply-strip.js` vs `apply-badges.js`) so imports stay explicit
-
-When to split vs merge:
-
-- **Split** when load scope differs (mailbox vs iframe vs settings), when the behavior is a distinct concern another module might import alone, or when splitting reduces coupling (notifications must not know about message rows).
-- **Merge** when two modules always load together, share state, and never form a useful import boundary — optional for tiny helpers under `lib/`.
-- **Lazy-load** when behavior depends on a DOM region not present on every page (mailbox code behind `#messagelist`).
-
-Not optimization targets: matching the old monolith line count, one file per page, or minimizing file count. Settings pages still load `shell/` because they share account header and composer chrome; composer dialog code loads on first “New Mail” (or reply/forward) via dynamic import of `shell/composer-dialog.js`.
-
-**Notifications model**
-
-- SSE and poll fetch `/accounts/{id}/notifications` HTML fragments
-- update the inbox notification strip and folder unread badges in place
-- do not insert message rows or patch read state in the live list; users follow the strip link for a full SSR reload
-
-**Page-specific scripts**
-
-| Page / iframe | Script |
-|---------------|--------|
-| `base.peb` / all account-layout pages | `shell/app.js` (via import map) |
-| sync status settings | `settings/sync-status.js` via `additionalScripts` |
-| message viewer iframe | `iframe/viewer.js` |
-| composer iframe | `iframe/composer.js` |
-| queued-send confirmation iframe | `iframe/queued.js` |
-| notification settings | `settings/notifications-pref.js` |
-| mailbox list (via `account/index.js`) | `account/keyboard-shortcuts.js` and related modules |
-
-**Keyboard shortcuts**
-
-- Default Gmail bindings live in declarative data: `account/keyboard-bindings.js` (see `docs/keyboard-shortcuts-plan.md`).
-- Dispatch reads bindings only; `keyboard-actions.js` maps named intents to existing forms and dialogs.
-- Do not hardcode key checks outside the keyboard modules.
-
-When adding a new flow, extend an existing module if the page already loads it; otherwise add a focused module under the appropriate directory and register it in the import map (automatic for files under `static/js/`).
-
-**Exceptions**
-
-- sanitized HTML e-mail bodies may contain their own scripts until the sanitizer removes them; do not treat message HTML as a place to add Quicksand application logic
-- third-party content inside iframes follows the same isolation rules as mail HTML
-
-## Data And Interaction Conventions
-
-- mailbox browsing should read from the local SQLite mirror
-- background sync is responsible for keeping local state fresh against IMAP/SMTP sources
-- list browsing is optimized for mailbox-style navigation rather than generic CRUD
-- pagination and grouping behavior should preserve fast browsing and stable navigation semantics
-- HTML email rendering must stay isolated and sanitized server-side
-
-Mailbox sync identity rules are documented in
-[`docs/mailbox-sync-architecture.md`](docs/mailbox-sync-architecture.md):
-
-- IMAP identity is `(account, remote mailbox, UIDVALIDITY, UID)`, never a bare UID
-- `messages.folder_id` is desired UI state; observed remote identity is stored separately
-- Message-ID is non-unique recovery evidence and must not drive ordinary deduplication
-- unresolved queue rows must survive message and folder mirror eviction
-- all IMAP work for one account must run through `AccountSyncCoordinator`
-
-## Change Guidance
-
-When making changes:
-
-- do not convert the application into a SPA
-- do not introduce client-side state as the source of truth for mailbox views
-- prefer links, forms, redirects, and server-rendered HTML over JSON-driven browser rendering
-- keep JavaScript focused on UI enhancement such as dialogs, iframe orchestration, selection state, history updates, and sizing
-- prefer small controllers in `src/main/resources/static/js`; keep Pebble templates declarative and pass behavior hooks through forms, ids, and `data-*` attributes (see **JavaScript Policy** above)
-- when enhancing forms, prefer layered behavior that still submits real forms and preserves post/redirect semantics over ad hoc client-side request construction unless there is a clear need
-- preserve existing route structure unless a route change is required by the feature
-- prefer isolated changes that fit the existing SSR + local-cache model
-
-Before changing a flow, inspect the relevant webservice package, matching Pebble templates, and related static assets so the full document flow remains coherent.
-
-## Testing, Verification, and Debugging
-
-### Build and Test Commands
+Run the smallest relevant check while iterating, then the appropriate suite before handoff:
 
 ```bash
-mvn test                           # unit tests only
-mvn -DskipTests package            # build the jar without running tests
-npm run test:e2e                   # full Playwright e2e suite (builds jar + starts server)
+mvn test                 # Java unit/integration tests and formatting checks
+mvn -DskipTests package  # Build the runnable jar
+npm run test:e2e         # Full Playwright suite; builds and starts the server
 ```
 
-### Runtime database (SQLite + Hikari)
+For UI changes, verify rendered HTML and behavior rather than relying on code inspection. Use a
+focused Playwright test when interaction matters. A quick manual check can use a clean demo server
+and `curl` or a headless Chromium screenshot.
 
-See [`docs/runtime-database.md`](docs/runtime-database.md) for WAL mode, Hikari pool sizing, schema constraints, and backup notes.
+### Persistent database trap
 
-### Account credentials (IMAP/SMTP)
-
-Passwords in SQLite are encrypted at rest (`qsenc1:` + AES-256-GCM). The JVM still needs the real password when talking to mail servers.
-
-- **Key:** `QUICKSAND_CREDENTIAL_KEY` (base64, 32 bytes), or `config/credential-key` (created by `./scripts/start-real-server.sh` / `start-test-server.sh` if missing).
-- **Config passwords** stay plaintext in gitignored `application-local.conf` for bootstrap only.
-- **Ops:** see [`docs/account-credentials.md`](docs/account-credentials.md) (backups, lost key, `--wipe-db`, no key rotation).
-
-### IMAP capability probe (CLI)
-
-Probe an IMAP server for extensions relevant to Quicksand sync:
+Demo data is seeded only into a new database. Wipe the relevant database when fresh fixtures are
+required:
 
 ```bash
-./scripts/imap-probe.sh --host HOST --user USER --password PASS [--port 993] [--no-ssl]
-```
-
-Or run the Java class directly after `mvn -DskipTests package`:
-
-```bash
-java -cp "target/quicksand.jar:target/libs/*" net.aggregat4.quicksand.tools.ImapCapabilityProbe \
-  --host HOST --user USER --password PASS [--port 993] [--no-ssl]
-```
-
-### Stale Database Trap
-
-Quicksand persists mailbox state in a local SQLite database. The **demo mode** seeds messages on first sync, but if the database already exists it will skip seeding and show the old data. This is the most common cause of "my changes are not visible" confusion.
-
-**Rule:** always wipe the database when you need fresh demo data.
-
-```bash
-# For manual demo server testing
 rm -f target/db/quicksand.sqlite
-
-# For e2e testing (playwright.config.mjs uses ./target/e2e-db/)
 rm -rf target/e2e-db
 ```
 
-### Visual Verification with Screenshots
+The Playwright server uses `target/e2e-db/quicksand.sqlite`, port `43173`, and the fixed clock
+`2026-03-25T09:15:00Z`. Do not run a manual server on that port during e2e tests. Adding demo mail
+can shift pagination/group boundaries; check constants such as `DESCENDING_GROUPS` and
+`DUPLICATE_SEARCH_COUNT` in `e2e/smoke.spec.js`.
 
-When you add or change UI behavior, verify it visually rather than guessing from code.
-
-**Option A — quick curl + grep (no browser needed)**
-
-```bash
-# Start a clean demo server
-rm -f target/db/quicksand.sqlite
-java \
-  -Dserver.host=127.0.0.1 -Dserver.port=18080 \
-  -Ddemo.enabled=true -Dmail_fetcher.enabled=true \
-  -Duser.language=en -Duser.country=DE -Duser.timezone=Europe/Berlin \
-  -jar target/quicksand.jar
-
-# In another terminal, inspect the rendered HTML
-curl -s http://127.0.0.1:18080/accounts/1 | grep -oP '(?<=class="subjectline">)[^<]+' | head -20
-```
-
-**Option B — headless Chromium screenshot**
-
-```bash
-# Start server as above, then:
-chromium --headless --disable-gpu --window-size=1400,900 \
-  --screenshot=/tmp/inbox.png "http://127.0.0.1:18080/accounts/1"
-```
-
-**Option C — Playwright for interactive inspection**
-
-```bash
-npx playwright test e2e/smoke.spec.js --grep "descending inbox" --reporter=line
-```
-
-### E2E Test Idiosyncrasies
-
-- `npm run test:e2e` runs `mvn -DskipTests package` first, then starts the server on port **43173** with a **fixed clock** (`2026-03-25T09:15:00Z`). This makes temporal grouping deterministic.
-- The e2e server uses `target/e2e-db/quicksand.sqlite`. If e2e tests behave oddly, wipe `target/e2e-db/`.
-- Playwright's `webServer` block auto-starts and tears down the JVM process. Do **not** start a manual server on port 43173 at the same time.
-- Adding new demo emails shifts group boundaries on the first page. If you add boundary seeds, check `e2e/smoke.spec.js` constants (`DESCENDING_GROUPS`, `DUPLICATE_SEARCH_COUNT`, etc.) and update them to match the new distribution.
-
-### Background Server Gotchas
-
-Avoid `&` backgrounding inside shell scripts when you need to inspect output. It swallows errors and leaves zombie processes. Prefer either:
-
-1. **Foreground in one terminal**, curl from another.
-2. **Let Playwright manage the server** (it handles startup, port checks, and teardown).
-
-If you accidentally leak a server process:
+Let Playwright manage its server. For manual debugging, run the JVM in the foreground and issue
+requests from another terminal; shell-backgrounded servers hide startup failures and are easily
+leaked. If necessary, stop a leaked instance with:
 
 ```bash
 pkill -f "quicksand.jar"
+```
+
+### Real account prerequisites
+
+The JVM needs `QUICKSAND_CREDENTIAL_KEY` or `config/credential-key` to decrypt stored IMAP/SMTP
+passwords. Use the documented start scripts rather than duplicating credential setup manually.
+
+Probe a real IMAP server when capability-dependent sync behavior changes:
+
+```bash
+./scripts/imap-probe.sh --host HOST --user USER --password PASS [--port 993] [--no-ssl]
 ```

@@ -15,17 +15,6 @@ After `mvn -DskipTests package` and `./scripts/start-real-server.sh` (see [`docs
 
 Unit/integration coverage already exists for batched mark-read outbound sync, inbound read-state suppression while actions are pending, and settings routes — the items above are still worth checking against a live account.
 
----
-
-## Notifications
-
-Spec: [`specs/new-mail-notifications.md`](specs/new-mail-notifications.md)
-
-- [x] Playwright coverage for SSE wake-up (`e2e/notifications.spec.js`)
-- [x] Desktop notification opt-in UI (`/accounts/{id}/settings`)
-
----
-
 ## Accounts
 
 - Account management UI

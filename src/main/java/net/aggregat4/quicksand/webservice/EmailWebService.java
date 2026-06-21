@@ -177,8 +177,7 @@ public class EmailWebService implements HttpService {
       ResponseUtils.redirectAfterPost(response, missingMappingRedirect.get());
       return;
     }
-    // Read/unread actions are queued for background IMAP sync. Move-like actions are queued locally
-    // but remote UID MOVE is not implemented yet (see specs/imap-action-sync.md).
+    // Mailbox actions update local state and enqueue the corresponding background IMAP operation.
     switch (action) {
       case "email_action_mark_read" -> emailIds.forEach(id -> emailService.updateRead(id, true));
       case "email_action_mark_unread" -> emailIds.forEach(id -> emailService.updateRead(id, false));

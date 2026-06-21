@@ -40,6 +40,19 @@ and a durable instruction for the server in one database transaction. Background
 that instruction to IMAP and reconciles later server observations. Keeping desired and observed
 state separate prevents a normal inbound sync from undoing a local action that is still pending.
 
+## Folder mappings
+
+Remote mailbox names are server-specific, so Quicksand does not assume that names such as
+`Archive`, `Trash`, or `Sent` exist. Folder discovery stores the server's mailbox name,
+UIDVALIDITY, and any advertised SPECIAL-USE role. Each account must have configured mappings for
+Archive, Trash, Junk, Sent, and Drafts before the related flows are available. INBOX is discovered
+directly and is not part of this required mapping set.
+
+Unambiguous SPECIAL-USE attributes can seed mappings, but users confirm them in the account folder
+settings. The same settings flow can explicitly create a remote mailbox. Missing or ambiguous
+mappings block the affected SSR action and redirect to configuration rather than silently choosing
+or creating a server folder.
+
 ## Identity
 
 An IMAP mailbox entry is identified by the exact tuple:
@@ -62,14 +75,26 @@ A mailbox action copies its immutable source mailbox, UIDVALIDITY, and UID into
 `mailbox_action_queue` in the same transaction as the local UI change. Target mailbox metadata is
 also copied so the action remains diagnosable after local message or folder eviction.
 
+The queue covers read/unread flag changes, moves, archive, delete-as-move-to-Trash, spam, Sent
+append, and Draft create/update/delete. Read/unread uses `UID STORE`; all move-like operations use
+`UID MOVE`; Sent and Drafts use their configured remote mailboxes. Draft updates are coalesced so
+autosave does not produce an unbounded remote queue.
+
 Queue `status` controls scheduling and user attention. `execution_state` records remote uncertainty:
 
 - `NOT_ATTEMPTED`: no IMAP side effect can have occurred;
 - `ATTEMPTED_UNKNOWN`: the command may have succeeded;
 - `CONFIRMED_APPLIED`: the remote result is known and stored.
 
+Workers claim due `PENDING` and `FAILED_RETRYABLE` rows in bounded batches. Transient failures use
+exponential backoff based on the configured retry delay. Permanent failures and conflicts remain
+visible on the account sync status page until the user retries, abandons, dismisses, rolls back a
+safe local-only move, or resets the local mirror. Rollback is offered only when the remote command
+was never attempted; uncertain remote state is not "undone" by guessing.
+
 Mirror eviction detaches nullable convenience IDs but preserves unresolved queue rows and their
-copied identities.
+copied identities. Successful rows are retained for 30 days, resolved rows for 90 days, and
+unresolved rows are not aged out.
 
 ## MOVE and recovery
 
@@ -84,6 +109,17 @@ not retry an uncertain MOVE against an unrelated message.
 
 Quicksand requires the IMAP MOVE capability and a returned target UID. It does not use an unsafe
 COPY/delete/expunge fallback.
+
+## Recovery operations
+
+The account sync status page exposes queue counts, errors, source and target identity, retry, safe
+local rollback, abandon, and dismissal controls. Abandoning an unresolved action explicitly accepts
+that local and remote state may differ. Dismissal records resolution for a permanent failure or
+conflict; it does not change remote state.
+
+Resetting an account's local mirror is the last-resort recovery path. It marks unresolved actions
+as abandoned by reset, removes mirrored folders and messages, marks mappings missing, and triggers
+a fresh server sync. Local drafts and outbound-message records are preserved.
 
 ## Inbound reconciliation
 
@@ -116,5 +152,4 @@ different UIDVALIDITY generations, and repeated Message-ID values.
 The legacy `imap_uid` column remains a presentation compatibility value. Sync identity and
 reconciliation never use it without the observed folder and UIDVALIDITY.
 
-See [`runtime-database.md`](runtime-database.md) for SQLite operational settings and
-[`../specs/imap-action-sync.md`](../specs/imap-action-sync.md) for product behavior and conflict UI.
+See [`runtime-database.md`](runtime-database.md) for SQLite operational settings.

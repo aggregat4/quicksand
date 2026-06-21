@@ -1,4 +1,4 @@
-# Account credentials (Tier 2)
+# Account credentials
 
 Quicksand encrypts IMAP/SMTP passwords **at rest** in SQLite. Passwords in `application.conf` stay plaintext (bootstrap only); the database stores `qsenc1:…` ciphertext.
 
