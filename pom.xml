@@ -10,25 +10,25 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <helidon.version>4.4.1</helidon.version>
+        <helidon.version>4.5.0</helidon.version>
         <helidon.maven.plugin.version>4.0.27</helidon.maven.plugin.version>
         <mainClass>net.aggregat4.quicksand.Main</mainClass>
-        <junit.jupiter.version>5.9.3</junit.jupiter.version>
-        <maven.dependency.plugin.version>3.10.0</maven.dependency.plugin.version>
+        <junit.jupiter.version>6.1.0</junit.jupiter.version>
+        <maven.dependency.plugin.version>3.11.0</maven.dependency.plugin.version>
         <maven.jar.plugin.version>3.3.0</maven.jar.plugin.version>
         <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
         <maven.compiler.release>25</maven.compiler.release>
         <exec.maven.plugin.version>3.6.3</exec.maven.plugin.version>
         <slf4j.version>2.0.17</slf4j.version>
-        <sqlite.version>3.53.1.0</sqlite.version>
-        <hikari.version>7.0.2</hikari.version>
+        <sqlite.version>3.53.2.0</sqlite.version>
+        <hikari.version>7.1.0</hikari.version>
         <jakarta.mail.version>2.1.5</jakarta.mail.version>
         <jakarta.activation.version>2.1.4</jakarta.activation.version>
         <angus.version>2.0.5</angus.version>
-        <pebble.version>4.1.1</pebble.version>
+        <pebble.version>4.1.2</pebble.version>
         <owasp.html.sanitizer.version>20260313.1</owasp.html.sanitizer.version>
-        <greenmail.version>2.1.8</greenmail.version>
-        <spotless.maven.plugin.version>3.5.1</spotless.maven.plugin.version>
+        <greenmail.version>2.1.9</greenmail.version>
+        <spotless.maven.plugin.version>3.7.0</spotless.maven.plugin.version>
         <error.prone.version>2.49.0</error.prone.version>
     </properties>
 
