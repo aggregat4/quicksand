@@ -1,4 +1,4 @@
-# AGENTS.md
+# Quicksand agent guide
 
 ## Project constraints
 
