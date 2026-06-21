@@ -1,0 +1,36 @@
+# Release workflow: when a GitHub Release is published, build the runnable distribution tarball
+# (quicksand.jar + libs/, built with the production profile) and attach it to the release.
+name: Release
+
+on:
+  release:
+    types: [created]
+
+# The default GITHUB_TOKEN needs write access to attach assets to the release.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build distribution tarball
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Build (production profile, skip tests)
+        # `clean` keeps target/libs/ deterministic: copy-dependencies never prunes stale jars, so a
+        # dirty target/ could leak old/test deps (e.g. greenmail from a prior default-profile build).
+        run: mvn -B clean -Pproduction -DskipTests package
+      - name: Create distribution tarball
+        # Bundles the thin jar with its libs/ directory so a deploy is a single artifact:
+        #   tar -xzf quicksand-<tag>.tar.gz && java -jar quicksand.jar
+        run: tar -czf quicksand-${{ github.ref_name }}.tar.gz -C target quicksand.jar libs
+      - name: Attach tarball to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" quicksand-${{ github.ref_name }}.tar.gz
