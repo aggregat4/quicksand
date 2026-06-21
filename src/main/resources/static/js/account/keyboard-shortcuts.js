@@ -9,16 +9,7 @@ import {
 } from 'quicksand/account/keyboard-focus.js'
 import { executeKeyboardAction } from 'quicksand/account/keyboard-actions.js'
 
-const STORAGE_KEY = 'quicksand.keyboardShortcutsEnabled'
 const CHORD_TIMEOUT_MS = 1000
-
-function shortcutsEnabled() {
-    return localStorage.getItem(STORAGE_KEY) !== 'false'
-}
-
-export function setKeyboardShortcutsEnabled(enabled) {
-    localStorage.setItem(STORAGE_KEY, enabled ? 'true' : 'false')
-}
 
 function getActiveContexts() {
     const contexts = new Set()
@@ -35,21 +26,24 @@ function getActiveContexts() {
 }
 
 function shouldIgnoreEvent(event) {
-    if (!shortcutsEnabled()) {
+    if (event.defaultPrevented || event.isComposing) {
         return true
     }
-    if (event.defaultPrevented || event.isComposing) {
+    const dismissing = event.key === 'Escape'
+    const blockingDialogOpen = [
+        'newmail-composer-dialog',
+        'move-emails-dialog',
+        'keyboard-shortcuts-help'
+    ].some(id => document.getElementById(id)?.open)
+    if (blockingDialogOpen && !dismissing) {
         return true
     }
     const target = event.target
     if (!(target instanceof Element)) {
         return false
     }
-    if (target.closest('#newmail-composer-dialog[open]')) {
-        return true
-    }
     if (target.closest('input, textarea, select, [contenteditable="true"]')) {
-        if (event.key === 'Escape') {
+        if (dismissing) {
             return false
         }
         return true

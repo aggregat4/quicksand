@@ -67,9 +67,7 @@ export function moveListFocus(delta) {
     if (headers.length === 0) {
         return false
     }
-    const current = getFocusedEmailHeader()
-        ?? getActiveEmailHeader()
-        ?? (delta > 0 ? headers[0] : headers[headers.length - 1])
+    const current = getFocusedEmailHeader() ?? getActiveEmailHeader()
     let index = headerIndex(current)
     if (index < 0) {
         index = delta > 0 ? -1 : headers.length
@@ -119,6 +117,10 @@ export function initKeyboardFocus() {
     if (getActiveEmailHeader()) {
         syncTabIndex(getActiveEmailHeader())
         updateActionButtons(hasSelectedEmailActionTarget())
+        return
+    }
+    if (headers.length > 0) {
+        syncTabIndex(headers[0])
     }
 }
 

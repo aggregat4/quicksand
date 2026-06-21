@@ -5,6 +5,8 @@ const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: './e2e',
+  // All projects share one SQLite database and one demo IMAP server.
+  workers: 1,
   timeout: 30_000,
   expect: {
     timeout: 10_000

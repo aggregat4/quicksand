@@ -34,6 +34,24 @@ async function waitForDemoInbox(page) {
     .toBeGreaterThan(0);
 }
 
+async function ensureFirstRowUnread(page) {
+  const firstRow = page.locator('#messagelist a.emailheader').first();
+  if (await firstRow.evaluate(row => row.classList.contains('read'))) {
+    const messageId = await firstRow.getAttribute('data-message-id');
+    const response = await page.request.post('/emails/selection', {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Referer: page.url()
+      },
+      data: `email_select=${messageId}&email_action_mark_unread=Mark+Unread`
+    });
+    expect(response.status(), await response.text()).toBeLessThan(400);
+    await page.reload();
+  }
+  await expect(firstRow).not.toHaveClass(/read/);
+  return firstRow;
+}
+
 async function inboxPath(page) {
   const href = await page.locator('#folderlist a[title="INBOX"]').getAttribute('href');
   expect(href).toBeTruthy();
@@ -408,8 +426,7 @@ test('descending inbox shows all temporal groups and seeded HTML examples', asyn
 test('bulk mark read and unread updates row styling', async ({ page }) => {
   await waitForDemoInbox(page);
 
-  const firstRow = page.locator('#messagelist a.emailheader').first();
-  await expect(firstRow).not.toHaveClass(/read/);
+  const firstRow = await ensureFirstRowUnread(page);
 
   await firstRow.locator('.emailselection input[type="checkbox"]').check();
   await page.locator('#selected-email-actions button[name="email_action_mark_read"]').click();
@@ -459,9 +476,8 @@ test('message list scroll position survives email action reload', async ({ page 
 test('toolbar actions apply to open message when no checkbox is selected', async ({ page }) => {
   await waitForDemoInbox(page);
 
-  const firstRow = page.locator('#messagelist a.emailheader').first();
+  const firstRow = await ensureFirstRowUnread(page);
   const firstRowCheckbox = firstRow.locator('.emailselection input[type="checkbox"]');
-  await expect(firstRow).not.toHaveClass(/read/);
 
   await firstRow.click();
   await expect(page.locator('#messagepreview')).toBeVisible();
