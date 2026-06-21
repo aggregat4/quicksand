@@ -110,6 +110,7 @@ public class EmailWebService implements HttpService {
     boolean showImages = getShowImagesParam(request);
     Optional<String> query =
         request.query().first("query").map(String::trim).filter(s -> !s.isBlank());
+    String searchOrder = request.query().first("searchOrder").map(String::trim).orElse("");
     Optional<Email> email = emailService.getMessage(emailId);
     if (email.isEmpty()) {
       response.status(404);
@@ -120,6 +121,7 @@ public class EmailWebService implements HttpService {
     context.put("showImages", showImages);
     context.put("email", email.get());
     context.put("currentQuery", query);
+    context.put("currentSearchOrder", searchOrder);
     // TODO: we should if-last modified here so we can instruct the browser to use the cached
     // version as long we did not restart the program
     response.headers().contentType(TEXT_HTML);

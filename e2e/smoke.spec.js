@@ -349,6 +349,60 @@ test('submitting an empty search query exits search mode', async ({ page }) => {
   await expect(page.locator('#messagelist .emailgroup')).not.toHaveCount(0);
 });
 
+test('prefix search finds Launch Digest while an exact quoted short term does not', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  // "Launch Dig" treats the final unquoted term as a prefix: "dig" matches the token "digest".
+  await page.goto('/accounts/1/search?query=' + encodeURIComponent('Launch Dig'));
+  await expect(page.locator('#searchemailinput')).toHaveValue('Launch Dig');
+  await expect(page.locator('#pagination-status')).toContainText(/\d+ message/);
+  const prefixRow = page.locator('#messagelist a.emailheader').filter({
+    has: page.locator('.subjectline', { hasText: 'HTML demo: Product launch digest' })
+  });
+  await expect(prefixRow).toHaveCount(1);
+  // The prefix portion of the matching token is highlighted.
+  await expect(prefixRow.locator('mark')).toContainText(['Dig']);
+
+  // "Launch \"Dig\"" makes "Dig" an exact term, which does not match the token "digest".
+  await page.goto('/accounts/1/search?query=' + encodeURIComponent('Launch "Dig"'));
+  await expect(page.locator('#searchemailinput')).toHaveValue('Launch "Dig"');
+  await expect(prefixRow).toHaveCount(0);
+});
+
+test('search order selector offers Best match and preserves the order across paging', async ({ page }) => {
+  await waitForDemoInbox(page);
+
+  await page.goto('/accounts/1/search?query=' + encodeURIComponent('Duplicate timestamp sample'));
+  const orderNav = page.locator('#searchorder');
+  await expect(orderNav).toBeVisible();
+  await expect(orderNav.locator('a', { hasText: 'Newest' })).toHaveAttribute('aria-current', 'true');
+
+  await orderNav.locator('a', { hasText: 'Best match' }).click();
+  await expect(page).toHaveURL(/searchOrder=BEST_MATCH/);
+  await expect(orderNav.locator('a', { hasText: 'Best match' })).toHaveAttribute('aria-current', 'true');
+  await expect(page.locator('#messagelist a.emailheader')).toHaveCount(PAGE_SIZE);
+
+  // The order survives the Next paging link.
+  await page.locator('#emailpagination a[title="Next"]').click();
+  await expect(page).toHaveURL(/searchOrder=BEST_MATCH/);
+  await expect(page).toHaveURL(/offsetRank=/);
+  await expect(orderNav.locator('a', { hasText: 'Best match' })).toHaveAttribute('aria-current', 'true');
+
+  const pageUrl = new URL(page.url());
+  const rankCursor = pageUrl.searchParams.get('offsetRank');
+  await page.locator('#messagelist a.emailheader').first().click();
+  await expect(page.locator('#messagepreview')).toHaveAttribute('open', '');
+  await expect(page.locator('iframe[name="emailviewer"]')).toHaveAttribute('src', /searchOrder=BEST_MATCH/);
+  expect(new URL(page.url()).searchParams.get('offsetRank')).toBe(rankCursor);
+
+  await page.locator('#messagepreview button[name="closeMessageViewer"]').click();
+  await expect(page.locator('#messagepreview')).not.toHaveAttribute('open', '');
+  const closedUrl = new URL(page.url());
+  expect(closedUrl.searchParams.get('searchOrder')).toBe('BEST_MATCH');
+  expect(closedUrl.searchParams.get('offsetRank')).toBe(rankCursor);
+  expect(closedUrl.searchParams.has('selectedEmailId')).toBe(false);
+});
+
 test('search paging stays stable for multi-page result sets', async ({ page }) => {
   await waitForDemoInbox(page);
 

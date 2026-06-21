@@ -124,6 +124,28 @@ body.accountpage main:has(#emailcontrols) #messagepreview {
     flex-shrink: 0;
 }
 
+#searchorder ul {
+    display: flex;
+    gap: var(--gap-s);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+#searchorder .search-order-link {
+    padding: 2px var(--gap-s);
+    border: var(--standard-border);
+    border-radius: 3px;
+    text-decoration: none;
+    color: var(--text-color, inherit);
+    font-size: 0.85em;
+}
+
+#searchorder .search-order-link.selected {
+    background-color: var(--highlighted-bgcolor);
+    font-weight: 600;
+}
+
 /*  Tri-State icon swapping for select all emails control.
     It's a bit nasty.
     CSS nesting would be really nice here */

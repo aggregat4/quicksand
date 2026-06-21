@@ -15,6 +15,7 @@ import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
 import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
+import net.aggregat4.quicksand.domain.SearchOrder;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.repository.EmailRepository;
 
@@ -423,10 +424,12 @@ public class InMemoryEmailRepository implements EmailRepository {
       int accountId,
       String query,
       int pageSize,
+      SearchOrder order,
+      PageDirection direction,
+      Optional<Double> rankOffset,
       long dateTimeOffsetEpochSeconds,
       int offsetMessageId,
-      PageDirection direction,
-      SortOrder order) {
+      boolean endJump) {
     throw new UnsupportedOperationException("searchMessages not implemented");
   }
 

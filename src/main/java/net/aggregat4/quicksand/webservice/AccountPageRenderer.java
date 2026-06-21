@@ -26,6 +26,7 @@ import net.aggregat4.quicksand.domain.OutboxFolder;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.PageParams;
 import net.aggregat4.quicksand.domain.Pagination;
+import net.aggregat4.quicksand.domain.SearchOrder;
 import net.aggregat4.quicksand.domain.SidebarFolderLink;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.pebble.PebbleRenderer;
@@ -83,7 +84,8 @@ final class AccountPageRenderer {
             ? EmailGroup.createNoGroupEmailgroup(emailHeaders)
             : EmailGroup.createEmailGroups(
                 emailHeaders, clock, pagination.pageParams().sortOrder());
-    EmailGroupPage emailGroupPage = new EmailGroupPage(emailGroups, pagination);
+    EmailGroupPage emailGroupPage =
+        new EmailGroupPage(emailGroups, pagination, emailPage.firstRank(), emailPage.lastRank());
     List<NamedFolder> mailboxNavigationFolders = mailboxNavigationFolders(folders);
     AccountNotificationSummary notificationSummary =
         notificationService.getAccountSummary(accountId);
@@ -109,6 +111,8 @@ final class AccountPageRenderer {
       context.put("currentNamedFolderId", namedFolder.id());
     }
     context.put("currentQuery", query);
+    context.put(
+        "currentSearchOrder", pagination.searchOrder().map(SearchOrder::getParamString).orElse(""));
     response.headers().contentType(TEXT_HTML);
     ResponseUtils.setDynamicDocumentCacheControl(response);
     response.send(PebbleRenderer.renderTemplate(context, accountTemplate));

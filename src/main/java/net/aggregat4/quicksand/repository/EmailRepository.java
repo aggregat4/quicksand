@@ -9,6 +9,7 @@ import net.aggregat4.quicksand.domain.Email;
 import net.aggregat4.quicksand.domain.EmailHeader;
 import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.PageDirection;
+import net.aggregat4.quicksand.domain.SearchOrder;
 import net.aggregat4.quicksand.domain.SortOrder;
 
 public interface EmailRepository extends MailboxActionRepository {
@@ -70,10 +71,12 @@ public interface EmailRepository extends MailboxActionRepository {
       int accountId,
       String query,
       int pageSize,
+      SearchOrder order,
+      PageDirection direction,
+      Optional<Double> rankOffset,
       long dateTimeOffsetEpochSeconds,
       int offsetMessageId,
-      PageDirection direction,
-      SortOrder order);
+      boolean endJump);
 
   int getSearchMessageCount(int accountId, String query);
 }

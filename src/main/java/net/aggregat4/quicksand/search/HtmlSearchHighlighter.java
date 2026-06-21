@@ -3,7 +3,6 @@ package net.aggregat4.quicksand.search;
 import java.io.BufferedWriter;
 import java.io.StringWriter;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.owasp.html.HtmlSanitizer;
 import org.owasp.html.HtmlStreamEventReceiver;
@@ -26,7 +25,7 @@ public final class HtmlSearchHighlighter {
               throw new AssertionError(x);
             });
     HtmlStreamEventReceiver receiver =
-        SearchQueryUtils.toHighlightPattern(query)
+        SearchHighlighter.highlightPattern(query)
             .<HtmlStreamEventReceiver>map(
                 pattern -> new HighlightingHtmlReceiver(renderer, pattern))
             .orElse(renderer);
@@ -71,26 +70,22 @@ public final class HtmlSearchHighlighter {
         delegate.text(text == null ? "" : text);
         return;
       }
-      Matcher matcher = pattern.matcher(text);
-      int lastEnd = 0;
-      boolean foundMatch = false;
-      while (matcher.find()) {
-        foundMatch = true;
-        if (matcher.start() > lastEnd) {
-          delegate.text(text.substring(lastEnd, matcher.start()));
-        }
-        delegate.openTag("mark", EMPTY_ATTRIBUTES);
-        delegate.text(matcher.group());
-        delegate.closeTag("mark");
-        lastEnd = matcher.end();
-      }
-      if (!foundMatch) {
-        delegate.text(text);
-        return;
-      }
-      if (lastEnd < text.length()) {
-        delegate.text(text.substring(lastEnd));
-      }
+      SearchHighlighter.highlight(
+          text,
+          pattern,
+          new SearchHighlighter.HighlightSink() {
+            @Override
+            public void text(String run) {
+              delegate.text(run);
+            }
+
+            @Override
+            public void highlight(String match) {
+              delegate.openTag("mark", EMPTY_ATTRIBUTES);
+              delegate.text(match);
+              delegate.closeTag("mark");
+            }
+          });
     }
   }
 }

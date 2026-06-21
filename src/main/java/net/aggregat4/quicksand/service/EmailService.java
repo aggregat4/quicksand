@@ -8,6 +8,7 @@ import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.MessageReadState;
 import net.aggregat4.quicksand.domain.PageDirection;
+import net.aggregat4.quicksand.domain.SearchOrder;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.repository.EmailRepository;
 
@@ -58,12 +59,22 @@ public class EmailService {
       int accountId,
       String query,
       int pageSize,
+      SearchOrder order,
+      PageDirection direction,
+      Optional<Double> rankOffset,
       long dateTimeOffsetEpochSeconds,
       int offsetMessageId,
-      PageDirection direction,
-      SortOrder order) {
+      boolean endJump) {
     return emailRepository.searchMessages(
-        accountId, query, pageSize, dateTimeOffsetEpochSeconds, offsetMessageId, direction, order);
+        accountId,
+        query,
+        pageSize,
+        order,
+        direction,
+        rankOffset,
+        dateTimeOffsetEpochSeconds,
+        offsetMessageId,
+        endJump);
   }
 
   public int getSearchMessageCount(int accountId, String query) {

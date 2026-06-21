@@ -6,6 +6,7 @@ import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.PageParams;
 import net.aggregat4.quicksand.domain.Pagination;
+import net.aggregat4.quicksand.domain.SearchOrder;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.service.EmailService;
 
@@ -18,13 +19,19 @@ final class AccountMessagePagination {
       Optional<Long> offsetReceivedTimestamp,
       Optional<Integer> offsetMessageId,
       PageParams pageParams,
+      Optional<SearchOrder> searchOrder,
+      Optional<Double> offsetRank,
       boolean endJump) {
 
     static PageRequest from(ServerRequest request) {
+      Optional<SearchOrder> searchOrder =
+          request.query().first("searchOrder").map(SearchOrder::valueOf);
       return new PageRequest(
           parseOffsetReceivedTimestamp(request),
           parseOffsetMessageId(request),
-          parsePageParams(request),
+          parsePageParams(request, searchOrder),
+          searchOrder,
+          parseOffsetRank(request),
           isEndJump(request));
     }
 
@@ -33,6 +40,8 @@ final class AccountMessagePagination {
           Optional.empty(),
           Optional.empty(),
           new PageParams(PageDirection.RIGHT, SortOrder.DESCENDING),
+          Optional.empty(),
+          Optional.empty(),
           false);
     }
   }
@@ -71,19 +80,27 @@ final class AccountMessagePagination {
 
   static MessageListResult loadSearchPage(
       EmailService emailService, int accountId, String query, PageRequest request) {
+    SearchOrder searchOrder = request.searchOrder().orElse(SearchOrder.NEWEST);
     int resultCount = emailService.getSearchMessageCount(accountId, query);
     int effectivePageSize = request.endJump() ? terminalPageSize(resultCount) : PAGE_SIZE;
+    long dateCursor =
+        request
+            .offsetReceivedTimestamp()
+            .orElse(
+                defaultOffsetReceivedTimestamp(searchOrder, request.pageParams().pageDirection()));
+    int messageIdCursor =
+        request.offsetMessageId().orElse(defaultOffsetMessageId(request.pageParams()));
     EmailPage emailPage =
         emailService.searchMessages(
             accountId,
             query,
             effectivePageSize,
-            request
-                .offsetReceivedTimestamp()
-                .orElse(defaultOffsetReceivedTimestamp(request.pageParams())),
-            request.offsetMessageId().orElse(defaultOffsetMessageId(request.pageParams())),
+            searchOrder,
             request.pageParams().pageDirection(),
-            request.pageParams().sortOrder());
+            request.offsetRank(),
+            dateCursor,
+            messageIdCursor,
+            request.endJump());
     Pagination pagination =
         new Pagination(
             request.offsetReceivedTimestamp(),
@@ -92,7 +109,8 @@ final class AccountMessagePagination {
             effectivePageSize,
             Optional.of(resultCount),
             emailPage.hasLeft(),
-            emailPage.hasRight());
+            emailPage.hasRight(),
+            Optional.of(searchOrder));
     return new MessageListResult(emailPage, pagination);
   }
 
@@ -120,14 +138,25 @@ final class AccountMessagePagination {
     return new MessageListResult(emailPage, pagination);
   }
 
-  private static PageParams parsePageParams(ServerRequest request) {
+  private static PageParams parsePageParams(
+      ServerRequest request, Optional<SearchOrder> searchOrder) {
+    SortOrder sortOrder =
+        searchOrder
+            .map(SearchOrder::toSortOrder)
+            .orElseGet(
+                () ->
+                    request
+                        .query()
+                        .first("sortOrder")
+                        .map(SortOrder::valueOf)
+                        .orElse(SortOrder.DESCENDING));
     return new PageParams(
         request
             .query()
             .first("pageDirection")
             .map(PageDirection::valueOf)
             .orElse(PageDirection.RIGHT),
-        request.query().first("sortOrder").map(SortOrder::valueOf).orElse(SortOrder.DESCENDING));
+        sortOrder);
   }
 
   private static Optional<Integer> parseOffsetMessageId(ServerRequest request) {
@@ -144,6 +173,14 @@ final class AccountMessagePagination {
         .first("offsetReceivedTimestamp")
         .filter(AccountMessagePagination::hasNumericValue)
         .map(Long::parseLong);
+  }
+
+  private static Optional<Double> parseOffsetRank(ServerRequest request) {
+    return request
+        .query()
+        .first("offsetRank")
+        .filter(AccountMessagePagination::hasNumericValue)
+        .map(Double::parseDouble);
   }
 
   private static boolean hasNumericValue(String value) {
@@ -166,6 +203,14 @@ final class AccountMessagePagination {
     return switch (pageParams.sortOrder()) {
       case DESCENDING -> pageParams.pageDirection() == PageDirection.RIGHT ? Long.MAX_VALUE : 0L;
       case ASCENDING -> pageParams.pageDirection() == PageDirection.RIGHT ? 0L : Long.MAX_VALUE;
+    };
+  }
+
+  private static long defaultOffsetReceivedTimestamp(
+      SearchOrder searchOrder, PageDirection pageDirection) {
+    return switch (searchOrder) {
+      case NEWEST, BEST_MATCH -> pageDirection == PageDirection.RIGHT ? Long.MAX_VALUE : 0L;
+      case OLDEST -> pageDirection == PageDirection.RIGHT ? 0L : Long.MAX_VALUE;
     };
   }
 

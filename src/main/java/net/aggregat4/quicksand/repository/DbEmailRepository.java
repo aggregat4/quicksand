@@ -24,12 +24,21 @@ import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.MailboxSyncStatus;
 import net.aggregat4.quicksand.domain.PageDirection;
 import net.aggregat4.quicksand.domain.PageParams;
+import net.aggregat4.quicksand.domain.SearchOrder;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.search.SearchQueryUtils;
 import net.aggregat4.quicksand.util.ContentHasher;
 
 public class DbEmailRepository implements EmailRepository {
   private static final int IN_BATCH_SIZE = 100;
+
+  /**
+   * bm25 column weights for {@code message_search}, in FTS column order (subject, body_excerpt,
+   * body, actors). Subject and actors rank above body content. See {@code specs/
+   * search-prefix-and-relevance.md}.
+   */
+  private static final String BM25_WEIGHTS = "8.0, 2.0, 1.0, 5.0";
+
   private static final String MESSAGE_HEADER_COLUMNS =
       """
             id, imap_uid, subject, sent_date, sent_date_epoch_s, received_date, received_date_epoch_s, body_excerpt, starred, read
@@ -147,7 +156,8 @@ public class DbEmailRepository implements EmailRepository {
       long receivedDateEpochSeconds,
       String bodyExcerpt,
       boolean starred,
-      boolean read) {
+      boolean read,
+      java.util.Optional<Double> rank) {
 
     static CapturedMessageHeader fromResultSet(ResultSet rs) throws SQLException {
       return new CapturedMessageHeader(
@@ -160,7 +170,23 @@ public class DbEmailRepository implements EmailRepository {
           rs.getLong(7),
           rs.getString(8),
           rs.getInt(9) == 1,
-          rs.getInt(10) == 1);
+          rs.getInt(10) == 1,
+          java.util.Optional.empty());
+    }
+
+    static CapturedMessageHeader fromResultSetWithRank(ResultSet rs) throws SQLException {
+      return new CapturedMessageHeader(
+          rs.getInt(1),
+          rs.getLong(2),
+          rs.getString(3),
+          fromISOString(rs.getString(4)),
+          rs.getLong(5),
+          fromISOString(rs.getString(6)),
+          rs.getLong(7),
+          rs.getString(8),
+          rs.getInt(9) == 1,
+          rs.getInt(10) == 1,
+          java.util.Optional.of(rs.getDouble(11)));
     }
 
     EmailHeader toHeader(List<Actor> actors, boolean hasAttachment) {
@@ -768,10 +794,48 @@ public class DbEmailRepository implements EmailRepository {
       int accountId,
       String query,
       int pageSize,
+      SearchOrder order,
+      PageDirection direction,
+      Optional<Double> rankOffset,
       long dateTimeOffsetEpochSeconds,
       int offsetMessageId,
+      boolean endJump) {
+    String matchQuery = SearchQueryUtils.toFtsMatchQuery(query);
+    return DbUtil.withConFunction(
+        ds,
+        con ->
+            order == SearchOrder.BEST_MATCH
+                ? searchMessagesByRank(
+                    con,
+                    accountId,
+                    matchQuery,
+                    pageSize,
+                    direction,
+                    rankOffset,
+                    dateTimeOffsetEpochSeconds,
+                    offsetMessageId,
+                    endJump)
+                : searchMessagesByDate(
+                    con,
+                    accountId,
+                    matchQuery,
+                    pageSize,
+                    direction,
+                    order.toSortOrder(),
+                    dateTimeOffsetEpochSeconds,
+                    offsetMessageId));
+  }
+
+  private EmailPage searchMessagesByDate(
+      Connection con,
+      int accountId,
+      String matchQuery,
+      int pageSize,
       PageDirection direction,
-      SortOrder order) {
+      SortOrder order,
+      long dateTimeOffsetEpochSeconds,
+      int offsetMessageId)
+      throws SQLException {
     String orderByString;
     String operatorString;
     if (order == SortOrder.DESCENDING) {
@@ -781,73 +845,198 @@ public class DbEmailRepository implements EmailRepository {
       orderByString = direction == PageDirection.RIGHT ? "ASC" : "DESC";
       operatorString = direction == PageDirection.RIGHT ? ">" : "<";
     }
-    String matchQuery = SearchQueryUtils.toFtsMatchQuery(query);
-    return DbUtil.withConFunction(
-        ds,
-        con ->
-            DbUtil.withPreparedStmtFunction(
-                con,
-                """
-                SELECT %s
-                FROM messages m
-                JOIN message_search ON message_search.rowid = m.id
-                JOIN folders f ON f.id = m.folder_id
-                WHERE f.account_id = ?
-                  AND message_search MATCH ?
-                  AND (m.received_date_epoch_s, m.id) %s (?, ?)
-                ORDER BY m.received_date_epoch_s %s, m.id %s
-                LIMIT ?
-                """
-                    .formatted(
-                        QUALIFIED_MESSAGE_HEADER_COLUMNS,
-                        operatorString,
-                        orderByString,
-                        orderByString),
-                stmt -> {
-                  bindSearchParams(
-                      stmt,
-                      accountId,
-                      matchQuery,
-                      dateTimeOffsetEpochSeconds,
-                      offsetMessageId,
-                      pageSize + 1);
-                  return DbUtil.withResultSetFunction(
-                      stmt,
-                      rs -> {
-                        List<CapturedMessageHeader> rows = new ArrayList<>();
-                        while (rs.next()) {
-                          rows.add(CapturedMessageHeader.fromResultSet(rs));
-                        }
-                        List<Email> messages = toListEmails(con, rows);
-                        boolean hasMoreResults = messages.size() > pageSize;
-                        if (hasMoreResults) {
-                          messages.removeLast();
-                        }
-                        if (direction == PageDirection.LEFT) {
-                          Collections.reverse(messages);
-                        }
-                        boolean hasLeft =
-                            switch (direction) {
-                              case LEFT -> hasMoreResults;
-                              case RIGHT ->
-                                  !((order == SortOrder.ASCENDING
-                                          && dateTimeOffsetEpochSeconds == 0)
-                                      || (order == SortOrder.DESCENDING
-                                          && dateTimeOffsetEpochSeconds == Long.MAX_VALUE));
-                            };
-                        boolean hasRight =
-                            switch (direction) {
-                              case LEFT ->
-                                  !((order == SortOrder.ASCENDING
-                                          && dateTimeOffsetEpochSeconds == Long.MAX_VALUE)
-                                      || (order == SortOrder.DESCENDING
-                                          && dateTimeOffsetEpochSeconds == 0));
-                              case RIGHT -> hasMoreResults;
-                            };
-                        return new EmailPage(
-                            messages, hasLeft, hasRight, new PageParams(direction, order));
-                      });
-                }));
+    return DbUtil.withPreparedStmtFunction(
+        con,
+        """
+        SELECT %s
+        FROM messages m
+        JOIN message_search ON message_search.rowid = m.id
+        JOIN folders f ON f.id = m.folder_id
+        WHERE f.account_id = ?
+          AND message_search MATCH ?
+          AND (m.received_date_epoch_s, m.id) %s (?, ?)
+        ORDER BY m.received_date_epoch_s %s, m.id %s
+        LIMIT ?
+        """
+            .formatted(
+                QUALIFIED_MESSAGE_HEADER_COLUMNS, operatorString, orderByString, orderByString),
+        stmt -> {
+          bindSearchParams(
+              stmt,
+              accountId,
+              matchQuery,
+              dateTimeOffsetEpochSeconds,
+              offsetMessageId,
+              pageSize + 1);
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                List<CapturedMessageHeader> rows = new ArrayList<>();
+                while (rs.next()) {
+                  rows.add(CapturedMessageHeader.fromResultSet(rs));
+                }
+                boolean hasMoreResults = rows.size() > pageSize;
+                if (hasMoreResults) {
+                  rows.removeLast();
+                }
+                if (direction == PageDirection.LEFT) {
+                  Collections.reverse(rows);
+                }
+                List<Email> messages = toListEmails(con, rows);
+                boolean hasLeft =
+                    switch (direction) {
+                      case LEFT -> hasMoreResults;
+                      case RIGHT ->
+                          !((order == SortOrder.ASCENDING && dateTimeOffsetEpochSeconds == 0)
+                              || (order == SortOrder.DESCENDING
+                                  && dateTimeOffsetEpochSeconds == Long.MAX_VALUE));
+                    };
+                boolean hasRight =
+                    switch (direction) {
+                      case LEFT ->
+                          !((order == SortOrder.ASCENDING
+                                  && dateTimeOffsetEpochSeconds == Long.MAX_VALUE)
+                              || (order == SortOrder.DESCENDING
+                                  && dateTimeOffsetEpochSeconds == 0));
+                      case RIGHT -> hasMoreResults;
+                    };
+                return new EmailPage(
+                    messages,
+                    hasLeft,
+                    hasRight,
+                    new PageParams(direction, order),
+                    Optional.empty(),
+                    Optional.empty());
+              });
+        });
+  }
+
+  /**
+   * Relevance-ordered search. Ordering is {@code bm25(message_search, ...) ASC,
+   * received_date_epoch_s DESC, id DESC}; the rank cursor (rankOffset, received date, id) keeps
+   * pagination deterministic for an unchanged index and avoids duplicate rows within a response.
+   *
+   * <p>RIGHT fetches rows after the cursor (more relevant → less relevant); LEFT fetches rows
+   * before the cursor in reverse and flips them. End-jump fetches the least-relevant terminal page
+   * in reversed order.
+   */
+  private EmailPage searchMessagesByRank(
+      Connection con,
+      int accountId,
+      String matchQuery,
+      int pageSize,
+      PageDirection direction,
+      Optional<Double> rankOffset,
+      long dateTimeOffsetEpochSeconds,
+      int offsetMessageId,
+      boolean endJump)
+      throws SQLException {
+    String rankExpr = "bm25(message_search, %s)".formatted(BM25_WEIGHTS);
+    boolean reverse = endJump || direction == PageDirection.LEFT;
+    String rankDir = reverse ? "DESC" : "ASC";
+    String dateDir = reverse ? "ASC" : "DESC";
+    String idDir = reverse ? "ASC" : "DESC";
+    String cursorPredicate;
+    if (endJump) {
+      // No cursor: start from the least-relevant end.
+      cursorPredicate = "";
+    } else if (rankOffset.isEmpty()) {
+      cursorPredicate = "";
+    } else {
+      // Ordering is (rank ASC, date DESC, id DESC). "After" the cursor (RIGHT, forward) uses
+      // rank >, date <, id <; "before" the cursor (LEFT, backward) uses rank <, date >, id >.
+      // LEFT fetches the before-set in reversed order and flips it in Java.
+      boolean forward = direction == PageDirection.RIGHT;
+      String rankOp = forward ? ">" : "<";
+      String dateOp = forward ? "<" : ">";
+      String idOp = forward ? "<" : ">";
+      cursorPredicate =
+          """
+          AND (%s %s ?
+               OR (%s = ? AND m.received_date_epoch_s %s ?)
+               OR (%s = ? AND m.received_date_epoch_s = ? AND m.id %s ?))
+          """
+              .formatted(rankExpr, rankOp, rankExpr, dateOp, rankExpr, idOp);
+    }
+    String sql =
+        """
+        SELECT %s, %s AS rank
+        FROM messages m
+        JOIN message_search ON message_search.rowid = m.id
+        JOIN folders f ON f.id = m.folder_id
+        WHERE f.account_id = ?
+          AND message_search MATCH ?
+          %s
+        ORDER BY %s %s, m.received_date_epoch_s %s, m.id %s
+        LIMIT ?
+        """
+            .formatted(
+                QUALIFIED_MESSAGE_HEADER_COLUMNS,
+                rankExpr,
+                cursorPredicate,
+                rankExpr,
+                rankDir,
+                dateDir,
+                idDir);
+    return DbUtil.withPreparedStmtFunction(
+        con,
+        sql,
+        stmt -> {
+          int param = 1;
+          stmt.setInt(param++, accountId);
+          stmt.setString(param++, matchQuery);
+          if (!endJump && rankOffset.isPresent()) {
+            double rank = rankOffset.get();
+            stmt.setDouble(param++, rank);
+            stmt.setDouble(param++, rank);
+            stmt.setLong(param++, dateTimeOffsetEpochSeconds);
+            stmt.setDouble(param++, rank);
+            stmt.setLong(param++, dateTimeOffsetEpochSeconds);
+            stmt.setInt(param++, offsetMessageId);
+          }
+          stmt.setInt(param, pageSize + 1);
+          return DbUtil.withResultSetFunction(
+              stmt,
+              rs -> {
+                List<CapturedMessageHeader> rows = new ArrayList<>();
+                while (rs.next()) {
+                  rows.add(CapturedMessageHeader.fromResultSetWithRank(rs));
+                }
+                boolean hasMoreResults = rows.size() > pageSize;
+                if (hasMoreResults) {
+                  rows.removeLast();
+                }
+                // The reversed fetch already produced rows in display order's reverse; flip to
+                // display order (most relevant first within the page).
+                if (reverse) {
+                  Collections.reverse(rows);
+                }
+                List<Email> messages = toListEmails(con, rows);
+                Optional<Double> firstRank =
+                    rows.isEmpty() ? Optional.empty() : rows.getFirst().rank();
+                Optional<Double> lastRank =
+                    rows.isEmpty() ? Optional.empty() : rows.getLast().rank();
+                boolean hasLeft;
+                boolean hasRight;
+                if (endJump) {
+                  hasLeft = hasMoreResults;
+                  hasRight = false;
+                } else if (direction == PageDirection.RIGHT) {
+                  hasLeft = rankOffset.isPresent();
+                  hasRight = hasMoreResults;
+                } else {
+                  hasLeft = hasMoreResults;
+                  hasRight = rankOffset.isPresent();
+                }
+                return new EmailPage(
+                    messages,
+                    hasLeft,
+                    hasRight,
+                    new PageParams(direction, SearchOrder.BEST_MATCH.toSortOrder()),
+                    firstRank,
+                    lastRank);
+              });
+        });
   }
 
   @Override

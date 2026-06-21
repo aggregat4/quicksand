@@ -10,8 +10,10 @@ function messageListScrollKey() {
     for (const param of [
         'pageDirection',
         'sortOrder',
+        'searchOrder',
         'offsetReceivedTimestamp',
         'offsetMessageId',
+        'offsetRank',
         'pagePosition',
         'query'
     ]) {

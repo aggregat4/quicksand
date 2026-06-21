@@ -5,8 +5,7 @@ import io.pebbletemplates.pebble.template.EvaluationContext;
 import io.pebbletemplates.pebble.template.PebbleTemplate;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import net.aggregat4.quicksand.search.SearchQueryUtils;
+import net.aggregat4.quicksand.search.SearchHighlighter;
 import org.unbescape.html.HtmlEscape;
 
 public class HighlightTextFunction implements Function {
@@ -20,21 +19,27 @@ public class HighlightTextFunction implements Function {
       Map<String, Object> args, PebbleTemplate self, EvaluationContext context, int lineNumber) {
     String text = args.get("text") == null ? "" : String.valueOf(args.get("text"));
     String query = args.get("query") == null ? "" : String.valueOf(args.get("query"));
-    var highlightPattern = SearchQueryUtils.toHighlightPattern(query);
-    if (highlightPattern.isEmpty() || text.isBlank()) {
+    var pattern = SearchHighlighter.highlightPattern(query);
+    if (pattern.isEmpty() || text.isBlank()) {
       return HtmlEscape.escapeHtml5(text);
     }
-    Matcher matcher = highlightPattern.get().matcher(text);
     StringBuilder sb = new StringBuilder();
-    int lastEnd = 0;
-    while (matcher.find()) {
-      sb.append(HtmlEscape.escapeHtml5(text.substring(lastEnd, matcher.start())));
-      sb.append("<mark>");
-      sb.append(HtmlEscape.escapeHtml5(matcher.group()));
-      sb.append("</mark>");
-      lastEnd = matcher.end();
-    }
-    sb.append(HtmlEscape.escapeHtml5(text.substring(lastEnd)));
+    SearchHighlighter.highlight(
+        text,
+        pattern.get(),
+        new SearchHighlighter.HighlightSink() {
+          @Override
+          public void text(String run) {
+            sb.append(HtmlEscape.escapeHtml5(run));
+          }
+
+          @Override
+          public void highlight(String match) {
+            sb.append("<mark>");
+            sb.append(HtmlEscape.escapeHtml5(match));
+            sb.append("</mark>");
+          }
+        });
     return sb.toString();
   }
 }

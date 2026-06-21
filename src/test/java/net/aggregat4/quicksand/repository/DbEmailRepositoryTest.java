@@ -22,6 +22,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import javax.sql.DataSource;
@@ -37,6 +38,7 @@ import net.aggregat4.quicksand.domain.EmailPage;
 import net.aggregat4.quicksand.domain.FolderSpecialUse;
 import net.aggregat4.quicksand.domain.NamedFolder;
 import net.aggregat4.quicksand.domain.PageDirection;
+import net.aggregat4.quicksand.domain.SearchOrder;
 import net.aggregat4.quicksand.domain.SortOrder;
 import net.aggregat4.quicksand.greenmail.GreenmailUtils;
 import net.aggregat4.quicksand.jobs.ImapStoreSync;
@@ -159,7 +161,15 @@ public class DbEmailRepositoryTest {
 
     EmailPage subjectResults =
         emailRepository.searchMessages(
-            account.id(), "fixture subject", 5, 0, 0, PageDirection.RIGHT, SortOrder.ASCENDING);
+            account.id(),
+            "fixture subject",
+            5,
+            SearchOrder.OLDEST,
+            PageDirection.RIGHT,
+            Optional.empty(),
+            0L,
+            0,
+            false);
     assertEquals(5, subjectResults.emails().size());
     assertFalse(subjectResults.hasLeft());
     assertTrue(subjectResults.hasRight());
@@ -170,10 +180,12 @@ public class DbEmailRepositoryTest {
             account.id(),
             "fixture subject",
             5,
+            SearchOrder.OLDEST,
+            PageDirection.RIGHT,
+            Optional.empty(),
             rightOffsetMessage.header().receivedDateTimeEpochSeconds(),
             rightOffsetMessage.header().id(),
-            PageDirection.RIGHT,
-            SortOrder.ASCENDING);
+            false);
     assertEquals(5, nextSubjectResults.emails().size());
     assertTrue(nextSubjectResults.hasLeft());
     assertTrue(nextSubjectResults.hasRight());
@@ -256,6 +268,338 @@ public class DbEmailRepositoryTest {
                 return rs.getInt(1);
               });
         });
+  }
+
+  private static Email makeMessage(
+      long uid, String subject, String body, long receivedEpochSecond) {
+    ZonedDateTime when =
+        ZonedDateTime.ofInstant(Instant.ofEpochSecond(receivedEpochSecond), ZoneId.of("UTC"));
+    return new Email(
+        new EmailHeader(
+            -1,
+            uid,
+            List.of(new Actor(ActorType.SENDER, "sender@example.com", java.util.Optional.empty())),
+            subject,
+            when,
+            when.toEpochSecond(),
+            when,
+            when.toEpochSecond(),
+            "",
+            false,
+            false,
+            false),
+        true,
+        body,
+        Collections.emptyList());
+  }
+
+  @Test
+  public void prefixSearchMatchesTokenPrefixWhileQuotedStaysExact()
+      throws SQLException, IOException {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    NamedFolder inbox =
+        folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+
+    emailRepository.addMessage(
+        inbox.id(), makeMessage(1, "Launch Digest weekly", "body one", 1000L));
+    emailRepository.addMessage(
+        inbox.id(), makeMessage(2, "Unrelated", "launch digest body", 2000L));
+
+    // Final unquoted term "dig" is a prefix and matches the token "digest".
+    EmailPage prefixResults =
+        emailRepository.searchMessages(
+            account.id(),
+            "launch dig",
+            10,
+            SearchOrder.NEWEST,
+            PageDirection.RIGHT,
+            Optional.empty(),
+            Long.MAX_VALUE,
+            Integer.MAX_VALUE,
+            false);
+    assertEquals(2, prefixResults.emails().size());
+    assertEquals(2, emailRepository.getSearchMessageCount(account.id(), "launch dig"));
+
+    // Quoted "dig" is exact and does not match the token "digest".
+    EmailPage quotedResults =
+        emailRepository.searchMessages(
+            account.id(),
+            "launch \"dig\"",
+            10,
+            SearchOrder.NEWEST,
+            PageDirection.RIGHT,
+            Optional.empty(),
+            Long.MAX_VALUE,
+            Integer.MAX_VALUE,
+            false);
+    assertEquals(0, quotedResults.emails().size());
+    assertEquals(0, emailRepository.getSearchMessageCount(account.id(), "launch \"dig\""));
+
+    // A short final term stays exact: "di" does not match "digest".
+    assertEquals(0, emailRepository.getSearchMessageCount(account.id(), "launch di"));
+  }
+
+  @Test
+  public void searchResultsAreScopedToTheAccount() throws SQLException, IOException {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    accountRepository.createAccountIfNew(
+        new Account(-1, "One", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Two", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account accountOne = accountRepository.getAccounts().get(0);
+    Account accountTwo = accountRepository.getAccounts().get(1);
+    NamedFolder inboxOne =
+        folderRepository.createFolder(accountOne, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+    NamedFolder inboxTwo =
+        folderRepository.createFolder(accountTwo, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+
+    emailRepository.addMessage(inboxOne.id(), makeMessage(1, "Shared subject", "body", 1000L));
+    emailRepository.addMessage(inboxTwo.id(), makeMessage(1, "Shared subject", "body", 1000L));
+
+    EmailPage oneResults =
+        emailRepository.searchMessages(
+            accountOne.id(),
+            "shared subject",
+            10,
+            SearchOrder.NEWEST,
+            PageDirection.RIGHT,
+            Optional.empty(),
+            Long.MAX_VALUE,
+            Integer.MAX_VALUE,
+            false);
+    assertEquals(1, oneResults.emails().size());
+    EmailPage twoResults =
+        emailRepository.searchMessages(
+            accountTwo.id(),
+            "shared subject",
+            10,
+            SearchOrder.NEWEST,
+            PageDirection.RIGHT,
+            Optional.empty(),
+            Long.MAX_VALUE,
+            Integer.MAX_VALUE,
+            false);
+    assertEquals(1, twoResults.emails().size());
+    assertNotEquals(
+        oneResults.emails().getFirst().header().id(), twoResults.emails().getFirst().header().id());
+  }
+
+  @Test
+  public void bestMatchRanksSubjectAboveBodyAndPaginatesByRankCursor()
+      throws SQLException, IOException {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    NamedFolder inbox =
+        folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+
+    // Subject match should outrank a body-only match.
+    int bodyOnlyId =
+        emailRepository.addMessage(inbox.id(), makeMessage(1, "Unrelated", "launch digest", 1000L));
+    int subjectId =
+        emailRepository.addMessage(
+            inbox.id(), makeMessage(2, "Launch Digest weekly", "plain body", 2000L));
+
+    EmailPage bestMatch =
+        emailRepository.searchMessages(
+            account.id(),
+            "launch dig",
+            10,
+            SearchOrder.BEST_MATCH,
+            PageDirection.RIGHT,
+            Optional.empty(),
+            Long.MAX_VALUE,
+            Integer.MAX_VALUE,
+            false);
+    assertEquals(2, bestMatch.emails().size());
+    assertEquals(subjectId, bestMatch.emails().getFirst().header().id());
+    assertEquals(bodyOnlyId, bestMatch.emails().getLast().header().id());
+    assertTrue(bestMatch.firstRank().isPresent());
+    assertTrue(bestMatch.lastRank().isPresent());
+    // Better matches have lower bm25 values.
+    assertTrue(bestMatch.firstRank().get() < bestMatch.lastRank().get());
+  }
+
+  @Test
+  public void relevancePaginationIsDeterministicForEqualScores() throws SQLException, IOException {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    NamedFolder inbox =
+        folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+
+    // Three messages with identical content (equal bm25) but distinct received dates.
+    int idOld =
+        emailRepository.addMessage(inbox.id(), makeMessage(1, "Launch Digest", "body", 1000L));
+    int idMid =
+        emailRepository.addMessage(inbox.id(), makeMessage(2, "Launch Digest", "body", 2000L));
+    int idNew =
+        emailRepository.addMessage(inbox.id(), makeMessage(3, "Launch Digest", "body", 3000L));
+
+    EmailPage firstPage =
+        emailRepository.searchMessages(
+            account.id(),
+            "launch digest",
+            2,
+            SearchOrder.BEST_MATCH,
+            PageDirection.RIGHT,
+            Optional.empty(),
+            Long.MAX_VALUE,
+            Integer.MAX_VALUE,
+            false);
+    assertEquals(2, firstPage.emails().size());
+    // Equal ranks: tiebreak by received_date DESC, id DESC -> newest first.
+    assertEquals(idNew, firstPage.emails().get(0).header().id());
+    assertEquals(idMid, firstPage.emails().get(1).header().id());
+    assertFalse(firstPage.hasLeft());
+    assertTrue(firstPage.hasRight());
+    assertEquals(firstPage.firstRank().get(), firstPage.lastRank().get());
+
+    Email last = firstPage.emails().getLast();
+    EmailPage secondPage =
+        emailRepository.searchMessages(
+            account.id(),
+            "launch digest",
+            2,
+            SearchOrder.BEST_MATCH,
+            PageDirection.RIGHT,
+            firstPage.lastRank(),
+            last.header().receivedDateTimeEpochSeconds(),
+            last.header().id(),
+            false);
+    assertEquals(1, secondPage.emails().size());
+    assertEquals(idOld, secondPage.emails().getFirst().header().id());
+    assertTrue(secondPage.hasLeft());
+    assertFalse(secondPage.hasRight());
+
+    // Going back LEFT from the second page cursor returns the first page in the same order.
+    Email firstOfSecond = secondPage.emails().getFirst();
+    EmailPage backPage =
+        emailRepository.searchMessages(
+            account.id(),
+            "launch digest",
+            2,
+            SearchOrder.BEST_MATCH,
+            PageDirection.LEFT,
+            secondPage.firstRank(),
+            firstOfSecond.header().receivedDateTimeEpochSeconds(),
+            firstOfSecond.header().id(),
+            false);
+    assertEquals(
+        List.of(idNew, idMid), backPage.emails().stream().map(e -> e.header().id()).toList());
+    assertFalse(backPage.hasLeft());
+    assertTrue(backPage.hasRight());
+  }
+
+  @Test
+  public void bestMatchEndJumpFetchesLeastRelevantTerminalPage() throws SQLException, IOException {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    NamedFolder inbox =
+        folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+
+    // Five equal-ranked messages; the caller computes the terminal page size (5 % 2 == 1).
+    for (int i = 1; i <= 5; i++) {
+      emailRepository.addMessage(inbox.id(), makeMessage(i, "Launch Digest", "body", 1000L + i));
+    }
+    EmailPage endPage =
+        emailRepository.searchMessages(
+            account.id(),
+            "launch digest",
+            1,
+            SearchOrder.BEST_MATCH,
+            PageDirection.LEFT,
+            Optional.empty(),
+            0L,
+            0,
+            true);
+    // Terminal page is the single least-relevant (here: oldest) message.
+    assertEquals(1, endPage.emails().size());
+    assertEquals(1, endPage.emails().getFirst().header().imapUid());
+    assertTrue(endPage.hasLeft());
+    assertFalse(endPage.hasRight());
+  }
+
+  @Test
+  public void searchOrdersNewestAndOldestByDate() throws SQLException, IOException {
+    DataSource ds = DbTestUtils.getTempSqlite();
+    migrateDb(ds);
+    DbAccountRepository accountRepository = new DbAccountRepository(ds);
+    DbFolderRepository folderRepository = new DbFolderRepository(ds);
+    DbEmailRepository emailRepository = new DbEmailRepository(ds, new DbAttachmentRepository(ds));
+
+    accountRepository.createAccountIfNew(
+        new Account(-1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p"));
+    Account account = accountRepository.getAccounts().getFirst();
+    NamedFolder inbox =
+        folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 100L);
+
+    int idOld =
+        emailRepository.addMessage(inbox.id(), makeMessage(1, "Launch Digest", "body", 1000L));
+    int idMid =
+        emailRepository.addMessage(inbox.id(), makeMessage(2, "Launch Digest", "body", 2000L));
+    int idNew =
+        emailRepository.addMessage(inbox.id(), makeMessage(3, "Launch Digest", "body", 3000L));
+
+    EmailPage newest =
+        emailRepository.searchMessages(
+            account.id(),
+            "launch digest",
+            10,
+            SearchOrder.NEWEST,
+            PageDirection.RIGHT,
+            Optional.empty(),
+            Long.MAX_VALUE,
+            Integer.MAX_VALUE,
+            false);
+    assertEquals(
+        List.of(idNew, idMid, idOld), newest.emails().stream().map(e -> e.header().id()).toList());
+
+    EmailPage oldest =
+        emailRepository.searchMessages(
+            account.id(),
+            "launch digest",
+            10,
+            SearchOrder.OLDEST,
+            PageDirection.RIGHT,
+            Optional.empty(),
+            0L,
+            0,
+            false);
+    assertEquals(
+        List.of(idOld, idMid, idNew), oldest.emails().stream().map(e -> e.header().id()).toList());
   }
 
   @Test

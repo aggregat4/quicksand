@@ -1,4 +1,4 @@
-<a href="{% if currentFolderIsDrafts %}/emails/{{ emailHeader.id }}/composer{% elseif currentFolderIsOutbox %}/outbox/{{ emailHeader.id }}/viewer{% else %}/emails/{{ emailHeader.id }}/viewer?showImages=false{% if currentQuery.isPresent() %}&query={{ currentQuery.get() | urlencode }}{% endif %}{% endif %}"
+<a href="{% if currentFolderIsDrafts %}/emails/{{ emailHeader.id }}/composer{% elseif currentFolderIsOutbox %}/outbox/{{ emailHeader.id }}/viewer{% else %}/emails/{{ emailHeader.id }}/viewer?showImages=false{% if currentQuery.isPresent() %}&query={{ currentQuery.get() | urlencode }}{% if currentSearchOrder %}&searchOrder={{ currentSearchOrder }}{% endif %}{% endif %}{% endif %}"
    id="email{{ emailHeader.id }}"
    class="emailheader{{ emailHeader.read ? ' read' : '' }}{{ emailActive and selectedEmailId == emailHeader.id ? ' active' : '' }}"
    data-message-id="{{ emailHeader.id }}"

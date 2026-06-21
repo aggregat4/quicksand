@@ -13,10 +13,30 @@ public record Pagination(
     int pageSize,
     Optional<Integer> totalMessageCount,
     boolean hasLeft,
-    boolean hasRight) {
+    boolean hasRight,
+    Optional<SearchOrder> searchOrder) {
   private static final DateTimeFormatter OFFSET_FORMATTER =
       DateTimeFormatter.ofPattern("dd LLL HH:mm");
   private static final int STANDARD_PAGE_SIZE = 100;
+
+  public Pagination(
+      Optional<Long> receivedDateOffsetInSeconds,
+      Optional<Integer> messageIdOffset,
+      PageParams pageParams,
+      int pageSize,
+      Optional<Integer> totalMessageCount,
+      boolean hasLeft,
+      boolean hasRight) {
+    this(
+        receivedDateOffsetInSeconds,
+        messageIdOffset,
+        pageParams,
+        pageSize,
+        totalMessageCount,
+        hasLeft,
+        hasRight,
+        Optional.empty());
+  }
 
   public Optional<String> formattedReceivedDateOffset() {
     return receivedDateOffsetInSeconds
@@ -53,5 +73,9 @@ public record Pagination(
       return OptionalInt.of(totalPages);
     }
     return OptionalInt.empty();
+  }
+
+  public String getSearchOrderString() {
+    return searchOrder.map(SearchOrder::getParamString).orElse("");
   }
 }

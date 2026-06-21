@@ -102,34 +102,61 @@
                         {% endif %}
                     </div>
                     {% if not currentFolderIsDrafts and not currentFolderIsOutbox %}
+                        {% set isSearch = currentQuery.isPresent() %}
+                        {% set searchOrderStr = emailGroupPage.pagination().getSearchOrderString() %}
+                        {% set isBestMatch = isSearch and searchOrderStr == 'BEST_MATCH' %}
+                        {% set orderParam = isSearch ? ('searchOrder=' + searchOrderStr) : ('sortOrder=' + emailGroupPage.pagination().pageParams().getSortString()) %}
+                        {% if isSearch %}
+                            <nav id="searchorder" role="navigation" aria-label="Search result order">
+                                <ul>
+                                    {% set orderBaseLink = '/accounts/' + currentAccount.id + '/search?query=' + (currentQuery.get() | urlencode) + '&searchOrder=' %}
+                                    {% for option in ['NEWEST', 'OLDEST', 'BEST_MATCH'] %}
+                                        {% set optionLabel = option == 'NEWEST' ? 'Newest' : (option == 'OLDEST' ? 'Oldest' : 'Best match') %}
+                                        <li>
+                                            <a class="search-order-link{{ searchOrderStr == option ? ' selected' : '' }}" href="{{ orderBaseLink + option }}"{{ searchOrderStr == option ? ' aria-current="true"' : '' }}>{{ optionLabel }}</a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </nav>
+                        {% endif %}
                         <nav id="emailpagination" role="navigation" aria-label="E-Mail Navigation">
                             {% set baseLink = '/accounts/' + currentAccount.id %}
-                            {% if not currentQuery.isPresent() %}
+                            {% if not isSearch %}
                                 {% set baseLink = baseLink + '/folders/' + currentFolder.id + '?' %}
                             {% else %}
-                                {# This is the case where we have a search and we have to write a modified navigation #}
+                                {# Search navigation preserves the query and the search order. #}
                                 {% set baseLink = baseLink + '/search?query=' + (currentQuery.get() | urlencode) + '&' %}
                             {% endif %}
+                            {% set firstHeader = emailGroupPage.getFirstEmailHeader() %}
+                            {% set lastHeader = emailGroupPage.getLastEmailHeader() %}
+                            {% set firstRankParam = (isBestMatch and emailGroupPage.getFirstEmailRank().isPresent()) ? ('&offsetRank=' + emailGroupPage.getFirstEmailRank().get()) : '' %}
+                            {% set lastRankParam = (isBestMatch and emailGroupPage.getLastEmailRank().isPresent()) ? ('&offsetRank=' + emailGroupPage.getLastEmailRank().get()) : '' %}
                             <ul>
                                 {# FIRST PAGE #}
-                                <li>{{ iconlink(baseLink + 'pageDirection=RIGHT&sortOrder=' + emailGroupPage.pagination().pageParams().getSortString(), 'Beginning', 'beginning', disabled = false, showLabel = false) }}</li>
+                                <li>{{ iconlink(baseLink + 'pageDirection=RIGHT&' + orderParam, 'Beginning', 'beginning', disabled = false, showLabel = false) }}</li>
                                 {#  PREVIOUS PAGE #}
-                                {% if (not emailGroupPage.pagination().hasLeft()) or emailGroupPage.getFirstEmailHeader().isEmpty() %}
+                                {% if (not emailGroupPage.pagination().hasLeft()) or firstHeader.isEmpty() %}
                                     <li>{{ iconlink(baseLink, 'Previous', 'previous', disabled = true, showLabel = false) }}</li>
                                 {% else %}
-                                    <li>{{ iconlink(baseLink + 'pageDirection=LEFT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getFirstEmailHeader().get().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getFirstEmailHeader().get().id(), 'Previous', 'previous', disabled = false, showLabel = false) }}</li>
+                                    <li>{{ iconlink(baseLink + 'pageDirection=LEFT&' + orderParam + '&offsetReceivedTimestamp=' + firstHeader.get().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + firstHeader.get().id() + firstRankParam, 'Previous', 'previous', disabled = false, showLabel = false) }}</li>
                                 {% endif %}
                                 {# NEXT PAGE #}
-                                {% if emailGroupPage.pagination().hasRight() and not emailGroupPage.getLastEmailHeader().isEmpty() %}
-                                    <li>{{ iconlink(baseLink  + 'pageDirection=RIGHT&sortOrder='  + emailGroupPage.pagination().pageParams().getSortString() + '&offsetReceivedTimestamp=' + emailGroupPage.getLastEmailHeader().get().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + emailGroupPage.getLastEmailHeader().get().id(), 'Next', 'next', disabled = false, showLabel = false) }}</li>
+                                {% if emailGroupPage.pagination().hasRight() and not lastHeader.isEmpty() %}
+                                    <li>{{ iconlink(baseLink + 'pageDirection=RIGHT&' + orderParam + '&offsetReceivedTimestamp=' + lastHeader.get().receivedDateTimeEpochSeconds() + '&offsetMessageId=' + lastHeader.get().id() + lastRankParam, 'Next', 'next', disabled = false, showLabel = false) }}</li>
                                 {% else %}
                                     <li>{{ iconlink(baseLink, 'Next', 'next', disabled = true, showLabel = false) }}</li>
                                 {% endif %}
                                 {#  LAST PAGE #}
-                                {% if emailGroupPage.pagination().pageParams().isAscending() %}{#  ASCENDING  #}
-                                    <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&sortOrder=ASCENDING&offsetReceivedTimestamp=' + Long.MAX_VALUE, 'End', 'end', disabled = false, showLabel = false) }}</li>
-                                {% else %}{#  DESCENDING  #}
-                                    <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&sortOrder=DESCENDING&offsetReceivedTimestamp=0', 'End', 'end', disabled = false, showLabel = false) }}</li>
+                                {% if isBestMatch %}
+                                    <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&' + orderParam, 'End', 'end', disabled = false, showLabel = false) }}</li>
+                                {% elseif isSearch and searchOrderStr == 'OLDEST' %}
+                                    <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&' + orderParam + '&offsetReceivedTimestamp=' + Long.MAX_VALUE, 'End', 'end', disabled = false, showLabel = false) }}</li>
+                                {% elseif isSearch %}
+                                    <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&' + orderParam + '&offsetReceivedTimestamp=0', 'End', 'end', disabled = false, showLabel = false) }}</li>
+                                {% elseif emailGroupPage.pagination().pageParams().isAscending() %}{#  FOLDER ASCENDING  #}
+                                    <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&' + orderParam + '&offsetReceivedTimestamp=' + Long.MAX_VALUE, 'End', 'end', disabled = false, showLabel = false) }}</li>
+                                {% else %}{#  FOLDER DESCENDING  #}
+                                    <li>{{ iconlink(baseLink + 'pagePosition=END&pageDirection=LEFT&' + orderParam + '&offsetReceivedTimestamp=0', 'End', 'end', disabled = false, showLabel = false) }}</li>
                                 {% endif %}
                             </ul>
                         </nav>
@@ -159,7 +186,7 @@
                 </form>
                 <iframe name="emailviewer"
                 {% if emailActive %}
-                    src="{% if currentFolderIsOutbox %}{{ '/outbox/' + selectedEmailId + '/viewer' }}{% else %}{{ '/emails/' + selectedEmailId + '/viewer?showImages=false' + (currentQuery.isPresent() ? '&query=' + (currentQuery.get() | urlencode) : '') }}{% endif %}"
+                    src="{% if currentFolderIsOutbox %}{{ '/outbox/' + selectedEmailId + '/viewer' }}{% else %}{{ '/emails/' + selectedEmailId + '/viewer?showImages=false' + (currentQuery.isPresent() ? '&query=' + (currentQuery.get() | urlencode) : '') + (currentSearchOrder ? '&searchOrder=' + currentSearchOrder : '') }}{% endif %}"
                 {% endif %}
                 >
                 </iframe>

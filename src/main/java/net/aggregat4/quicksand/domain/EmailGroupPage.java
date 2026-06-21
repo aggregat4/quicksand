@@ -6,12 +6,29 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public record EmailGroupPage(List<EmailGroup> groups, Pagination pagination) {
+public record EmailGroupPage(
+    List<EmailGroup> groups,
+    Pagination pagination,
+    Optional<Double> firstRank,
+    Optional<Double> lastRank) {
+
+  public EmailGroupPage(List<EmailGroup> groups, Pagination pagination) {
+    this(groups, pagination, Optional.empty(), Optional.empty());
+  }
+
   private static final DateTimeFormatter RECEIVED_RANGE_FORMATTER =
       DateTimeFormatter.ofPattern("dd LLL");
 
   public int getNofMessages() {
     return groups.stream().mapToInt(EmailGroup::getNofMessages).sum();
+  }
+
+  public Optional<Double> getFirstEmailRank() {
+    return firstRank;
+  }
+
+  public Optional<Double> getLastEmailRank() {
+    return lastRank;
   }
 
   public Optional<EmailHeader> getFirstEmailHeader() {
