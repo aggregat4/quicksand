@@ -30,10 +30,14 @@ Do not set the pool to `1` with the current repository layer — some code paths
 ## Schema constraints
 
 - **Folders:** unique on `(account_id, name)` — not globally on `name`. Two accounts may both have a display name `Inbox`.
-- **Messages:** `folder_id` and `imap_uid` are `NOT NULL`; unique on `(folder_id, imap_uid)` enforces per-folder IMAP identity.
+- **Messages:** `folder_id` is desired UI location. Nullable `remote_folder_id`,
+  `remote_uidvalidity`, and `remote_uid` store the last observed IMAP entry; a partial unique index
+  enforces exact remote identity. The older `imap_uid` column remains for presentation callers; it
+  is not a sync identity.
 - **Actors:** `message_id` is `NOT NULL` with `ON DELETE CASCADE`.
 
-Schema version is tracked in `schema_version` (currently `3`). Existing databases with an older version must be wiped before starting the server.
+Schema version is tracked in `schema_version` (currently `4`). Existing version 3 databases are
+migrated in place; stale development databases may still be wiped when fresh demo data is needed.
 
 ## Operations
 

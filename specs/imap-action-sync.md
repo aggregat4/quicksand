@@ -128,11 +128,12 @@ user/application configuration that decides which folder Quicksand uses for each
 
 ### Message Remote Identity
 
-Remote identity should be treated as folder-scoped:
+Desired local location and observed remote identity are separate:
 
 - `messages.folder_id`
-- `messages.imap_uid`
-- `messages.uidvalidity` or derived through `folders.uidvalidity`
+- `messages.remote_folder_id`
+- `messages.remote_uidvalidity`
+- `messages.remote_uid`
 
 For remote operations, identify a message by:
 
@@ -141,6 +142,8 @@ account + source remote mailbox + source UIDVALIDITY + source UID
 ```
 
 Do not rely on bare `imap_uid`; UIDs are only meaningful inside one mailbox and UIDVALIDITY.
+Message-ID is non-unique recovery evidence, not a merge key. See
+[`docs/mailbox-sync-architecture.md`](../docs/mailbox-sync-architecture.md).
 
 ### Action Queue
 

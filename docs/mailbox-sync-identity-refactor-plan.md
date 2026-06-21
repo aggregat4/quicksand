@@ -2,7 +2,8 @@
 
 ## Status
 
-Draft implementation plan. This plan refines
+Implemented. The resulting design is documented in
+[`mailbox-sync-architecture.md`](mailbox-sync-architecture.md). This plan refines
 [`specs/imap-action-sync.md`](../specs/imap-action-sync.md) and replaces the earlier proposal to
 deduplicate messages account-wide by Message-ID or content fingerprint.
 

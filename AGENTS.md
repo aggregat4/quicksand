@@ -154,6 +154,15 @@ When adding a new flow, extend an existing module if the page already loads it; 
 - pagination and grouping behavior should preserve fast browsing and stable navigation semantics
 - HTML email rendering must stay isolated and sanitized server-side
 
+Mailbox sync identity rules are documented in
+[`docs/mailbox-sync-architecture.md`](docs/mailbox-sync-architecture.md):
+
+- IMAP identity is `(account, remote mailbox, UIDVALIDITY, UID)`, never a bare UID
+- `messages.folder_id` is desired UI state; observed remote identity is stored separately
+- Message-ID is non-unique recovery evidence and must not drive ordinary deduplication
+- unresolved queue rows must survive message and folder mirror eviction
+- all IMAP work for one account must run through `AccountSyncCoordinator`
+
 ## Change Guidance
 
 When making changes:
