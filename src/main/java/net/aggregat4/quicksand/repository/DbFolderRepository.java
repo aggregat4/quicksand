@@ -163,23 +163,23 @@ public class DbFolderRepository implements FolderRepository {
         ds,
         con -> {
           int folderId = folder.id();
-          deleteMailboxActionsForFolderMessages(con, folderId);
+          detachMailboxActionsFromFolderMessages(con, folderId);
           nullifyDraftSourcesForFolderMessages(con, folderId);
           nullifyOutboundSourcesForFolderMessages(con, folderId);
           deleteSearchRowsForFolderMessages(con, folderId);
           deleteMessagesInFolder(con, folderId);
-          deleteMailboxActionsReferencingFolder(con, folderId);
+          detachMailboxActionsFromFolder(con, folderId);
           detachFolderMappings(con, folderId);
           deleteFolderRow(con, folderId);
         });
   }
 
-  private static void deleteMailboxActionsForFolderMessages(Connection con, int folderId)
+  private static void detachMailboxActionsFromFolderMessages(Connection con, int folderId)
       throws SQLException {
     try (PreparedStatement stmt =
         con.prepareStatement(
             """
-                DELETE FROM mailbox_action_queue
+                UPDATE mailbox_action_queue SET message_id = NULL
                 WHERE message_id IN (SELECT id FROM messages WHERE folder_id = ?)""")) {
       stmt.setInt(1, folderId);
       stmt.executeUpdate();
@@ -232,15 +232,19 @@ public class DbFolderRepository implements FolderRepository {
     }
   }
 
-  private static void deleteMailboxActionsReferencingFolder(Connection con, int folderId)
+  private static void detachMailboxActionsFromFolder(Connection con, int folderId)
       throws SQLException {
     try (PreparedStatement stmt =
         con.prepareStatement(
             """
-                DELETE FROM mailbox_action_queue
+                UPDATE mailbox_action_queue
+                SET source_folder_id = CASE WHEN source_folder_id = ? THEN NULL ELSE source_folder_id END,
+                    target_folder_id = CASE WHEN target_folder_id = ? THEN NULL ELSE target_folder_id END
                 WHERE source_folder_id = ? OR target_folder_id = ?""")) {
       stmt.setInt(1, folderId);
       stmt.setInt(2, folderId);
+      stmt.setInt(3, folderId);
+      stmt.setInt(4, folderId);
       stmt.executeUpdate();
     }
   }

@@ -39,7 +39,7 @@ public class DbEmailRepository implements EmailRepository {
             m.id, m.imap_uid, m.subject, m.sent_date, m.sent_date_epoch_s, m.received_date, m.received_date_epoch_s, m.body_excerpt, m.starred, m.read
             """;
   private static final String MESSAGE_VIEWER_COLUMNS =
-      MESSAGE_HEADER_COLUMNS + ", body, plain_text, body_content_hash";
+      MESSAGE_HEADER_COLUMNS + ", body, plain_text, body_content_hash, message_id_header";
   private final DataSource ds;
   private final AttachmentRepository attachmentRepository;
   private final DbMailboxActionRepository mailboxActions;
@@ -91,25 +91,43 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
-  public Optional<Email> findByMessageUid(long uid) {
+  public Optional<Email> findByFolderAndUid(int folderId, long uid) {
+    return findByRemoteIdentity(folderId, null, uid);
+  }
+
+  @Override
+  public Optional<Email> findByRemoteKey(int folderId, long uidValidity, long uid) {
+    return findByRemoteIdentity(folderId, uidValidity, uid);
+  }
+
+  private Optional<Email> findByRemoteIdentity(int folderId, Long uidValidity, long uid) {
+    String uidValidityPredicate = uidValidity == null ? "" : "AND remote_uidvalidity = ?";
     return DbUtil.withConFunction(
         ds,
         con ->
             DbUtil.withPreparedStmtFunction(
                 con,
-                "SELECT " + MESSAGE_HEADER_COLUMNS + " FROM messages WHERE imap_uid = ?",
+                "SELECT "
+                    + MESSAGE_HEADER_COLUMNS
+                    + " FROM messages WHERE remote_folder_id = ? "
+                    + uidValidityPredicate
+                    + " AND remote_uid = ?",
                 stmt -> {
-                  stmt.setLong(1, uid);
+                  int parameter = 1;
+                  stmt.setInt(parameter++, folderId);
+                  if (uidValidity != null) {
+                    stmt.setLong(parameter++, uidValidity);
+                  }
+                  stmt.setLong(parameter, uid);
                   return DbUtil.withResultSetFunction(
                       stmt,
                       rs -> {
-                        if (rs.next()) {
-                          int messageId = rs.getInt(1);
-                          List<Actor> actors = getActors(con, messageId);
-                          return Optional.of(convertRowToListEmail(con, rs, actors, messageId));
-                        } else {
+                        if (!rs.next()) {
                           return Optional.empty();
                         }
+                        int messageId = rs.getInt(1);
+                        List<Actor> actors = getActors(con, messageId);
+                        return Optional.of(convertRowToListEmail(con, rs, actors, messageId));
                       });
                 }));
   }
@@ -182,7 +200,8 @@ public class DbEmailRepository implements EmailRepository {
         rs.getString(11),
         attachments,
         List.of(),
-        rs.getString(13));
+        rs.getString(13),
+        rs.getString(14));
   }
 
   private List<Actor> getActors(Connection con, int messageId) throws SQLException {
@@ -354,7 +373,7 @@ public class DbEmailRepository implements EmailRepository {
   public Set<Long> getAllMessageIds(int folderId) {
     return DbUtil.withPreparedStmtFunction(
         ds,
-        "SELECT imap_uid FROM messages WHERE folder_id = ?",
+        "SELECT remote_uid FROM messages WHERE remote_folder_id = ? AND remote_uid IS NOT NULL",
         stmt -> {
           stmt.setInt(1, folderId);
           return DbUtil.withResultSetFunction(
@@ -373,10 +392,11 @@ public class DbEmailRepository implements EmailRepository {
   public void updateMessageImapUid(int messageId, long imapUid) {
     DbUtil.withPreparedStmtConsumer(
         ds,
-        "UPDATE messages SET imap_uid = ? WHERE id = ?",
+        "UPDATE messages SET imap_uid = ?, remote_uid = ? WHERE id = ?",
         stmt -> {
           stmt.setLong(1, imapUid);
-          stmt.setInt(2, messageId);
+          stmt.setLong(2, imapUid);
+          stmt.setInt(3, messageId);
           stmt.executeUpdate();
         });
   }
@@ -444,8 +464,13 @@ public class DbEmailRepository implements EmailRepository {
     try (PreparedStatement stmt =
         con.prepareStatement(
             """
-                INSERT INTO messages (folder_id, imap_uid, subject, sent_date, sent_date_epoch_s, received_date, received_date_epoch_s, body_excerpt, starred, read, body, plain_text, body_content_hash)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO messages (
+                  folder_id, imap_uid, subject, sent_date, sent_date_epoch_s,
+                  received_date, received_date_epoch_s, body_excerpt, starred, read,
+                  body, plain_text, body_content_hash,
+                  remote_folder_id, remote_uidvalidity, remote_uid, message_id_header)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                  (SELECT uidvalidity FROM folders WHERE id = ?), ?, ?)
                 """,
             Statement.RETURN_GENERATED_KEYS)) {
       stmt.setInt(1, folderId);
@@ -461,6 +486,10 @@ public class DbEmailRepository implements EmailRepository {
       stmt.setString(11, email.body());
       stmt.setInt(12, email.plainText() ? 1 : 0);
       stmt.setString(13, ContentHasher.messageBodyContentHash(email.body()));
+      stmt.setInt(14, folderId);
+      stmt.setInt(15, folderId);
+      stmt.setLong(16, email.header().imapUid());
+      stmt.setString(17, normalizeMessageId(email.messageIdHeader()));
       stmt.executeUpdate();
       try (ResultSet keyRs = stmt.getGeneratedKeys()) {
         if (!keyRs.next()) {
@@ -476,6 +505,13 @@ public class DbEmailRepository implements EmailRepository {
         return messageId;
       }
     }
+  }
+
+  private static String normalizeMessageId(String messageId) {
+    if (messageId == null || messageId.isBlank()) {
+      return null;
+    }
+    return messageId.trim();
   }
 
   private static void saveActor(Connection con, int messageId, Actor actor) throws SQLException {
@@ -871,13 +907,14 @@ public class DbEmailRepository implements EmailRepository {
     }
     String inString = batch.stream().map(msgId -> "?").collect(Collectors.joining(", "));
     String folderScopedMessageIds =
-        "SELECT id FROM messages WHERE folder_id = ? AND imap_uid IN (%s)".formatted(inString);
+        "SELECT id FROM messages WHERE remote_folder_id = ? AND remote_uid IN (%s)"
+            .formatted(inString);
     DbUtil.withConConsumer(
         ds,
         con -> {
           DbUtil.withPreparedStmtConsumer(
               con,
-              "DELETE FROM mailbox_action_queue WHERE message_id IN (%s)"
+              "UPDATE mailbox_action_queue SET message_id = NULL WHERE message_id IN (%s)"
                   .formatted(folderScopedMessageIds),
               stmt -> {
                 bindFolderUidBatch(stmt, folderId, batch);
@@ -908,7 +945,8 @@ public class DbEmailRepository implements EmailRepository {
               });
           DbUtil.withPreparedStmtConsumer(
               con,
-              "DELETE FROM messages WHERE folder_id = ? AND imap_uid IN (%s)".formatted(inString),
+              "DELETE FROM messages WHERE remote_folder_id = ? AND remote_uid IN (%s)"
+                  .formatted(inString),
               stmt -> {
                 bindFolderUidBatch(stmt, folderId, batch);
                 stmt.executeUpdate();
@@ -967,13 +1005,9 @@ public class DbEmailRepository implements EmailRepository {
               return;
             }
 
-            MailboxActionDbSupport.MoveToFolderOutcome outcome =
-                MailboxActionDbSupport.moveMessageToFolderResolvingDuplicates(
-                    con, id, targetFolderId);
-            if (outcome == MailboxActionDbSupport.MoveToFolderOutcome.MOVED) {
-              MailboxActionDbSupport.enqueueAction(
-                  con, context.get(), MailboxActionType.MOVE, target.get(), null, null);
-            }
+            MailboxActionDbSupport.moveMessageToFolder(con, id, targetFolderId);
+            MailboxActionDbSupport.enqueueAction(
+                con, context.get(), MailboxActionType.MOVE, target.get(), null, null);
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -1005,13 +1039,9 @@ public class DbEmailRepository implements EmailRepository {
               con.rollback();
               return;
             }
-            MailboxActionDbSupport.MoveToFolderOutcome outcome =
-                MailboxActionDbSupport.moveMessageToFolderResolvingDuplicates(
-                    con, id, target.get().folderId());
-            if (outcome == MailboxActionDbSupport.MoveToFolderOutcome.MOVED) {
-              MailboxActionDbSupport.enqueueAction(
-                  con, context.get(), actionType, target.get(), specialUse, null);
-            }
+            MailboxActionDbSupport.moveMessageToFolder(con, id, target.get().folderId());
+            MailboxActionDbSupport.enqueueAction(
+                con, context.get(), actionType, target.get(), specialUse, null);
             con.commit();
           } catch (SQLException | RuntimeException e) {
             con.rollback();
@@ -1082,20 +1112,17 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
-  public Set<Long> getPendingMoveLikeTargetUids(int targetFolderId) {
-    return mailboxActions.getPendingMoveLikeTargetUids(targetFolderId);
-  }
-
-  @Override
-  public Set<Long> getMoveLikeProtectedUidsInFolder(int folderId) {
-    return mailboxActions.getMoveLikeProtectedUidsInFolder(folderId);
-  }
-
-  @Override
   public void resolveMoveLikeSourceUidsAbsentFromRemote(
       int accountId, String sourceRemoteName, Long sourceUidValidity, Set<Long> remoteUidsPresent) {
     mailboxActions.resolveMoveLikeSourceUidsAbsentFromRemote(
         accountId, sourceRemoteName, sourceUidValidity, remoteUidsPresent);
+  }
+
+  @Override
+  public void resolveMoveLikeSourceUidsVanished(
+      int accountId, String sourceRemoteName, Long sourceUidValidity, Set<Long> vanishedUids) {
+    mailboxActions.resolveMoveLikeSourceUidsVanished(
+        accountId, sourceRemoteName, sourceUidValidity, vanishedUids);
   }
 
   @Override
@@ -1128,13 +1155,42 @@ public class DbEmailRepository implements EmailRepository {
   }
 
   @Override
+  public List<MailboxActionQueueRow> claimDueMailboxActions(
+      int accountId, ZonedDateTime now, int limit) {
+    return mailboxActions.claimDueMailboxActions(accountId, now, limit);
+  }
+
+  @Override
   public List<MailboxActionQueueRow> claimDueReadStateActions(ZonedDateTime now, int limit) {
     return mailboxActions.claimDueReadStateActions(now, limit);
   }
 
   @Override
+  public List<MailboxActionQueueRow> claimDueReadStateActions(
+      int accountId, ZonedDateTime now, int limit) {
+    return mailboxActions.claimDueReadStateActions(accountId, now, limit);
+  }
+
+  @Override
   public void markMailboxActionSucceeded(int id, ZonedDateTime now) {
     mailboxActions.markMailboxActionSucceeded(id, now);
+  }
+
+  @Override
+  public void markMailboxActionAttemptedUnknown(int id, ZonedDateTime now) {
+    mailboxActions.markMailboxActionAttemptedUnknown(id, now);
+  }
+
+  @Override
+  public void confirmMailboxMoveApplied(
+      int actionId,
+      int messageId,
+      Integer targetFolderId,
+      long targetUidValidity,
+      long targetUid,
+      ZonedDateTime now) {
+    mailboxActions.confirmMailboxMoveApplied(
+        actionId, messageId, targetFolderId, targetUidValidity, targetUid, now);
   }
 
   @Override

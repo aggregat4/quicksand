@@ -88,7 +88,7 @@ public class ImapStoreSyncTest {
     assertEquals(1, messageRepository.getAllMessageIds(inbox.id()).size());
     long storedUid = messageRepository.getAllMessageIds(inbox.id()).iterator().next();
     assertTrue(storedUid > 0);
-    Email email = messageRepository.findByMessageUid(storedUid).orElseThrow();
+    Email email = messageRepository.findByFolderAndUid(inbox.id(), storedUid).orElseThrow();
     assertEquals(subject, email.header().subject());
     assertTrue(email.plainText());
     assertTrue(email.body().contains(body));
@@ -115,7 +115,7 @@ public class ImapStoreSyncTest {
     assertEquals(1, messageRepository.getAllMessageIds(inbox.id()).size());
     long updatedStoredUid = messageRepository.getAllMessageIds(inbox.id()).iterator().next();
     assertEquals(storedUid, updatedStoredUid);
-    email = messageRepository.findByMessageUid(updatedStoredUid).orElseThrow();
+    email = messageRepository.findByFolderAndUid(inbox.id(), updatedStoredUid).orElseThrow();
     assertTrue(email.header().read());
 
     // mark the message as deleted
@@ -463,7 +463,7 @@ public class ImapStoreSyncTest {
     NamedFolder inbox = folderRepository.getFolders(account.id()).getFirst();
     assertEquals(1, messageRepository.getAllMessageIds(inbox.id()).size());
     long storedUid = messageRepository.getAllMessageIds(inbox.id()).iterator().next();
-    return messageRepository.findByMessageUid(storedUid).orElseThrow();
+    return messageRepository.findByFolderAndUid(inbox.id(), storedUid).orElseThrow();
   }
 
   private static MimeMessage createBaseMessage(String subject) throws MessagingException {

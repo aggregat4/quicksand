@@ -199,7 +199,9 @@ public class ImapStoreSync {
               storedBody.plainText(),
               storedBody.body(),
               Collections.emptyList(),
-              inboundAttachments);
+              inboundAttachments,
+              null,
+              newMessage.getMessageID());
       newEmails.add(newEmail);
       downloadedCount++;
       if (downloadedCount % 50 == 0 || downloadedCount == imapMessages.size()) {

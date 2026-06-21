@@ -13,12 +13,11 @@ public interface MailboxActionRepository {
   Set<Long> getPendingMoveLikeActionSourceUids(
       int accountId, String sourceRemoteName, Long sourceUidValidity);
 
-  Set<Long> getPendingMoveLikeTargetUids(int targetFolderId);
-
-  Set<Long> getMoveLikeProtectedUidsInFolder(int folderId);
-
   void resolveMoveLikeSourceUidsAbsentFromRemote(
       int accountId, String sourceRemoteName, Long sourceUidValidity, Set<Long> remoteUidsPresent);
+
+  void resolveMoveLikeSourceUidsVanished(
+      int accountId, String sourceRemoteName, Long sourceUidValidity, Set<Long> vanishedUids);
 
   void markMoveLikeActionsConflictForUidValidityChange(
       int accountId, int folderId, long newUidValidity, ZonedDateTime now);
@@ -32,9 +31,23 @@ public interface MailboxActionRepository {
 
   List<MailboxActionQueueRow> claimDueMailboxActions(ZonedDateTime now, int limit);
 
+  List<MailboxActionQueueRow> claimDueMailboxActions(int accountId, ZonedDateTime now, int limit);
+
   List<MailboxActionQueueRow> claimDueReadStateActions(ZonedDateTime now, int limit);
 
+  List<MailboxActionQueueRow> claimDueReadStateActions(int accountId, ZonedDateTime now, int limit);
+
   void markMailboxActionSucceeded(int id, ZonedDateTime now);
+
+  void markMailboxActionAttemptedUnknown(int id, ZonedDateTime now);
+
+  void confirmMailboxMoveApplied(
+      int actionId,
+      int messageId,
+      Integer targetFolderId,
+      long targetUidValidity,
+      long targetUid,
+      ZonedDateTime now);
 
   void markMailboxActionRetry(int id, String error, ZonedDateTime nextAttempt, ZonedDateTime now);
 

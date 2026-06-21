@@ -21,7 +21,8 @@ public record MailboxActionQueueRow(
     String lastError,
     String createdAt,
     String updatedAt,
-    String payloadJson) {
+    String payloadJson,
+    String messageIdHeader) {
 
   public boolean canRetryNow() {
     return resolutionType == null

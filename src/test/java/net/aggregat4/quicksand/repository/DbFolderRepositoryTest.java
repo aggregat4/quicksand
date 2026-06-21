@@ -123,7 +123,7 @@ class DbFolderRepositoryTest {
   }
 
   @Test
-  void deleteFolderClearsMappingAndMailboxActionReferences() throws Exception {
+  void deleteFolderClearsMappingAndDetachesMailboxActionReferences() throws Exception {
     DataSource ds = DbTestUtils.getTempSqlite();
     migrateDb(ds);
     DbAccountRepository accountRepository = new DbAccountRepository(ds);
@@ -181,10 +181,12 @@ class DbFolderRepositoryTest {
     }
     try (Connection con = ds.getConnection();
         PreparedStatement actionStmt =
-            con.prepareStatement("SELECT COUNT(*) FROM mailbox_action_queue")) {
+            con.prepareStatement(
+                "SELECT source_folder_id, source_remote_name FROM mailbox_action_queue")) {
       try (var rs = actionStmt.executeQuery()) {
         assertTrue(rs.next());
-        assertEquals(0, rs.getInt(1));
+        assertNull(rs.getObject(1));
+        assertEquals("INBOX", rs.getString(2));
       }
     }
   }

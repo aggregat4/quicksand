@@ -274,13 +274,58 @@ public class QuicksandMigrations implements Migrations {
     }
   }
 
+  private static final Function<Connection, Integer> mailboxRemoteIdentityMigration =
+      con -> {
+        executeUpdate(
+            con,
+            "ALTER TABLE messages ADD COLUMN remote_folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL");
+        executeUpdate(con, "ALTER TABLE messages ADD COLUMN remote_uidvalidity INTEGER");
+        executeUpdate(con, "ALTER TABLE messages ADD COLUMN remote_uid INTEGER");
+        executeUpdate(con, "ALTER TABLE messages ADD COLUMN message_id_header TEXT");
+        executeUpdate(
+            con,
+            """
+                UPDATE messages
+                SET remote_folder_id = folder_id,
+                    remote_uid = imap_uid,
+                    remote_uidvalidity = (SELECT uidvalidity FROM folders WHERE id = messages.folder_id)""");
+        executeUpdate(con, "DROP INDEX messages_folder_imap_uid_idx");
+        executeUpdate(
+            con,
+            """
+                CREATE UNIQUE INDEX messages_remote_identity_idx
+                ON messages(remote_folder_id, remote_uidvalidity, remote_uid)
+                WHERE remote_folder_id IS NOT NULL
+                  AND remote_uidvalidity IS NOT NULL
+                  AND remote_uid IS NOT NULL""");
+        executeUpdate(
+            con, "CREATE INDEX messages_message_id_header_idx ON messages(message_id_header)");
+
+        executeUpdate(
+            con, "ALTER TABLE mailbox_action_queue ADD COLUMN target_uidvalidity INTEGER");
+        executeUpdate(con, "ALTER TABLE mailbox_action_queue ADD COLUMN target_uid INTEGER");
+        executeUpdate(con, "ALTER TABLE mailbox_action_queue ADD COLUMN message_id_header TEXT");
+        executeUpdate(con, "ALTER TABLE mailbox_action_queue ADD COLUMN message_subject TEXT");
+        executeUpdate(
+            con,
+            """
+                UPDATE mailbox_action_queue
+                SET message_id_header = (SELECT message_id_header FROM messages WHERE id = message_id),
+                    message_subject = (SELECT subject FROM messages WHERE id = message_id)
+                WHERE message_id IS NOT NULL""");
+        return 4;
+      };
+
   @Override
   public Map<Integer, Function<Connection, Integer>> getMigrations() {
-    return Map.of(2, schemaMigration, 3, bodyContentHashMigration);
+    return Map.of(
+        2, schemaMigration,
+        3, bodyContentHashMigration,
+        4, mailboxRemoteIdentityMigration);
   }
 
   @Override
   public int getCurrentVersion() {
-    return 3;
+    return 4;
   }
 }

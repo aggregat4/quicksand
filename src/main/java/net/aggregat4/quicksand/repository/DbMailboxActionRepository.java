@@ -77,69 +77,6 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
   }
 
   @Override
-  public Set<Long> getPendingMoveLikeTargetUids(int targetFolderId) {
-    return DbUtil.withPreparedStmtFunction(
-        ds,
-        """
-            SELECT m.imap_uid
-            FROM mailbox_action_queue q
-            INNER JOIN messages m ON m.id = q.message_id
-            WHERE q.target_folder_id = ?
-              AND q.action_type IN (%s)
-              AND q.status IN (%s)"""
-            .formatted(
-                EnumSql.inClause(MailboxActionType.MOVE_LIKE),
-                EnumSql.inClause(
-                    MailboxActionStatus.PENDING,
-                    MailboxActionStatus.APPLYING,
-                    MailboxActionStatus.FAILED_RETRYABLE)),
-        stmt -> {
-          stmt.setInt(1, targetFolderId);
-          return DbUtil.withResultSetFunction(
-              stmt,
-              rs -> {
-                HashSet<Long> targetUids = new HashSet<>();
-                while (rs.next()) {
-                  targetUids.add(rs.getLong(1));
-                }
-                return targetUids;
-              });
-        });
-  }
-
-  @Override
-  public Set<Long> getMoveLikeProtectedUidsInFolder(int folderId) {
-    HashSet<Long> protectedUids = new HashSet<>(getPendingMoveLikeTargetUids(folderId));
-    protectedUids.addAll(
-        DbUtil.withPreparedStmtFunction(
-            ds,
-            """
-                SELECT m.imap_uid
-                FROM mailbox_action_queue q
-                INNER JOIN messages m ON m.id = q.message_id
-                WHERE m.folder_id = ?
-                  AND q.action_type IN (%s)
-                  AND %s"""
-                .formatted(
-                    EnumSql.inClause(MailboxActionType.MOVE_LIKE),
-                    moveLikeReimportSuppressionSql()),
-            stmt -> {
-              stmt.setInt(1, folderId);
-              stmt.setString(2, MailboxActionStatus.SUCCEEDED.name());
-              return DbUtil.withResultSetFunction(
-                  stmt,
-                  rs -> {
-                    HashSet<Long> sourceUids = new HashSet<>();
-                    while (rs.next()) {
-                      sourceUids.add(rs.getLong(1));
-                    }
-                    return sourceUids;
-                  });
-            }));
-    return protectedUids;
-  }
-
-  @Override
   public void resolveMoveLikeSourceUidsAbsentFromRemote(
       int accountId, String sourceRemoteName, Long sourceUidValidity, Set<Long> remoteUidsPresent) {
     ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
@@ -177,6 +114,43 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
   }
 
   @Override
+  public void resolveMoveLikeSourceUidsVanished(
+      int accountId, String sourceRemoteName, Long sourceUidValidity, Set<Long> vanishedUids) {
+    if (vanishedUids.isEmpty()) {
+      return;
+    }
+    ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        """
+            UPDATE mailbox_action_queue
+            SET resolution_type = ?, resolved_at = ?, updated_at = ?
+            WHERE account_id = ?
+              AND source_remote_name = ?
+              AND source_uidvalidity IS ?
+              AND action_type IN (%s)
+              AND status = ?
+              AND resolution_type IS NULL
+              AND source_uid IN (SELECT value FROM json_each(?))"""
+            .formatted(EnumSql.inClause(MailboxActionType.MOVE_LIKE)),
+        stmt -> {
+          stmt.setString(1, MailboxActionResolutionType.RESOLVED_REMOTE_MATCHED.name());
+          stmt.setString(2, MailboxActionDbSupport.toIsoString(now));
+          stmt.setString(3, MailboxActionDbSupport.toIsoString(now));
+          stmt.setInt(4, accountId);
+          stmt.setString(5, sourceRemoteName);
+          if (sourceUidValidity == null) {
+            stmt.setNull(6, java.sql.Types.BIGINT);
+          } else {
+            stmt.setLong(6, sourceUidValidity);
+          }
+          stmt.setString(7, MailboxActionStatus.SUCCEEDED.name());
+          stmt.setString(8, toJsonUidArray(vanishedUids));
+          stmt.executeUpdate();
+        });
+  }
+
+  @Override
   public void markMoveLikeActionsConflictForUidValidityChange(
       int accountId, int folderId, long newUidValidity, ZonedDateTime now) {
     DbUtil.withPreparedStmtConsumer(
@@ -184,13 +158,16 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
         """
             UPDATE mailbox_action_queue
             SET status = ?,
-                execution_state = ?,
+                execution_state = CASE
+                  WHEN execution_state = ? THEN execution_state
+                  ELSE ?
+                END,
                 last_error = ?,
                 updated_at = ?,
                 resolved_at = ?
             WHERE account_id = ?
               AND action_type IN (%s)
-              AND (source_folder_id = ? OR target_folder_id = ?)
+              AND source_folder_id = ?
               AND resolution_type IS NULL
               AND (
                 status IN (%s)
@@ -204,15 +181,15 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
                     MailboxActionStatus.FAILED_RETRYABLE)),
         stmt -> {
           stmt.setString(1, MailboxActionStatus.CONFLICT.name());
-          stmt.setString(2, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
+          stmt.setString(2, MailboxActionExecutionState.NOT_ATTEMPTED.name());
+          stmt.setString(3, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
           stmt.setString(
-              3,
+              4,
               "Folder UIDVALIDITY changed to %d before queued action completed"
                   .formatted(newUidValidity));
-          stmt.setString(4, MailboxActionDbSupport.toIsoString(now));
           stmt.setString(5, MailboxActionDbSupport.toIsoString(now));
-          stmt.setInt(6, accountId);
-          stmt.setInt(7, folderId);
+          stmt.setString(6, MailboxActionDbSupport.toIsoString(now));
+          stmt.setInt(7, accountId);
           stmt.setInt(8, folderId);
           stmt.setString(9, MailboxActionStatus.SUCCEEDED.name());
           stmt.setLong(10, newUidValidity);
@@ -307,9 +284,23 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
   }
 
   @Override
+  public List<MailboxActionQueueRow> claimDueMailboxActions(
+      int accountId, ZonedDateTime now, int limit) {
+    return claimActions(
+        con -> MailboxActionDbSupport.findDueMailboxActions(con, accountId, now, limit), now);
+  }
+
+  @Override
   public List<MailboxActionQueueRow> claimDueReadStateActions(ZonedDateTime now, int limit) {
     return claimActions(
         con -> MailboxActionDbSupport.findDueReadStateActions(con, now, limit), now);
+  }
+
+  @Override
+  public List<MailboxActionQueueRow> claimDueReadStateActions(
+      int accountId, ZonedDateTime now, int limit) {
+    return claimActions(
+        con -> MailboxActionDbSupport.findDueReadStateActions(con, accountId, now, limit), now);
   }
 
   private List<MailboxActionQueueRow> claimActions(
@@ -357,6 +348,107 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
           stmt.setString(4, MailboxActionDbSupport.toIsoString(now));
           stmt.setInt(5, id);
           stmt.executeUpdate();
+        });
+  }
+
+  @Override
+  public void markMailboxActionAttemptedUnknown(int id, ZonedDateTime now) {
+    DbUtil.withPreparedStmtConsumer(
+        ds,
+        """
+            UPDATE mailbox_action_queue
+            SET execution_state = ?, updated_at = ?
+            WHERE id = ?""",
+        stmt -> {
+          stmt.setString(1, MailboxActionExecutionState.ATTEMPTED_UNKNOWN.name());
+          stmt.setString(2, MailboxActionDbSupport.toIsoString(now));
+          stmt.setInt(3, id);
+          stmt.executeUpdate();
+        });
+  }
+
+  @Override
+  public void confirmMailboxMoveApplied(
+      int actionId,
+      int messageId,
+      Integer targetFolderId,
+      long targetUidValidity,
+      long targetUid,
+      ZonedDateTime now) {
+    DbUtil.withConConsumer(
+        ds,
+        con -> {
+          boolean previousAutoCommit = con.getAutoCommit();
+          con.setAutoCommit(false);
+          try {
+            if (messageId > 0 && targetFolderId != null) {
+              try (PreparedStatement stmt =
+                  con.prepareStatement(
+                      """
+                          UPDATE messages
+                          SET remote_folder_id = ?, remote_uidvalidity = ?, remote_uid = ?, imap_uid = ?
+                          WHERE id = ?""")) {
+                stmt.setInt(1, targetFolderId);
+                stmt.setLong(2, targetUidValidity);
+                stmt.setLong(3, targetUid);
+                stmt.setLong(4, targetUid);
+                stmt.setInt(5, messageId);
+                stmt.executeUpdate();
+              }
+            }
+            try (PreparedStatement stmt =
+                con.prepareStatement(
+                    """
+                        UPDATE mailbox_action_queue
+                        SET target_uidvalidity = ?, target_uid = ?,
+                            status = ?, execution_state = ?, updated_at = ?, succeeded_at = ?,
+                            last_error = NULL
+                        WHERE id = ?""")) {
+              stmt.setLong(1, targetUidValidity);
+              stmt.setLong(2, targetUid);
+              stmt.setString(3, MailboxActionStatus.SUCCEEDED.name());
+              stmt.setString(4, MailboxActionExecutionState.CONFIRMED_APPLIED.name());
+              stmt.setString(5, MailboxActionDbSupport.toIsoString(now));
+              stmt.setString(6, MailboxActionDbSupport.toIsoString(now));
+              stmt.setInt(7, actionId);
+              stmt.executeUpdate();
+            }
+            try (PreparedStatement stmt =
+                con.prepareStatement(
+                    """
+                        UPDATE mailbox_action_queue
+                        SET source_folder_id = ?,
+                            source_remote_name = (
+                              SELECT target_remote_name FROM mailbox_action_queue WHERE id = ?),
+                            source_uidvalidity = ?, source_uid = ?, updated_at = ?
+                        WHERE message_id = ?
+                          AND id <> ?
+                          AND action_type IN (%s)
+                          AND status IN (%s)
+                          AND resolution_type IS NULL"""
+                        .formatted(
+                            EnumSql.inClause(MailboxActionType.READ_STATE_SYNCABLE),
+                            EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
+              if (targetFolderId == null) {
+                stmt.setNull(1, java.sql.Types.INTEGER);
+              } else {
+                stmt.setInt(1, targetFolderId);
+              }
+              stmt.setInt(2, actionId);
+              stmt.setLong(3, targetUidValidity);
+              stmt.setLong(4, targetUid);
+              stmt.setString(5, MailboxActionDbSupport.toIsoString(now));
+              stmt.setInt(6, messageId);
+              stmt.setInt(7, actionId);
+              stmt.executeUpdate();
+            }
+            con.commit();
+          } catch (SQLException | RuntimeException e) {
+            con.rollback();
+            throw e;
+          } finally {
+            con.setAutoCommit(previousAutoCommit);
+          }
         });
   }
 
@@ -728,7 +820,7 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
           try (PreparedStatement stmt =
               con.prepareStatement(
                   """
-                      DELETE FROM mailbox_action_queue
+                      UPDATE mailbox_action_queue SET message_id = NULL
                       WHERE message_id IN (
                         SELECT m.id
                         FROM messages m
@@ -786,11 +878,10 @@ public class DbMailboxActionRepository implements MailboxActionRepository {
           try (PreparedStatement stmt =
               con.prepareStatement(
                   """
-                      DELETE FROM mailbox_action_queue
-                      WHERE source_folder_id IN (SELECT id FROM folders WHERE account_id = ?)
-                         OR target_folder_id IN (SELECT id FROM folders WHERE account_id = ?)""")) {
+                      UPDATE mailbox_action_queue
+                      SET source_folder_id = NULL, target_folder_id = NULL
+                      WHERE account_id = ?""")) {
             stmt.setInt(1, accountId);
-            stmt.setInt(2, accountId);
             stmt.executeUpdate();
           }
           try (PreparedStatement stmt =

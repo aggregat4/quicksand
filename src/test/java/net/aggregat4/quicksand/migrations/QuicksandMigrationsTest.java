@@ -56,7 +56,10 @@ class QuicksandMigrationsTest {
           "folders_account_special_use_idx");
 
   private static final Set<String> MESSAGE_INDEXES =
-      Set.of("messages_folder_paging_idx", "messages_folder_imap_uid_idx");
+      Set.of(
+          "messages_folder_paging_idx",
+          "messages_remote_identity_idx",
+          "messages_message_id_header_idx");
 
   private static final Set<String> MAILBOX_ACTION_QUEUE_INDEXES =
       Set.of(
@@ -72,7 +75,7 @@ class QuicksandMigrationsTest {
     migrateDb(ds);
 
     try (Connection con = ds.getConnection()) {
-      assertEquals(3, schemaVersion(con));
+      assertEquals(4, schemaVersion(con));
       assertEquals(EXPECTED_TABLES, applicationTableNames(con));
       assertFalse(
           applicationTableNames(con).stream().anyMatch(name -> name.contains("hardened")),
@@ -92,7 +95,16 @@ class QuicksandMigrationsTest {
           columns(con, "drafts").containsAll(Set.of("remote_imap_uid", "remote_uidvalidity")));
       assertTrue(
           columns(con, "messages")
-              .containsAll(Set.of("folder_id", "imap_uid", "plain_text", "body_content_hash")));
+              .containsAll(
+                  Set.of(
+                      "folder_id",
+                      "imap_uid",
+                      "remote_folder_id",
+                      "remote_uidvalidity",
+                      "remote_uid",
+                      "message_id_header",
+                      "plain_text",
+                      "body_content_hash")));
       assertTrue(columns(con, "actors").containsAll(Set.of("message_id", "email_address")));
       assertTrue(
           columns(con, "attachments")
@@ -112,6 +124,10 @@ class QuicksandMigrationsTest {
                       "target_folder_id",
                       "target_remote_name",
                       "target_special_use",
+                      "target_uidvalidity",
+                      "target_uid",
+                      "message_id_header",
+                      "message_subject",
                       "payload_json",
                       "status",
                       "execution_state",
@@ -213,11 +229,14 @@ class QuicksandMigrationsTest {
                 """
                     INSERT INTO messages (
                         folder_id, imap_uid, subject, sent_date_epoch_s, received_date_epoch_s,
-                        starred, read, plain_text)
-                    VALUES (?, ?, 'subject', 1, 1, 0, 0, 1)
+                        starred, read, plain_text,
+                        remote_folder_id, remote_uidvalidity, remote_uid)
+                    VALUES (?, ?, 'subject', 1, 1, 0, 0, 1, ?, 1, ?)
                     """)) {
       stmt.setInt(1, folderId);
       stmt.setLong(2, imapUid);
+      stmt.setInt(3, folderId);
+      stmt.setLong(4, imapUid);
       stmt.executeUpdate();
     }
   }

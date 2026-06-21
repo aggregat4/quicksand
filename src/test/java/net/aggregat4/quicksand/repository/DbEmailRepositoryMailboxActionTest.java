@@ -3,6 +3,7 @@ package net.aggregat4.quicksand.repository;
 import static net.aggregat4.quicksand.repository.DatabaseMaintenance.migrateDb;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.Connection;
@@ -101,20 +102,19 @@ class DbEmailRepositoryMailboxActionTest {
   }
 
   @Test
-  void removeAllByUidClearsPendingMailboxActions() throws Exception {
+  void removeAllByUidDetachesButPreservesPendingMailboxActions() throws Exception {
     emailRepository.deleteById(messageId);
 
-    emailRepository.removeAllByUid(trash.id(), Set.of(messageUid));
+    emailRepository.removeAllByUid(inbox.id(), Set.of(messageUid));
 
-    assertTrue(emailRepository.findByMessageUid(messageUid).isEmpty());
+    assertTrue(emailRepository.findByFolderAndUid(inbox.id(), messageUid).isEmpty());
     try (Connection con = dataSource.getConnection();
         PreparedStatement stmt =
             con.prepareStatement(
-                "SELECT COUNT(*) FROM mailbox_action_queue WHERE message_id = ?")) {
-      stmt.setInt(1, messageId);
+                "SELECT COUNT(*) FROM mailbox_action_queue WHERE message_id IS NULL")) {
       try (var rs = stmt.executeQuery()) {
         assertTrue(rs.next());
-        assertEquals(0, rs.getInt(1));
+        assertEquals(1, rs.getInt(1));
       }
     }
   }
@@ -164,11 +164,12 @@ class DbEmailRepositoryMailboxActionTest {
   }
 
   @Test
-  void archiveByIdEnqueuesPendingTargetUidForArchiveFolder() throws Exception {
+  void archiveByIdKeepsObservedSourceIdentityWhileChangingDesiredFolder() throws Exception {
     emailRepository.archiveById(messageId);
 
-    assertEquals(Set.of(messageUid), emailRepository.getPendingMoveLikeTargetUids(archive.id()));
     assertEquals(archive.id(), messageFolderId(messageId));
+    assertTrue(emailRepository.findByFolderAndUid(inbox.id(), messageUid).isPresent());
+    assertTrue(emailRepository.findByFolderAndUid(archive.id(), messageUid).isEmpty());
   }
 
   @Test
@@ -362,8 +363,56 @@ class DbEmailRepositoryMailboxActionTest {
 
     Email updated = emailRepository.findById(messageId).orElseThrow();
     assertEquals(99L, updated.header().imapUid());
-    assertFalse(emailRepository.findByMessageUid(messageUid).isPresent());
-    assertTrue(emailRepository.findByMessageUid(99L).isPresent());
+    assertFalse(emailRepository.findByFolderAndUid(inbox.id(), messageUid).isPresent());
+    assertTrue(emailRepository.findByFolderAndUid(inbox.id(), 99L).isPresent());
+  }
+
+  @Test
+  void confirmMailboxMovePersistsTargetIdentityAndSuccessAtomically() throws Exception {
+    emailRepository.archiveById(messageId);
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    MailboxActionQueueRow row =
+        emailRepository.claimDueMailboxActions(account.id(), now, 1).getFirst();
+    emailRepository.markMailboxActionAttemptedUnknown(row.id(), now);
+
+    emailRepository.confirmMailboxMoveApplied(
+        row.id(), messageId, archive.id(), archive.uidValidity(), 99L, now);
+
+    assertTrue(emailRepository.findByFolderAndUid(archive.id(), 99L).isPresent());
+    try (Connection con = dataSource.getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement(
+                """
+                    SELECT status, execution_state, target_uidvalidity, target_uid
+                    FROM mailbox_action_queue WHERE id = ?""")) {
+      stmt.setInt(1, row.id());
+      try (var rs = stmt.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(MailboxActionStatus.SUCCEEDED.name(), rs.getString(1));
+        assertEquals(MailboxActionExecutionState.CONFIRMED_APPLIED.name(), rs.getString(2));
+        assertEquals(archive.uidValidity(), rs.getLong(3));
+        assertEquals(99L, rs.getLong(4));
+      }
+    }
+  }
+
+  @Test
+  void confirmedMoveRetargetsLaterPendingReadIntent() {
+    emailRepository.archiveById(messageId);
+    emailRepository.updateRead(messageId, true);
+    ZonedDateTime now = ZonedDateTime.of(2026, 3, 25, 10, 5, 0, 0, ZoneId.of("UTC"));
+    MailboxActionQueueRow move =
+        emailRepository.claimDueMailboxActions(account.id(), now, 1).getFirst();
+
+    emailRepository.confirmMailboxMoveApplied(
+        move.id(), messageId, archive.id(), archive.uidValidity(), 99L, now);
+
+    MailboxActionQueueRow read =
+        emailRepository.claimDueReadStateActions(account.id(), now, 1).getFirst();
+    assertEquals(archive.id(), read.sourceFolderId());
+    assertEquals(archive.remoteName(), read.sourceRemoteName());
+    assertEquals(archive.uidValidity(), read.sourceUidValidity());
+    assertEquals(99L, read.sourceUid());
   }
 
   @Test
@@ -424,39 +473,41 @@ class DbEmailRepositoryMailboxActionTest {
   }
 
   @Test
-  void archiveByIdDeduplicatesWhenTargetAlreadyContainsSameImapUid() throws Exception {
+  void laterUnattemptedMoveRewritesTargetButPreservesOriginalSource() throws Exception {
     emailRepository.archiveById(messageId);
-    int duplicateInboxId = insertInboxDuplicate(messageUid);
-
-    emailRepository.archiveById(duplicateInboxId);
-
-    assertEquals(archive.id(), messageFolderId(messageId));
-    assertTrue(emailRepository.findById(duplicateInboxId).isEmpty());
-    assertEquals(1, countMessagesInFolder(archive.id()));
-    assertEquals(1, countMailboxActionQueueRows());
-  }
-
-  @Test
-  void deleteByIdDeduplicatesWhenTrashAlreadyContainsSameImapUid() throws Exception {
     emailRepository.deleteById(messageId);
-    int duplicateInboxId = insertInboxDuplicate(messageUid);
 
-    emailRepository.deleteById(duplicateInboxId);
-
-    assertEquals(trash.id(), messageFolderId(messageId));
-    assertTrue(emailRepository.findById(duplicateInboxId).isEmpty());
-    assertEquals(1, countMessagesInFolder(trash.id()));
+    MailboxActionQueueRow row =
+        emailRepository
+            .claimDueMailboxActions(
+                account.id(), ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZoneId.of("UTC")), 10)
+            .getFirst();
+    assertEquals(net.aggregat4.quicksand.domain.MailboxActionType.DELETE, row.actionType());
+    assertEquals(inbox.id(), row.sourceFolderId());
+    assertEquals(trash.id(), row.targetFolderId());
     assertEquals(1, countMailboxActionQueueRows());
   }
 
   @Test
-  void archiveByIdRemovesStaleTargetDuplicateBeforeMove() throws Exception {
-    int staleArchiveId = insertArchiveDuplicate(messageUid);
+  void exactRemoteIdentityConstraintRejectsSecondInboxObservation() throws Exception {
+    emailRepository.archiveById(messageId);
+    assertThrows(RuntimeException.class, () -> insertInboxDuplicate(messageUid));
+  }
+
+  @Test
+  void exactRemoteIdentityConstraintRejectsSecondInboxObservationBeforeDelete() throws Exception {
+    emailRepository.deleteById(messageId);
+    assertThrows(RuntimeException.class, () -> insertInboxDuplicate(messageUid));
+  }
+
+  @Test
+  void archivePreservesDistinctRemoteEntryWithSameUidInTargetFolder() throws Exception {
+    int archiveEntryId = insertArchiveDuplicate(messageUid);
     emailRepository.archiveById(messageId);
 
     assertEquals(archive.id(), messageFolderId(messageId));
-    assertTrue(emailRepository.findById(staleArchiveId).isEmpty());
-    assertEquals(1, countMessagesInFolder(archive.id()));
+    assertTrue(emailRepository.findById(archiveEntryId).isPresent());
+    assertEquals(2, countMessagesInFolder(archive.id()));
     assertEquals(1, countMailboxActionQueueRows());
   }
 

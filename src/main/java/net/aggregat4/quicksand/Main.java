@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.sql.DataSource;
 import net.aggregat4.quicksand.domain.Account;
+import net.aggregat4.quicksand.jobs.AccountSyncCoordinator;
 import net.aggregat4.quicksand.jobs.MailFetcher;
 import net.aggregat4.quicksand.jobs.MailSender;
 import net.aggregat4.quicksand.jobs.MailboxActionSync;
@@ -121,6 +122,7 @@ public final class Main {
         new AccountFolderMappingService(
             accountFolderMappingRepository, folderRepository, accountRepository);
     MailboxUpdateBroadcaster mailboxUpdateBroadcaster = new MailboxUpdateBroadcaster();
+    AccountSyncCoordinator accountSyncCoordinator = new AccountSyncCoordinator();
 
     boolean mailboxActionSyncEnabled =
         config.get("mailbox_action_sync.enabled").asBoolean().orElse(demoEnabled);
@@ -139,7 +141,8 @@ public final class Main {
               folderRepository,
               clock,
               syncPeriodInSeconds,
-              retryDelaySeconds);
+              retryDelaySeconds,
+              accountSyncCoordinator);
     } else if (mailboxActionSyncEnabled) {
       LOGGER.info(
           "Mailbox action sync was enabled, but no accounts are configured. Skipping startup.");
@@ -153,7 +156,8 @@ public final class Main {
     if (mailFetcherEnabled && !accounts.isEmpty()) {
       long fetchPeriodInSeconds = config.get("mail_fetcher.period_seconds").asLong().orElse(15L);
       boolean idleEnabled = config.get("mail_fetcher.idle_enabled").asBoolean().orElse(false);
-      Runnable preFetchActionSync = mailboxActionSync != null ? mailboxActionSync::syncNow : null;
+      java.util.function.IntConsumer preAccountActionSync =
+          mailboxActionSync != null ? mailboxActionSync::syncAccount : null;
       mailFetcher =
           new MailFetcher(
               accountRepository,
@@ -163,7 +167,8 @@ public final class Main {
               accountFolderMappingService,
               idleEnabled,
               mailboxUpdateBroadcaster,
-              preFetchActionSync);
+              preAccountActionSync,
+              accountSyncCoordinator);
       mailFetcher.fetchNow();
       if (demoEnabled) {
         bootstrapDemoFolderMappings(accountFolderMappingService, accountRepository.getAccounts());

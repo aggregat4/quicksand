@@ -134,7 +134,7 @@ public class DbEmailRepositoryTest {
 
     int inboxId = folderRepository.getFolders(account.id()).get(0).id();
     emailRepository.removeAllByUid(inboxId, Set.of(message.header().imapUid()));
-    assertTrue(emailRepository.findByMessageUid(message.header().imapUid()).isEmpty());
+    assertTrue(emailRepository.findByFolderAndUid(inboxId, message.header().imapUid()).isEmpty());
   }
 
   @Test
@@ -343,17 +343,13 @@ public class DbEmailRepositoryTest {
     Store store = GreenmailUtils.getImapStore(greenMail);
     ImapStoreSync.syncImapFolders(account, store, folderRepository, emailRepository);
 
+    int inboxId = folderRepository.getFolders(account.id()).getFirst().id();
     Email stored =
         emailRepository
-            .findByMessageUid(
+            .findByFolderAndUid(
+                inboxId,
                 emailRepository
-                    .getMessages(
-                        folderRepository.getFolders(account.id()).getFirst().id(),
-                        1,
-                        0,
-                        0,
-                        PageDirection.RIGHT,
-                        SortOrder.ASCENDING)
+                    .getMessages(inboxId, 1, 0, 0, PageDirection.RIGHT, SortOrder.ASCENDING)
                     .emails()
                     .getFirst()
                     .header()

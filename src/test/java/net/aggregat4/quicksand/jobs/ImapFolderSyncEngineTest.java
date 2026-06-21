@@ -49,6 +49,25 @@ class ImapFolderSyncEngineTest {
   }
 
   @Test
+  void incrementalSyncScopesUidLookupToCurrentFolder() throws Exception {
+    Account account = new Account(1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p");
+    InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
+    TrackingEmailRepository emailRepository = new TrackingEmailRepository();
+    NamedFolder inbox =
+        folderRepository.createFolder(account, "INBOX", "INBOX", FolderSpecialUse.INBOX, 42L);
+    inbox = folderRepository.updateSyncCheckpoint(inbox, 100L, Instant.now().getEpochSecond() - 60);
+    emailRepository.seedExisting(7L, inbox.id(), false, false);
+
+    FakeImapFolderAccess access = new FakeImapFolderAccess();
+    access.changedMessages = List.of(new FakeMessage(7L, new Flags(), "Changed subject"));
+
+    ImapFolderSyncEngine.syncFolder(
+        account.id(), inbox, access, true, false, folderRepository, emailRepository);
+
+    assertEquals(List.of(inbox.id()), emailRepository.lookupFolderIds);
+  }
+
+  @Test
   void uidValidityChangeClearsLocalMirrorAndRunsFullSync() throws Exception {
     Account account = new Account(1, "Test", "imap", 143, "u", "p", "smtp", 587, "u", "p");
     InMemoryFolderRepository folderRepository = new InMemoryFolderRepository();
@@ -82,7 +101,7 @@ class ImapFolderSyncEngineTest {
     NamedFolder archive =
         folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 42L);
     emailRepository.seedExisting(5L, archive.id(), false, false);
-    emailRepository.addPendingMoveLikeTargetUid(archive.id(), 5L);
+    emailRepository.addPendingMoveLikeActionSourceUid(5L);
 
     FakeImapFolderAccess access = new FakeImapFolderAccess();
     access.fullName = "Archive";
@@ -105,7 +124,7 @@ class ImapFolderSyncEngineTest {
     long lastFullSync = Instant.now().getEpochSecond() - 60;
     archive = folderRepository.updateSyncCheckpoint(archive, 100L, lastFullSync);
     emailRepository.seedExisting(5L, archive.id(), false, false);
-    emailRepository.addPendingMoveLikeTargetUid(archive.id(), 5L);
+    emailRepository.addPendingMoveLikeActionSourceUid(5L);
 
     FakeImapFolderAccess access = new FakeImapFolderAccess();
     access.fullName = "Archive";
@@ -127,7 +146,7 @@ class ImapFolderSyncEngineTest {
     NamedFolder archive =
         folderRepository.createFolder(account, "Archive", "Archive", FolderSpecialUse.ARCHIVE, 42L);
     emailRepository.seedExisting(5L, archive.id(), false, false);
-    emailRepository.addPendingMoveLikeTargetUid(archive.id(), 5L);
+    emailRepository.addPendingMoveLikeActionSourceUid(5L);
 
     FakeImapFolderAccess access = new FakeImapFolderAccess();
     access.fullName = "Archive";
@@ -279,6 +298,7 @@ class ImapFolderSyncEngineTest {
     boolean updatedFlags;
     boolean clearedFolder;
     final java.util.Set<Long> removedUids = new java.util.HashSet<>();
+    final java.util.List<Integer> lookupFolderIds = new java.util.ArrayList<>();
 
     void seedExisting(long uid, int folderId, boolean starred, boolean read) {
       addMessages(
@@ -291,6 +311,12 @@ class ImapFolderSyncEngineTest {
                   true,
                   "body",
                   List.of())));
+    }
+
+    @Override
+    public java.util.Optional<Email> findByFolderAndUid(int folderId, long uid) {
+      lookupFolderIds.add(folderId);
+      return super.findByFolderAndUid(folderId, uid);
     }
 
     @Override

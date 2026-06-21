@@ -8,6 +8,7 @@ import jakarta.mail.NoSuchProviderException;
 import jakarta.mail.Session;
 import jakarta.mail.Store;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.search.MessageIDTerm;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import net.aggregat4.quicksand.domain.Account;
 import net.aggregat4.quicksand.domain.Draft;
+import net.aggregat4.quicksand.domain.MailboxActionExecutionState;
 import net.aggregat4.quicksand.domain.MailboxActionQueueRow;
 import net.aggregat4.quicksand.domain.MailboxActionType;
 import net.aggregat4.quicksand.domain.NamedFolder;
@@ -53,6 +55,7 @@ public class MailboxActionSync {
   private final Clock clock;
   private final long syncPeriodInSeconds;
   private final long retryDelaySeconds;
+  private final AccountSyncCoordinator syncCoordinator;
 
   public MailboxActionSync(
       AccountRepository accountRepository,
@@ -64,6 +67,30 @@ public class MailboxActionSync {
       Clock clock,
       long syncPeriodInSeconds,
       long retryDelaySeconds) {
+    this(
+        accountRepository,
+        emailRepository,
+        outboundMessageRepository,
+        attachmentRepository,
+        draftRepository,
+        folderRepository,
+        clock,
+        syncPeriodInSeconds,
+        retryDelaySeconds,
+        new AccountSyncCoordinator());
+  }
+
+  public MailboxActionSync(
+      AccountRepository accountRepository,
+      EmailRepository emailRepository,
+      OutboundMessageRepository outboundMessageRepository,
+      AttachmentRepository attachmentRepository,
+      DraftRepository draftRepository,
+      FolderRepository folderRepository,
+      Clock clock,
+      long syncPeriodInSeconds,
+      long retryDelaySeconds,
+      AccountSyncCoordinator syncCoordinator) {
     this.accountRepository = accountRepository;
     this.emailRepository = emailRepository;
     this.outboundMessageRepository = outboundMessageRepository;
@@ -73,6 +100,7 @@ public class MailboxActionSync {
     this.clock = clock;
     this.syncPeriodInSeconds = syncPeriodInSeconds;
     this.retryDelaySeconds = retryDelaySeconds;
+    this.syncCoordinator = syncCoordinator;
   }
 
   public void start() {
@@ -95,40 +123,58 @@ public class MailboxActionSync {
   void syncDueActions() {
     ZonedDateTime now = ZonedDateTime.now(clock);
     emailRepository.purgeStaleMailboxActionRows(now);
-    syncDueReadStateActions(now);
-    syncDueOtherActions(now);
-  }
-
-  private void syncDueReadStateActions(ZonedDateTime now) {
-    for (int batchIndex = 0; batchIndex < MAX_READ_STATE_BATCHES_PER_SYNC; batchIndex++) {
-      List<MailboxActionQueueRow> actions =
-          emailRepository.claimDueReadStateActions(now, READ_STATE_BATCH_SIZE);
-      if (actions.isEmpty()) {
-        return;
-      }
-      applyReadStateBatch(actions, now);
+    for (Account account : accountRepository.getAccounts()) {
+      syncAccount(account.id());
     }
   }
 
-  private void syncDueOtherActions(ZonedDateTime now) {
-    List<MailboxActionQueueRow> actions = emailRepository.claimDueMailboxActions(now, BATCH_SIZE);
-    for (MailboxActionQueueRow action : actions) {
-      try {
-        applyAction(action);
-        emailRepository.markMailboxActionSucceeded(action.id(), ZonedDateTime.now(clock));
-      } catch (MailboxActionConflictException e) {
-        emailRepository.markMailboxActionConflict(
-            action.id(), abbreviateError(e), ZonedDateTime.now(clock));
-      } catch (MailboxActionPermanentException e) {
-        emailRepository.markMailboxActionPermanentFailure(
-            action.id(), abbreviateError(e), ZonedDateTime.now(clock));
-      } catch (MessagingException | RuntimeException e) {
-        LOGGER.warn("Failed to sync mailbox action {}", action.id(), e);
-        ZonedDateTime retryAt =
-            ZonedDateTime.now(clock).plusSeconds(backoffSeconds(action.attemptCount()));
-        emailRepository.markMailboxActionRetry(
-            action.id(), abbreviateError(e), retryAt, ZonedDateTime.now(clock));
+  public void syncAccount(int accountId) {
+    syncCoordinator.run(
+        accountId,
+        () -> {
+          ZonedDateTime now = ZonedDateTime.now(clock);
+          syncDueReadStateActions(accountId, now);
+          syncDueOtherActions(accountId, now);
+        });
+  }
+
+  private void syncDueReadStateActions(int accountId, ZonedDateTime now) {
+    for (int batchIndex = 0; batchIndex < MAX_READ_STATE_BATCHES_PER_SYNC; batchIndex++) {
+      List<MailboxActionQueueRow> actions =
+          emailRepository.claimDueReadStateActions(accountId, now, READ_STATE_BATCH_SIZE);
+      if (actions.isEmpty()) {
+        return;
       }
+      syncCoordinator.run(actions.getFirst().accountId(), () -> applyReadStateBatch(actions, now));
+    }
+  }
+
+  private void syncDueOtherActions(int accountId, ZonedDateTime now) {
+    List<MailboxActionQueueRow> actions =
+        emailRepository.claimDueMailboxActions(accountId, now, BATCH_SIZE);
+    for (MailboxActionQueueRow action : actions) {
+      syncCoordinator.run(action.accountId(), () -> applyClaimedAction(action));
+    }
+  }
+
+  private void applyClaimedAction(MailboxActionQueueRow action) {
+    try {
+      boolean completionPersisted = applyAction(action);
+      if (!completionPersisted) {
+        emailRepository.markMailboxActionSucceeded(action.id(), ZonedDateTime.now(clock));
+      }
+    } catch (MailboxActionConflictException e) {
+      emailRepository.markMailboxActionConflict(
+          action.id(), abbreviateError(e), ZonedDateTime.now(clock));
+    } catch (MailboxActionPermanentException e) {
+      emailRepository.markMailboxActionPermanentFailure(
+          action.id(), abbreviateError(e), ZonedDateTime.now(clock));
+    } catch (MessagingException | RuntimeException e) {
+      LOGGER.warn("Failed to sync mailbox action {}", action.id(), e);
+      ZonedDateTime retryAt =
+          ZonedDateTime.now(clock).plusSeconds(backoffSeconds(action.attemptCount()));
+      emailRepository.markMailboxActionRetry(
+          action.id(), abbreviateError(e), retryAt, ZonedDateTime.now(clock));
     }
   }
 
@@ -174,22 +220,21 @@ public class MailboxActionSync {
     }
   }
 
-  private void applyAction(MailboxActionQueueRow action) throws MessagingException {
+  private boolean applyAction(MailboxActionQueueRow action) throws MessagingException {
     if (MailboxActionType.MOVE_LIKE.contains(action.actionType())) {
-      applyMoveLikeAction(action);
-      return;
+      return applyMoveLikeAction(action);
     }
     if (action.actionType() == MailboxActionType.APPEND_SENT) {
       applyAppendSentAction(action);
-      return;
+      return false;
     }
     if (action.actionType() == MailboxActionType.UPSERT_DRAFT) {
       applyUpsertDraftAction(action);
-      return;
+      return false;
     }
     if (action.actionType() == MailboxActionType.DELETE_DRAFT) {
       applyDeleteDraftAction(action);
-      return;
+      return false;
     }
     throw new IllegalArgumentException("Unsupported mailbox action type " + action.actionType());
   }
@@ -370,7 +415,7 @@ public class MailboxActionSync {
 
   private record ReadStateBatchConflict(MailboxActionQueueRow action, String error) {}
 
-  private void applyMoveLikeAction(MailboxActionQueueRow action) throws MessagingException {
+  private boolean applyMoveLikeAction(MailboxActionQueueRow action) throws MessagingException {
     if (action.sourceRemoteName() == null
         || action.sourceUid() == null
         || action.targetRemoteName() == null) {
@@ -378,7 +423,7 @@ public class MailboxActionSync {
           "Queued move action is missing source or target mailbox identity");
     }
     if (action.sourceRemoteName().equals(action.targetRemoteName())) {
-      return;
+      return false;
     }
     Account account = accountRepository.getAccount(action.accountId());
     try (Store store = createConnectedStore(account)) {
@@ -387,18 +432,65 @@ public class MailboxActionSync {
       }
       IMAPFolder sourceFolder = openSourceFolder(store, action);
       try {
-        Message message = getSourceMessage(sourceFolder, action);
         Folder targetFolder = store.getFolder(action.targetRemoteName());
         if (!targetFolder.exists()) {
           throw new MailboxActionConflictException("Target mailbox does not exist on server");
         }
-        AppendUID[] moved = sourceFolder.moveUIDMessages(new Message[] {message}, targetFolder);
-        if (moved != null && moved.length == 1 && moved[0] != null) {
-          emailRepository.updateMessageImapUid(action.messageId(), moved[0].uid);
+        if (!(targetFolder instanceof IMAPFolder imapTargetFolder)) {
+          throw new MessagingException("Target folder is not an IMAP folder");
         }
+        Message message = sourceFolder.getMessageByUID(action.sourceUid());
+        if (message == null) {
+          if (action.executionState() == MailboxActionExecutionState.ATTEMPTED_UNKNOWN
+              && recoverMoveFromTarget(action, imapTargetFolder)) {
+            return true;
+          }
+          throw new MailboxActionConflictException("Source UID no longer exists");
+        }
+        emailRepository.markMailboxActionAttemptedUnknown(action.id(), ZonedDateTime.now(clock));
+        AppendUID[] moved = sourceFolder.moveUIDMessages(new Message[] {message}, targetFolder);
+        if (moved == null || moved.length != 1 || moved[0] == null) {
+          throw new MessagingException("UID MOVE did not return a target UID");
+        }
+        emailRepository.confirmMailboxMoveApplied(
+            action.id(),
+            action.messageId(),
+            action.targetFolderId(),
+            moved[0].uidvalidity,
+            moved[0].uid,
+            ZonedDateTime.now(clock));
+        return true;
       } finally {
         sourceFolder.close(false);
       }
+    }
+  }
+
+  private boolean recoverMoveFromTarget(MailboxActionQueueRow action, IMAPFolder targetFolder)
+      throws MessagingException {
+    if (action.messageIdHeader() == null || action.messageIdHeader().isBlank()) {
+      return false;
+    }
+    targetFolder.open(Folder.READ_ONLY);
+    try {
+      Message[] matches = targetFolder.search(new MessageIDTerm(action.messageIdHeader()));
+      if (matches.length != 1) {
+        return false;
+      }
+      long targetUid = targetFolder.getUID(matches[0]);
+      if (targetUid <= 0) {
+        return false;
+      }
+      emailRepository.confirmMailboxMoveApplied(
+          action.id(),
+          action.messageId(),
+          action.targetFolderId(),
+          targetFolder.getUIDValidity(),
+          targetUid,
+          ZonedDateTime.now(clock));
+      return true;
+    } finally {
+      targetFolder.close(false);
     }
   }
 
@@ -414,15 +506,6 @@ public class MailboxActionSync {
       throw new MailboxActionConflictException("Source folder UIDVALIDITY changed");
     }
     return imapFolder;
-  }
-
-  private static Message getSourceMessage(IMAPFolder imapFolder, MailboxActionQueueRow action)
-      throws MessagingException {
-    Message message = imapFolder.getMessageByUID(action.sourceUid());
-    if (message == null) {
-      throw new MailboxActionConflictException("Source UID no longer exists");
-    }
-    return message;
   }
 
   private Store createConnectedStore(Account account) throws MessagingException {

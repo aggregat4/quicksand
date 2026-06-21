@@ -7,6 +7,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntConsumer;
 import net.aggregat4.quicksand.domain.*;
 import net.aggregat4.quicksand.repository.AccountRepository;
 import net.aggregat4.quicksand.repository.EmailRepository;
@@ -28,7 +29,8 @@ public class MailFetcher {
   private final EmailRepository messageRepository;
   private final AccountFolderMappingService accountFolderMappingService;
   private final MailboxUpdateBroadcaster mailboxUpdateBroadcaster;
-  private final Runnable preFetch;
+  private final IntConsumer preAccountFetch;
+  private final AccountSyncCoordinator syncCoordinator;
 
   private final ConcurrentHashMap<Integer, Store> accountStores = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<Integer, ImapIdleWatcher> idleWatchers =
@@ -50,7 +52,8 @@ public class MailFetcher {
         accountFolderMappingService,
         idleEnabled,
         mailboxUpdateBroadcaster,
-        null);
+        null,
+        new AccountSyncCoordinator());
   }
 
   public MailFetcher(
@@ -61,7 +64,8 @@ public class MailFetcher {
       AccountFolderMappingService accountFolderMappingService,
       boolean idleEnabled,
       MailboxUpdateBroadcaster mailboxUpdateBroadcaster,
-      Runnable preFetch) {
+      IntConsumer preAccountFetch,
+      AccountSyncCoordinator syncCoordinator) {
     this.accountRepository = accountRepository;
     this.fetchPeriodInSeconds = fetchPeriodInSeconds;
     this.folderRepository = folderRepository;
@@ -69,7 +73,8 @@ public class MailFetcher {
     this.accountFolderMappingService = accountFolderMappingService;
     this.idleEnabled = idleEnabled;
     this.mailboxUpdateBroadcaster = mailboxUpdateBroadcaster;
-    this.preFetch = preFetch;
+    this.preAccountFetch = preAccountFetch;
+    this.syncCoordinator = syncCoordinator;
   }
 
   public void start() {
@@ -112,41 +117,42 @@ public class MailFetcher {
   void fetch() {
     long fetchStarted = System.nanoTime();
     LOGGER.debug("Starting mail fetch for configured accounts");
-    if (preFetch != null) {
-      preFetch.run();
-    }
     checkAndInitializeStores();
     for (Account account : accountRepository.getAccounts()) {
       Store store = accountStores.get(account.id());
       if (store == null) {
         continue;
       }
-      if (!store.isConnected()) {
-        try {
-          store.connect(
-              account.imapHost(),
-              account.imapPort(),
-              account.imapUsername(),
-              account.imapPassword());
-        } catch (MessagingException e) {
-          LOGGER.warn("Failed to connect to IMAP store for account {}", account.name(), e);
-          continue;
-        }
-        LOGGER.debug("Opened IMAP connection for account {}", account.name());
-      }
       long accountFetchStarted = System.nanoTime();
-      ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
-      accountFolderMappingService.syncMappingsAfterFolderDiscovery(account.id());
-      if (mailboxUpdateBroadcaster != null) {
-        mailboxUpdateBroadcaster.publishMailboxUpdated(account.id());
-      }
-      ensureIdleWatch(account, store);
+      syncCoordinator.run(account.id(), () -> syncAccount(account, store));
       LOGGER.debug(
           "Finished mail fetch for account {} in {} ms",
           account.name(),
           elapsedMillis(accountFetchStarted));
     }
     LOGGER.debug("Finished mail fetch in {} ms", elapsedMillis(fetchStarted));
+  }
+
+  private void syncAccount(Account account, Store store) {
+    if (!store.isConnected()) {
+      try {
+        store.connect(
+            account.imapHost(), account.imapPort(), account.imapUsername(), account.imapPassword());
+      } catch (MessagingException e) {
+        LOGGER.warn("Failed to connect to IMAP store for account {}", account.name(), e);
+        return;
+      }
+      LOGGER.debug("Opened IMAP connection for account {}", account.name());
+    }
+    if (preAccountFetch != null) {
+      preAccountFetch.accept(account.id());
+    }
+    ImapStoreSync.syncImapFolders(account, store, folderRepository, messageRepository);
+    accountFolderMappingService.syncMappingsAfterFolderDiscovery(account.id());
+    if (mailboxUpdateBroadcaster != null) {
+      mailboxUpdateBroadcaster.publishMailboxUpdated(account.id());
+    }
+    ensureIdleWatch(account, store);
   }
 
   /** Checks whether we have an active session for each account and if not creates a new session. */

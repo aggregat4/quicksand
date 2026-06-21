@@ -22,7 +22,6 @@ public class InMemoryEmailRepository implements EmailRepository {
 
   private final Map<Integer, List<Email>> messages = new HashMap<>();
   private final Set<Long> pendingMoveLikeActionSourceUids = new HashSet<>();
-  private final Map<Integer, Set<Long>> pendingMoveLikeTargetUids = new HashMap<>();
 
   @Override
   public Optional<Email> findById(int id) {
@@ -42,15 +41,15 @@ public class InMemoryEmailRepository implements EmailRepository {
   }
 
   @Override
-  public Optional<Email> findByMessageUid(long uid) {
-    for (List<Email> emails : messages.values()) {
-      for (Email email : emails) {
-        if (email.header().imapUid() == uid) {
-          return Optional.of(email);
-        }
-      }
-    }
-    return Optional.empty();
+  public Optional<Email> findByFolderAndUid(int folderId, long uid) {
+    return messages.getOrDefault(folderId, List.of()).stream()
+        .filter(email -> email.header().imapUid() == uid)
+        .findFirst();
+  }
+
+  @Override
+  public Optional<Email> findByRemoteKey(int folderId, long uidValidity, long uid) {
+    return findByFolderAndUid(folderId, uid);
   }
 
   @Override
@@ -134,23 +133,6 @@ public class InMemoryEmailRepository implements EmailRepository {
   }
 
   @Override
-  public Set<Long> getPendingMoveLikeTargetUids(int targetFolderId) {
-    return new HashSet<>(pendingMoveLikeTargetUids.getOrDefault(targetFolderId, Set.of()));
-  }
-
-  @Override
-  public Set<Long> getMoveLikeProtectedUidsInFolder(int folderId) {
-    HashSet<Long> protectedUids = new HashSet<>(getPendingMoveLikeTargetUids(folderId));
-    for (Email email : messages.getOrDefault(folderId, List.of())) {
-      long uid = email.header().imapUid();
-      if (pendingMoveLikeActionSourceUids.contains(uid)) {
-        protectedUids.add(uid);
-      }
-    }
-    return protectedUids;
-  }
-
-  @Override
   public void resolveMoveLikeSourceUidsAbsentFromRemote(
       int accountId,
       String sourceRemoteName,
@@ -158,12 +140,12 @@ public class InMemoryEmailRepository implements EmailRepository {
       Set<Long> remoteUidsPresent) {}
 
   @Override
+  public void resolveMoveLikeSourceUidsVanished(
+      int accountId, String sourceRemoteName, Long sourceUidValidity, Set<Long> vanishedUids) {}
+
+  @Override
   public void markMoveLikeActionsConflictForUidValidityChange(
       int accountId, int folderId, long newUidValidity, java.time.ZonedDateTime now) {}
-
-  public void addPendingMoveLikeTargetUid(int targetFolderId, long uid) {
-    pendingMoveLikeTargetUids.computeIfAbsent(targetFolderId, ignored -> new HashSet<>()).add(uid);
-  }
 
   @Override
   public Set<Long> getPendingReadStateActionSourceUids(
@@ -192,13 +174,37 @@ public class InMemoryEmailRepository implements EmailRepository {
   }
 
   @Override
+  public List<MailboxActionQueueRow> claimDueMailboxActions(
+      int accountId, java.time.ZonedDateTime now, int limit) {
+    return List.of();
+  }
+
+  @Override
   public List<MailboxActionQueueRow> claimDueReadStateActions(
       java.time.ZonedDateTime now, int limit) {
     return List.of();
   }
 
   @Override
+  public List<MailboxActionQueueRow> claimDueReadStateActions(
+      int accountId, java.time.ZonedDateTime now, int limit) {
+    return List.of();
+  }
+
+  @Override
   public void markMailboxActionSucceeded(int id, java.time.ZonedDateTime now) {}
+
+  @Override
+  public void markMailboxActionAttemptedUnknown(int id, java.time.ZonedDateTime now) {}
+
+  @Override
+  public void confirmMailboxMoveApplied(
+      int actionId,
+      int messageId,
+      Integer targetFolderId,
+      long targetUidValidity,
+      long targetUid,
+      java.time.ZonedDateTime now) {}
 
   @Override
   public void markMailboxActionRetry(

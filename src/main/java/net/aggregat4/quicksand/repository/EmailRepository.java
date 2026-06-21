@@ -16,7 +16,9 @@ public interface EmailRepository extends MailboxActionRepository {
 
   Optional<Integer> findAccountIdByMessageId(int id);
 
-  Optional<Email> findByMessageUid(long uid);
+  Optional<Email> findByFolderAndUid(int folderId, long uid);
+
+  Optional<Email> findByRemoteKey(int folderId, long uidValidity, long uid);
 
   void updateFlags(int id, boolean messageStarred, boolean messageRead);
 

@@ -92,11 +92,14 @@ final class ImapFolderSyncEngine {
           access.getFullName(),
           localFolder.uidValidity(),
           remoteUidValidity);
+      Set<Long> protectedSourceUids =
+          messageRepository.getPendingMoveLikeActionSourceUids(
+              accountId, localFolder.remoteName(), localFolder.uidValidity());
       ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
       messageRepository.markMoveLikeActionsConflictForUidValidityChange(
           accountId, localFolder.id(), remoteUidValidity, now);
       Set<Long> localUids = new HashSet<>(messageRepository.getAllMessageIds(localFolder.id()));
-      localUids.removeAll(messageRepository.getMoveLikeProtectedUidsInFolder(localFolder.id()));
+      localUids.removeAll(protectedSourceUids);
       messageRepository.removeAllByUid(localFolder.id(), localUids);
       localFolder = folderRepository.updateSyncCheckpoint(localFolder, null, null);
     }
@@ -169,7 +172,7 @@ final class ImapFolderSyncEngine {
       long uid = access.getUid(message);
       remoteUids.add(uid);
       Optional<net.aggregat4.quicksand.domain.Email> existingMessage =
-          messageRepository.findByMessageUid(uid);
+          messageRepository.findByRemoteKey(localFolder.id(), localFolder.uidValidity(), uid);
       if (existingMessage.isPresent()) {
         updateFlagsIfNeeded(
             messageRepository,
@@ -182,10 +185,14 @@ final class ImapFolderSyncEngine {
     }
 
     if (qresyncSupported && access.openedWithQresync()) {
-      deleteVanishedUids(messageRepository, localFolder.id(), access.getVanishedUids());
+      Set<Long> vanishedUids = toUidSet(access.getVanishedUids());
+      deleteVanishedUids(
+          messageRepository, localFolder.id(), vanishedUids, pendingMoveLikeSourceUids);
+      messageRepository.resolveMoveLikeSourceUidsVanished(
+          accountId, localFolder.remoteName(), localFolder.uidValidity(), vanishedUids);
     } else {
       collectRemoteUids(access, remoteUids);
-      deleteExpungedMessages(localFolder, messageRepository, remoteUids);
+      deleteExpungedMessages(localFolder, messageRepository, remoteUids, pendingMoveLikeSourceUids);
       resolveSucceededMoveLikeSourcesAbsentFromRemote(
           accountId, localFolder, messageRepository, remoteUids);
     }
@@ -193,16 +200,24 @@ final class ImapFolderSyncEngine {
   }
 
   private static void deleteVanishedUids(
-      EmailRepository messageRepository, int folderId, long[] vanishedUids) {
-    if (vanishedUids.length == 0) {
+      EmailRepository messageRepository,
+      int folderId,
+      Set<Long> uids,
+      Set<Long> protectedSourceUids) {
+    if (uids.isEmpty()) {
       return;
     }
-    Set<Long> uids = new HashSet<>();
-    for (long uid : vanishedUids) {
-      uids.add(uid);
-    }
-    uids.removeAll(messageRepository.getMoveLikeProtectedUidsInFolder(folderId));
+    uids = new HashSet<>(uids);
+    uids.removeAll(protectedSourceUids);
     messageRepository.removeAllByUid(folderId, uids);
+  }
+
+  private static Set<Long> toUidSet(long[] uids) {
+    Set<Long> result = new HashSet<>();
+    for (long uid : uids) {
+      result.add(uid);
+    }
+    return result;
   }
 
   private static void naiveFolderSync(
@@ -220,18 +235,22 @@ final class ImapFolderSyncEngine {
             accountId, localFolder.remoteName(), localFolder.uidValidity());
     List<Message> messagesToDownload =
         updateLocalMessages(
+            localFolder.id(),
+            localFolder.uidValidity(),
             access,
             messageRepository,
             remoteUids,
             pendingMoveLikeSourceUids,
             pendingReadStateSourceUids);
-    deleteExpungedMessages(localFolder, messageRepository, remoteUids);
+    deleteExpungedMessages(localFolder, messageRepository, remoteUids, pendingMoveLikeSourceUids);
     resolveSucceededMoveLikeSourcesAbsentFromRemote(
         accountId, localFolder, messageRepository, remoteUids);
     downloadNewMessages(localFolder, access, messageRepository, messagesToDownload);
   }
 
   private static List<Message> updateLocalMessages(
+      int folderId,
+      long uidValidity,
       ImapFolderAccess access,
       EmailRepository messageRepository,
       Set<Long> remoteUids,
@@ -249,7 +268,7 @@ final class ImapFolderSyncEngine {
       long uid = access.getUid(message);
       remoteUids.add(uid);
       Optional<net.aggregat4.quicksand.domain.Email> existingMessage =
-          messageRepository.findByMessageUid(uid);
+          messageRepository.findByRemoteKey(folderId, uidValidity, uid);
       if (existingMessage.isPresent()) {
         updateFlagsIfNeeded(
             messageRepository,
@@ -292,10 +311,13 @@ final class ImapFolderSyncEngine {
   }
 
   private static void deleteExpungedMessages(
-      NamedFolder localFolder, EmailRepository emailRepository, Set<Long> remoteUids) {
+      NamedFolder localFolder,
+      EmailRepository emailRepository,
+      Set<Long> remoteUids,
+      Set<Long> protectedSourceUids) {
     Set<Long> localUids = new HashSet<>(emailRepository.getAllMessageIds(localFolder.id()));
     localUids.removeAll(remoteUids);
-    localUids.removeAll(emailRepository.getMoveLikeProtectedUidsInFolder(localFolder.id()));
+    localUids.removeAll(protectedSourceUids);
     emailRepository.removeAllByUid(localFolder.id(), localUids);
   }
 

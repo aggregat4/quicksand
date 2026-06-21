@@ -56,9 +56,17 @@ final class MailboxActionDbSupport {
     try (PreparedStatement stmt =
         con.prepareStatement(
             """
-                SELECT f.account_id, m.folder_id, f.remote_name, f.uidvalidity, m.imap_uid, m.read
+                SELECT f.account_id,
+                       m.remote_folder_id,
+                       rf.remote_name,
+                       m.remote_uidvalidity,
+                       m.remote_uid,
+                       m.read,
+                       m.message_id_header,
+                       m.subject
                 FROM messages m
                 JOIN folders f ON m.folder_id = f.id
+                LEFT JOIN folders rf ON m.remote_folder_id = rf.id
                 WHERE m.id = ?""")) {
       stmt.setInt(1, messageId);
       try (ResultSet rs = stmt.executeQuery()) {
@@ -72,8 +80,10 @@ final class MailboxActionDbSupport {
                 rs.getInt(2),
                 rs.getString(3),
                 getNullableLong(rs, 4),
-                rs.getLong(5),
-                rs.getInt(6) == 1));
+                getNullableLong(rs, 5),
+                rs.getInt(6) == 1,
+                rs.getString(7),
+                rs.getString(8)));
       }
     }
   }
@@ -312,14 +322,20 @@ final class MailboxActionDbSupport {
       FolderSpecialUse targetSpecialUse,
       String payloadJson)
       throws SQLException {
+    if (MailboxActionType.MOVE_LIKE.contains(actionType)
+        && rewriteUnattemptedMoveIntent(
+            con, source.messageId(), actionType, target, targetSpecialUse, payloadJson)) {
+      return;
+    }
     try (PreparedStatement stmt =
         con.prepareStatement(
             """
                 INSERT INTO mailbox_action_queue (
                   account_id, message_id, action_type,
                   source_folder_id, source_remote_name, source_uidvalidity, source_uid,
-                  target_folder_id, target_remote_name, target_special_use, payload_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
+                  target_folder_id, target_remote_name, target_special_use, payload_json,
+                  message_id_header, message_subject)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
       stmt.setInt(1, source.accountId());
       stmt.setInt(2, source.messageId());
       stmt.setString(3, actionType.name());
@@ -330,7 +346,11 @@ final class MailboxActionDbSupport {
       } else {
         stmt.setLong(6, source.sourceUidValidity());
       }
-      stmt.setLong(7, source.sourceUid());
+      if (source.sourceUid() == null) {
+        stmt.setNull(7, java.sql.Types.BIGINT);
+      } else {
+        stmt.setLong(7, source.sourceUid());
+      }
       if (target == null) {
         stmt.setNull(8, java.sql.Types.INTEGER);
         stmt.setNull(9, java.sql.Types.VARCHAR);
@@ -340,7 +360,45 @@ final class MailboxActionDbSupport {
       }
       stmt.setString(10, targetSpecialUse == null ? null : targetSpecialUse.name());
       stmt.setString(11, payloadJson);
+      stmt.setString(12, source.messageIdHeader());
+      stmt.setString(13, source.messageSubject());
       stmt.executeUpdate();
+    }
+  }
+
+  private static boolean rewriteUnattemptedMoveIntent(
+      Connection con,
+      int messageId,
+      MailboxActionType actionType,
+      TargetFolderContext target,
+      FolderSpecialUse targetSpecialUse,
+      String payloadJson)
+      throws SQLException {
+    if (target == null) {
+      return false;
+    }
+    try (PreparedStatement stmt =
+        con.prepareStatement(
+            """
+                UPDATE mailbox_action_queue
+                SET action_type = ?, target_folder_id = ?, target_remote_name = ?,
+                    target_special_use = ?, payload_json = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE message_id = ?
+                  AND action_type IN (%s)
+                  AND execution_state = ?
+                  AND status IN (%s)
+                  AND resolution_type IS NULL"""
+                .formatted(
+                    EnumSql.inClause(MailboxActionType.MOVE_LIKE),
+                    EnumSql.inClause(MailboxActionStatus.CLAIMABLE)))) {
+      stmt.setString(1, actionType.name());
+      stmt.setInt(2, target.folderId());
+      stmt.setString(3, target.remoteName());
+      stmt.setString(4, targetSpecialUse == null ? null : targetSpecialUse.name());
+      stmt.setString(5, payloadJson);
+      stmt.setInt(6, messageId);
+      stmt.setString(7, MailboxActionExecutionState.NOT_ATTEMPTED.name());
+      return stmt.executeUpdate() > 0;
     }
   }
 
@@ -350,111 +408,6 @@ final class MailboxActionDbSupport {
         con.prepareStatement("UPDATE messages SET folder_id = ? WHERE id = ?")) {
       stmt.setInt(1, targetFolderId);
       stmt.setInt(2, messageId);
-      stmt.executeUpdate();
-    }
-  }
-
-  enum MoveToFolderOutcome {
-    MOVED,
-    DEDUPLICATED_ALREADY_IN_TARGET
-  }
-
-  static MoveToFolderOutcome moveMessageToFolderResolvingDuplicates(
-      Connection con, int messageId, int targetFolderId) throws SQLException {
-    Optional<MessageActionContext> context = findMessageActionContext(con, messageId);
-    if (context.isEmpty()) {
-      return MoveToFolderOutcome.MOVED;
-    }
-    if (context.get().sourceFolderId() == targetFolderId) {
-      return MoveToFolderOutcome.MOVED;
-    }
-
-    Optional<Integer> existingInTarget =
-        findMessageIdByFolderAndUid(con, targetFolderId, context.get().sourceUid());
-    if (existingInTarget.isPresent() && existingInTarget.get() != messageId) {
-      int existingId = existingInTarget.get();
-      if (hasActiveMoveLikeQueueForTarget(con, existingId, targetFolderId)) {
-        deleteMessageById(con, messageId);
-        return MoveToFolderOutcome.DEDUPLICATED_ALREADY_IN_TARGET;
-      }
-      deleteMessageById(con, existingId);
-    }
-
-    moveMessageToFolder(con, messageId, targetFolderId);
-    return MoveToFolderOutcome.MOVED;
-  }
-
-  static Optional<Integer> findMessageIdByFolderAndUid(Connection con, int folderId, long imapUid)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            "SELECT id FROM messages WHERE folder_id = ? AND imap_uid = ? LIMIT 1")) {
-      stmt.setInt(1, folderId);
-      stmt.setLong(2, imapUid);
-      try (ResultSet rs = stmt.executeQuery()) {
-        if (!rs.next()) {
-          return Optional.empty();
-        }
-        return Optional.of(rs.getInt(1));
-      }
-    }
-  }
-
-  static boolean hasActiveMoveLikeQueueForTarget(Connection con, int messageId, int targetFolderId)
-      throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            """
-                SELECT 1
-                FROM mailbox_action_queue
-                WHERE message_id = ?
-                  AND target_folder_id = ?
-                  AND action_type IN (%s)
-                  AND (
-                    status IN (%s)
-                    OR (status = ? AND resolution_type IS NULL)
-                  )
-                LIMIT 1"""
-                .formatted(
-                    EnumSql.inClause(MailboxActionType.MOVE_LIKE),
-                    EnumSql.inClause(
-                        MailboxActionStatus.PENDING,
-                        MailboxActionStatus.APPLYING,
-                        MailboxActionStatus.FAILED_RETRYABLE)))) {
-      stmt.setInt(1, messageId);
-      stmt.setInt(2, targetFolderId);
-      stmt.setString(3, MailboxActionStatus.SUCCEEDED.name());
-      try (ResultSet rs = stmt.executeQuery()) {
-        return rs.next();
-      }
-    }
-  }
-
-  static void deleteMessageById(Connection con, int messageId) throws SQLException {
-    try (PreparedStatement stmt =
-        con.prepareStatement("DELETE FROM mailbox_action_queue WHERE message_id = ?")) {
-      stmt.setInt(1, messageId);
-      stmt.executeUpdate();
-    }
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            "UPDATE drafts SET source_message_id = NULL WHERE source_message_id = ?")) {
-      stmt.setInt(1, messageId);
-      stmt.executeUpdate();
-    }
-    try (PreparedStatement stmt =
-        con.prepareStatement(
-            "UPDATE outbound_messages SET source_message_id = NULL WHERE source_message_id = ?")) {
-      stmt.setInt(1, messageId);
-      stmt.executeUpdate();
-    }
-    try (PreparedStatement stmt =
-        con.prepareStatement("DELETE FROM message_search WHERE rowid = ?")) {
-      stmt.setInt(1, messageId);
-      stmt.executeUpdate();
-    }
-    try (PreparedStatement stmt = con.prepareStatement("DELETE FROM messages WHERE id = ?")) {
-      stmt.setInt(1, messageId);
       stmt.executeUpdate();
     }
   }
@@ -513,7 +466,7 @@ final class MailboxActionDbSupport {
                   q.id,
                   q.account_id,
                   q.message_id,
-                  COALESCE(m.subject, om.subject, d.subject, ''),
+                  COALESCE(m.subject, om.subject, d.subject, q.message_subject, ''),
                   q.action_type,
                   q.source_folder_id,
                   q.source_remote_name,
@@ -530,7 +483,8 @@ final class MailboxActionDbSupport {
                   q.last_error,
                   q.created_at,
                   q.updated_at,
-                  q.payload_json
+                  q.payload_json,
+                  q.message_id_header
                 FROM mailbox_action_queue q
                 LEFT JOIN messages m ON m.id = q.message_id
                 LEFT JOIN outbound_messages om
@@ -578,6 +532,17 @@ final class MailboxActionDbSupport {
 
   static List<MailboxActionQueueRow> findDueMailboxActions(
       Connection con, ZonedDateTime now, int limit) throws SQLException {
+    return findDueMailboxActions(con, null, now, limit);
+  }
+
+  static List<MailboxActionQueueRow> findDueMailboxActions(
+      Connection con, int accountId, ZonedDateTime now, int limit) throws SQLException {
+    return findDueMailboxActions(con, Integer.valueOf(accountId), now, limit);
+  }
+
+  private static List<MailboxActionQueueRow> findDueMailboxActions(
+      Connection con, Integer accountId, ZonedDateTime now, int limit) throws SQLException {
+    String accountPredicate = accountId == null ? "" : "AND q.account_id = ?";
     try (PreparedStatement stmt =
         con.prepareStatement(
             """
@@ -585,7 +550,7 @@ final class MailboxActionDbSupport {
                   q.id,
                   q.account_id,
                   q.message_id,
-                  COALESCE(m.subject, om.subject, d.subject, ''),
+                  COALESCE(m.subject, om.subject, d.subject, q.message_subject, ''),
                   q.action_type,
                   q.source_folder_id,
                   q.source_remote_name,
@@ -602,7 +567,8 @@ final class MailboxActionDbSupport {
                   q.last_error,
                   q.created_at,
                   q.updated_at,
-                  q.payload_json
+                  q.payload_json,
+                  q.message_id_header
                 FROM mailbox_action_queue q
                 LEFT JOIN messages m ON m.id = q.message_id
                 LEFT JOIN outbound_messages om
@@ -612,6 +578,7 @@ final class MailboxActionDbSupport {
                   ON q.action_type IN ('%s', '%s')
                  AND d.id = CAST(q.payload_json AS INTEGER)
                 WHERE q.status IN (%s)
+                  %s
                   AND q.action_type IN (%s)
                   AND (q.next_attempt_at_epoch_s IS NULL OR q.next_attempt_at_epoch_s <= ?)
                 ORDER BY q.created_at, q.id
@@ -621,9 +588,14 @@ final class MailboxActionDbSupport {
                     MailboxActionType.UPSERT_DRAFT.name(),
                     MailboxActionType.DELETE_DRAFT.name(),
                     EnumSql.inClause(MailboxActionStatus.CLAIMABLE),
+                    accountPredicate,
                     EnumSql.inClause(MailboxActionType.NON_READ_STATE_BACKGROUND_SYNCABLE)))) {
-      stmt.setLong(1, now.toEpochSecond());
-      stmt.setInt(2, limit);
+      int parameter = 1;
+      if (accountId != null) {
+        stmt.setInt(parameter++, accountId);
+      }
+      stmt.setLong(parameter++, now.toEpochSecond());
+      stmt.setInt(parameter, limit);
       try (ResultSet rs = stmt.executeQuery()) {
         List<MailboxActionQueueRow> rows = new ArrayList<>();
         while (rs.next()) {
@@ -636,7 +608,17 @@ final class MailboxActionDbSupport {
 
   static List<MailboxActionQueueRow> findDueReadStateActions(
       Connection con, ZonedDateTime now, int limit) throws SQLException {
-    Optional<ReadStateBatchKey> batchKey = findOldestDueReadStateBatchKey(con, now);
+    return findDueReadStateActions(con, null, now, limit);
+  }
+
+  static List<MailboxActionQueueRow> findDueReadStateActions(
+      Connection con, int accountId, ZonedDateTime now, int limit) throws SQLException {
+    return findDueReadStateActions(con, Integer.valueOf(accountId), now, limit);
+  }
+
+  private static List<MailboxActionQueueRow> findDueReadStateActions(
+      Connection con, Integer accountId, ZonedDateTime now, int limit) throws SQLException {
+    Optional<ReadStateBatchKey> batchKey = findOldestDueReadStateBatchKey(con, accountId, now);
     if (batchKey.isEmpty()) {
       return List.of();
     }
@@ -648,7 +630,7 @@ final class MailboxActionDbSupport {
                   q.id,
                   q.account_id,
                   q.message_id,
-                  COALESCE(m.subject, ''),
+                  COALESCE(m.subject, q.message_subject, ''),
                   q.action_type,
                   q.source_folder_id,
                   q.source_remote_name,
@@ -665,7 +647,8 @@ final class MailboxActionDbSupport {
                   q.last_error,
                   q.created_at,
                   q.updated_at,
-                  q.payload_json
+                  q.payload_json,
+                  q.message_id_header
                 FROM mailbox_action_queue q
                 LEFT JOIN messages m ON m.id = q.message_id
                 WHERE q.status IN (%s)
@@ -718,21 +701,28 @@ final class MailboxActionDbSupport {
   }
 
   private static Optional<ReadStateBatchKey> findOldestDueReadStateBatchKey(
-      Connection con, ZonedDateTime now) throws SQLException {
+      Connection con, Integer accountId, ZonedDateTime now) throws SQLException {
+    String accountPredicate = accountId == null ? "" : "AND account_id = ?";
     try (PreparedStatement stmt =
         con.prepareStatement(
             """
                 SELECT account_id, source_remote_name, source_uidvalidity, action_type
                 FROM mailbox_action_queue
                 WHERE status IN (%s)
+                  %s
                   AND action_type IN (%s)
                   AND (next_attempt_at_epoch_s IS NULL OR next_attempt_at_epoch_s <= ?)
                 ORDER BY created_at, id
                 LIMIT 1"""
                 .formatted(
                     EnumSql.inClause(MailboxActionStatus.CLAIMABLE),
+                    accountPredicate,
                     EnumSql.inClause(MailboxActionType.READ_STATE_SYNCABLE)))) {
-      stmt.setLong(1, now.toEpochSecond());
+      int parameter = 1;
+      if (accountId != null) {
+        stmt.setInt(parameter++, accountId);
+      }
+      stmt.setLong(parameter, now.toEpochSecond());
       try (ResultSet rs = stmt.executeQuery()) {
         if (!rs.next()) {
           return Optional.empty();
@@ -762,7 +752,7 @@ final class MailboxActionDbSupport {
                   q.id,
                   q.account_id,
                   q.message_id,
-                  COALESCE(m.subject, om.subject, d.subject, ''),
+                  COALESCE(m.subject, om.subject, d.subject, q.message_subject, ''),
                   q.action_type,
                   q.source_folder_id,
                   q.source_remote_name,
@@ -779,7 +769,8 @@ final class MailboxActionDbSupport {
                   q.last_error,
                   q.created_at,
                   q.updated_at,
-                  q.payload_json
+                  q.payload_json,
+                  q.message_id_header
                 FROM mailbox_action_queue q
                 LEFT JOIN messages m ON m.id = q.message_id
                 LEFT JOIN outbound_messages om
@@ -827,7 +818,8 @@ final class MailboxActionDbSupport {
         rs.getString(18),
         rs.getString(19),
         rs.getString(20),
-        rs.getString(21));
+        rs.getString(21),
+        rs.getString(22));
   }
 
   record MessageActionContext(
@@ -836,8 +828,10 @@ final class MailboxActionDbSupport {
       int sourceFolderId,
       String sourceRemoteName,
       Long sourceUidValidity,
-      long sourceUid,
-      boolean read) {}
+      Long sourceUid,
+      boolean read,
+      String messageIdHeader,
+      String messageSubject) {}
 
   record TargetFolderContext(int folderId, String remoteName, FolderSpecialUse specialUse) {}
 

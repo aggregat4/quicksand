@@ -198,6 +198,41 @@ class MailboxActionSyncTest {
   }
 
   @Test
+  void recoversMoveAppliedBeforeLocalConfirmation() throws Exception {
+    SyncFixture fixture =
+        configureMappedFolder(
+            syncInboxMessage("archive-crash-recovery-body"), "Archive", FolderSpecialUse.ARCHIVE);
+    fixture.emailRepository().archiveById(fixture.message().header().id());
+
+    Store store = GreenmailUtils.getImapStore(greenMail);
+    IMAPFolder source = (IMAPFolder) store.getFolder("INBOX");
+    source.open(Folder.READ_WRITE);
+    try {
+      Folder target = store.getFolder("Archive");
+      source.moveUIDMessages(new Message[] {source.getMessage(1)}, target);
+    } finally {
+      source.close(false);
+      store.close();
+    }
+    try (Connection con = fixture.dataSource().getConnection();
+        PreparedStatement stmt =
+            con.prepareStatement(
+                """
+                    UPDATE mailbox_action_queue
+                    SET status = 'FAILED_RETRYABLE', execution_state = 'ATTEMPTED_UNKNOWN'
+                    WHERE action_type = 'ARCHIVE'""")) {
+      stmt.executeUpdate();
+    }
+
+    runMailboxActionSync(fixture);
+
+    assertEquals(
+        MailboxActionStatus.SUCCEEDED.name(),
+        queuedActionStatus(fixture.dataSource(), MailboxActionType.ARCHIVE));
+    assertRemoteFolderCounts("INBOX", 0, "Archive", 1);
+  }
+
+  @Test
   void syncsQueuedDeleteActionToTrashOnImap() throws Exception {
     SyncFixture fixture =
         configureMappedFolder(

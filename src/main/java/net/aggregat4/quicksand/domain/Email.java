@@ -10,10 +10,11 @@ public record Email(
     String body,
     List<Attachment> attachments,
     List<InboundAttachment> inboundAttachments,
-    String bodyContentHash) {
+    String bodyContentHash,
+    String messageIdHeader) {
 
   public Email(EmailHeader header, boolean plainText, String body, List<Attachment> attachments) {
-    this(header, plainText, body, attachments, List.of(), null);
+    this(header, plainText, body, attachments, List.of(), null, null);
   }
 
   public Email(
@@ -22,7 +23,17 @@ public record Email(
       String body,
       List<Attachment> attachments,
       List<InboundAttachment> inboundAttachments) {
-    this(header, plainText, body, attachments, inboundAttachments, null);
+    this(header, plainText, body, attachments, inboundAttachments, null, null);
+  }
+
+  public Email(
+      EmailHeader header,
+      boolean plainText,
+      String body,
+      List<Attachment> attachments,
+      List<InboundAttachment> inboundAttachments,
+      String bodyContentHash) {
+    this(header, plainText, body, attachments, inboundAttachments, bodyContentHash, null);
   }
 
   public Email {
